@@ -3,15 +3,15 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// Configurations Firebase hardcodées pour éviter les problèmes de variables d'environnement
+// Utilisation des variables d'environnement pour la configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDiKehag7ucBVJ404NOweX4wvWw2a3TiLs",
-  authDomain: "facturation-saas.firebaseapp.com",
-  projectId: "facturation-saas",
-  storageBucket: "facturation-saas.firebasestorage.app",
-  messagingSenderId: "678867733244",
-  appId: "1:678867733244:web:cabf8b28d8a22147756579",
-  measurementId: "G-5EQPHVHPT8",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialisation de Firebase
