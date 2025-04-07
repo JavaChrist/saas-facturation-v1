@@ -40,6 +40,7 @@ export default function FacturesPage() {
     articles: [],
     totalHT: 0,
     totalTTC: 0,
+    userId: user?.uid || "",
   });
   const [selectedFacture, setSelectedFacture] = useState<Facture | null>(null);
 
@@ -105,6 +106,7 @@ export default function FacturesPage() {
       articles: facture.articles,
       totalHT: facture.totalHT,
       totalTTC: facture.totalTTC,
+      userId: facture.userId || user?.uid || "",
     });
     setIsModalOpen(true);
   };
@@ -127,6 +129,7 @@ export default function FacturesPage() {
       articles: [],
       totalHT: 0,
       totalTTC: 0,
+      userId: user?.uid || "",
     });
     setIsModalOpen(false);
   };
