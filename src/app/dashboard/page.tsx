@@ -8,6 +8,7 @@ import Image from "next/image";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Facture } from "@/types/facture";
+import RevenueChart from "@/components/dashboard/RevenueChart";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -178,6 +179,11 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Graphique de chiffre d'affaires */}
+        <div className="mb-8">
+          <RevenueChart />
         </div>
 
         {/* Navigation */}

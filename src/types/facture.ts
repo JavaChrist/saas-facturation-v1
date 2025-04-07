@@ -21,11 +21,12 @@ export interface Article {
 
 export interface Facture {
   id: string;
+  userId: string;
   numero: string;
   client: Client;
   statut: "En attente" | "Envoyée" | "Payée" | "À relancer";
   articles: Article[];
   totalHT: number;
   totalTTC: number;
-  dateCreation?: Date;
+  dateCreation?: Date | string;
 }
