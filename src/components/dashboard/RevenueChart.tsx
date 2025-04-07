@@ -33,6 +33,7 @@ interface RevenueData {
   labels: string[];
   thisYear: number[];
   lastYear: number[];
+  monthlyVariation: number[];
   total: {
     thisYear: number;
     lastYear: number;
@@ -47,6 +48,7 @@ const RevenueChart: React.FC = () => {
     labels: [],
     thisYear: [],
     lastYear: [],
+    monthlyVariation: [],
     total: {
       thisYear: 0,
       lastYear: 0,
@@ -117,19 +119,41 @@ const RevenueChart: React.FC = () => {
           if (facture.dateCreation && facture.totalTTC) {
             // Gérer différents formats de date potentiels
             let date;
-            if (typeof facture.dateCreation === "string") {
-              date = new Date(facture.dateCreation);
-            } else if (facture.dateCreation instanceof Date) {
-              date = facture.dateCreation;
-            } else if (
-              facture.dateCreation.toDate &&
-              typeof facture.dateCreation.toDate === "function"
-            ) {
-              // Gérer les Timestamps Firestore
-              date = facture.dateCreation.toDate();
-            } else {
-              console.warn(
-                `Format de date non reconnu pour la facture ${doc.id}:`,
+            try {
+              if (typeof facture.dateCreation === "string") {
+                date = new Date(facture.dateCreation);
+              } else if (facture.dateCreation instanceof Date) {
+                date = facture.dateCreation;
+              } else if (
+                facture.dateCreation.toDate &&
+                typeof facture.dateCreation.toDate === "function"
+              ) {
+                // Gérer les Timestamps Firestore
+                date = facture.dateCreation.toDate();
+              } else if (
+                facture.dateCreation.seconds &&
+                typeof facture.dateCreation.seconds === "number"
+              ) {
+                // Gérer les timestamps Firestore sous forme d'objet { seconds, nanoseconds }
+                date = new Date(facture.dateCreation.seconds * 1000);
+              } else {
+                console.warn(
+                  `Format de date non reconnu pour la facture ${doc.id}:`,
+                  facture.dateCreation
+                );
+                return; // Passer à la facture suivante
+              }
+            } catch (e) {
+              console.error(
+                `Erreur de conversion de date pour la facture ${doc.id}:`,
+                e
+              );
+              return; // Passer à la facture suivante
+            }
+
+            if (isNaN(date.getTime())) {
+              console.error(
+                `Date invalide pour la facture ${doc.id}:`,
                 facture.dateCreation
               );
               return; // Passer à la facture suivante
@@ -137,35 +161,85 @@ const RevenueChart: React.FC = () => {
 
             const factureYear = date.getFullYear();
             const factureMonth = date.getMonth();
-            const amount = parseFloat(facture.totalTTC);
+
+            // S'assurer que totalTTC est un nombre
+            let amount = 0;
+            try {
+              amount = parseFloat(facture.totalTTC);
+              if (isNaN(amount)) {
+                console.warn(
+                  `Montant TTC invalide pour la facture ${doc.id}:`,
+                  facture.totalTTC
+                );
+                return; // Passer à la facture suivante
+              }
+            } catch (e) {
+              console.error(
+                `Erreur de conversion du montant pour la facture ${doc.id}:`,
+                e
+              );
+              return; // Passer à la facture suivante
+            }
 
             console.log(
               `Facture ${
                 doc.id
-              }: Date=${date.toISOString()}, Année=${factureYear}, Mois=${factureMonth}, Montant=${amount}€`
+              }: Date=${date.toLocaleDateString()}, Année=${factureYear}, Mois=${factureMonth} (${
+                months[factureMonth]
+              }), Montant=${amount.toFixed(2)}€`
             );
 
             if (factureYear === currentYear) {
               thisYearData[factureMonth] += amount;
               console.log(
-                `Ajouté à l'année en cours (${months[factureMonth]} ${currentYear}): +${amount}€`
+                `Ajouté à l'année en cours (${
+                  months[factureMonth]
+                } ${currentYear}): +${amount.toFixed(
+                  2
+                )}€, Nouveau total: ${thisYearData[factureMonth].toFixed(2)}€`
               );
             } else if (factureYear === lastYear) {
               lastYearData[factureMonth] += amount;
               console.log(
-                `Ajouté à l'année précédente (${months[factureMonth]} ${lastYear}): +${amount}€`
+                `Ajouté à l'année précédente (${
+                  months[factureMonth]
+                } ${lastYear}): +${amount.toFixed(
+                  2
+                )}€, Nouveau total: ${lastYearData[factureMonth].toFixed(2)}€`
               );
             }
           } else {
             console.warn(
-              `Facture ${doc.id} ignorée: dateCreation=${facture.dateCreation}, totalTTC=${facture.totalTTC}`
+              `Facture ${doc.id} ignorée: dateCreation=${
+                facture.dateCreation ? "présent" : "absent"
+              }, totalTTC=${facture.totalTTC ? facture.totalTTC : "absent"}`
             );
           }
         });
 
         // Afficher les totaux par mois pour le débogage
-        console.log("Données par mois - Année en cours:", thisYearData);
-        console.log("Données par mois - Année précédente:", lastYearData);
+        console.log(
+          "Données par mois - Année en cours:",
+          thisYearData.map((v) => v.toFixed(2))
+        );
+        console.log(
+          "Données par mois - Année précédente:",
+          lastYearData.map((v) => v.toFixed(2))
+        );
+
+        // Calculer les variations mensuelles
+        const monthlyVariation = thisYearData.map((thisYearValue, index) => {
+          const lastYearValue = lastYearData[index];
+          if (lastYearValue > 0) {
+            return ((thisYearValue - lastYearValue) / lastYearValue) * 100;
+          }
+          return thisYearValue > 0 ? 100 : 0; // Si pas de valeur l'année dernière, 100% de progression ou 0
+        });
+
+        console.log(
+          "Variations mensuelles (%):",
+          monthlyVariation.map((v) => v.toFixed(2))
+        );
 
         // Calculer les totaux
         const totalThisYear = thisYearData.reduce((sum, val) => sum + val, 0);
@@ -175,18 +249,23 @@ const RevenueChart: React.FC = () => {
         let variation = 0;
         if (totalLastYear > 0) {
           variation = ((totalThisYear - totalLastYear) / totalLastYear) * 100;
+        } else if (totalThisYear > 0) {
+          variation = 100; // Si pas de chiffre l'année dernière, 100% de progression
         }
 
         console.log(
-          `Total année en cours: ${totalThisYear}€, Total année précédente: ${totalLastYear}€, Variation: ${variation.toFixed(
+          `Total année en cours: ${totalThisYear.toFixed(
             2
-          )}%`
+          )}€, Total année précédente: ${totalLastYear.toFixed(
+            2
+          )}€, Variation: ${variation.toFixed(2)}%`
         );
 
         setRevenueData({
           labels: months,
           thisYear: thisYearData,
           lastYear: lastYearData,
+          monthlyVariation: monthlyVariation,
           total: {
             thisYear: totalThisYear,
             lastYear: totalLastYear,
@@ -226,6 +305,21 @@ const RevenueChart: React.FC = () => {
     ],
   };
 
+  // Ajouter un jeu de données pour la variation mensuelle
+  const variationChartData = {
+    labels: revenueData.labels,
+    datasets: [
+      {
+        label: `Évolution mensuelle (%)`,
+        data: revenueData.monthlyVariation,
+        borderColor: "rgb(75, 192, 192)",
+        backgroundColor: "rgba(75, 192, 192, 0.5)",
+        tension: 0.3,
+        yAxisID: "y1",
+      },
+    ],
+  };
+
   const options: ChartOptions<"line"> = {
     responsive: true,
     maintainAspectRatio: false,
@@ -254,6 +348,43 @@ const RevenueChart: React.FC = () => {
         ticks: {
           callback: function (value) {
             return value + " €";
+          },
+        },
+      },
+    },
+  };
+
+  const variationOptions: ChartOptions<"line"> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: "top" as const,
+      },
+      title: {
+        display: true,
+        text: "Évolution mensuelle (%)",
+        font: {
+          size: 16,
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: function (context) {
+            const value = Number(context.raw);
+            return `${context.dataset.label}: ${
+              value > 0 ? "+" : ""
+            }${value.toFixed(2)}%`;
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: false,
+        ticks: {
+          callback: function (value) {
+            return value + " %";
           },
         },
       },
@@ -304,8 +435,58 @@ const RevenueChart: React.FC = () => {
             </div>
           </div>
 
-          <div className="h-80">
+          <div className="h-80 mb-8">
             <Line data={chartData} options={options} />
+          </div>
+
+          <div className="h-80">
+            <Line data={variationChartData} options={variationOptions} />
+          </div>
+
+          {/* Tableau des évolutions mensuelles */}
+          <div className="mt-8 overflow-x-auto">
+            <table className="min-w-full bg-white rounded-lg overflow-hidden shadow-md">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="px-4 py-2 border-b">Mois</th>
+                  <th className="px-4 py-2 border-b text-right">
+                    Cette année (€)
+                  </th>
+                  <th className="px-4 py-2 border-b text-right">
+                    Année préc. (€)
+                  </th>
+                  <th className="px-4 py-2 border-b text-right">
+                    Évolution (%)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {revenueData.labels.map((month, index) => (
+                  <tr
+                    key={index}
+                    className={index % 2 === 0 ? "bg-gray-50" : ""}
+                  >
+                    <td className="px-4 py-2 border-b">{month}</td>
+                    <td className="px-4 py-2 border-b text-right">
+                      {revenueData.thisYear[index].toFixed(2)} €
+                    </td>
+                    <td className="px-4 py-2 border-b text-right">
+                      {revenueData.lastYear[index].toFixed(2)} €
+                    </td>
+                    <td
+                      className={`px-4 py-2 border-b text-right ${
+                        revenueData.monthlyVariation[index] >= 0
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {revenueData.monthlyVariation[index] > 0 ? "+" : ""}
+                      {revenueData.monthlyVariation[index].toFixed(2)} %
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {/* Section de débogage - Activer seulement pour le développement */}
