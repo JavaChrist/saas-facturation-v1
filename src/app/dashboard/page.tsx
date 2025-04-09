@@ -130,8 +130,9 @@ export default function Dashboard() {
       <main className="flex-1 p-6">
         {/* Topbar */}
         <div className="flex justify-between items-center bg-white p-4 shadow-md rounded-md mb-8">
-          <h1 className="text-2xl font-semibold">
-            Bienvenue, {user.email || "Utilisateur"} 👋
+          <h1 className="text-2xl font-semibold flex items-center">
+            Bienvenue, {user.email || "Utilisateur"}
+            <img src="/favicon.ico" alt="Logo" className="ml-2 h-6 w-6" />
           </h1>
         </div>
 

@@ -9,6 +9,7 @@ import {
   signOut,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 
 interface AuthContextType {
@@ -17,6 +18,7 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -118,6 +120,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const resetPassword = async (email: string) => {
+    console.log(
+      "AuthProvider: Tentative de réinitialisation de mot de passe pour",
+      email
+    );
+    try {
+      await sendPasswordResetEmail(auth, email);
+      console.log("AuthProvider: Email de réinitialisation envoyé avec succès");
+    } catch (error: any) {
+      console.error(
+        "AuthProvider: Erreur de réinitialisation de mot de passe",
+        error
+      );
+      console.error("AuthProvider: Code d'erreur", error.code);
+      console.error("AuthProvider: Message d'erreur", error.message);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     console.log("AuthProvider: Tentative de déconnexion");
     try {
@@ -137,6 +158,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loginWithGoogle,
     loginWithEmail,
     registerWithEmail,
+    resetPassword,
     logout,
   };
 
