@@ -3,9 +3,7 @@ import { getAuth } from "firebase/auth";
 import {
   getFirestore,
   connectFirestoreEmulator,
-  initializeFirestore,
-  persistentLocalCache,
-  persistentSingleTabManager,
+  enableIndexedDbPersistence,
   CACHE_SIZE_UNLIMITED,
 } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
@@ -24,16 +22,8 @@ const firebaseConfig = {
 // Initialisation de Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialisation de Firestore avec la persistence cache moderne
-export const db =
-  typeof window !== "undefined"
-    ? initializeFirestore(app, {
-        cache: persistentLocalCache({
-          tabManager: persistentSingleTabManager(),
-          cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-        }),
-      })
-    : getFirestore(app);
+// Initialisation de Firestore avec l'approche standard
+export const db = getFirestore(app);
 
 // Exportation des services Firebase
 export const auth = getAuth(app);
@@ -46,5 +36,31 @@ if (typeof window !== "undefined") {
     "⚠️ ATTENTION: Configuration spéciale de Firestore activée pour le développement"
   );
 
-  console.log("✅ Cache persistant Firestore activé avec la nouvelle API");
+  // Activer la persistance pour améliorer les performances
+  // Note: Cette fonctionnalité sera dépréciée dans le futur, mais elle est toujours
+  // la méthode la plus simple et compatible pour activer le cache
+  (async () => {
+    try {
+      await enableIndexedDbPersistence(db)
+        .then(() => console.log("✅ Persistance Firestore activée"))
+        .catch((err) => {
+          if (err.code === "failed-precondition") {
+            console.warn(
+              "⚠️ La persistance ne peut pas être activée car plusieurs onglets sont ouverts"
+            );
+          } else if (err.code === "unimplemented") {
+            console.warn(
+              "⚠️ Le navigateur ne prend pas en charge la persistance"
+            );
+          } else {
+            console.error(
+              "Erreur lors de l'activation de la persistance:",
+              err
+            );
+          }
+        });
+    } catch (error) {
+      console.error("Erreur lors de la configuration de Firestore:", error);
+    }
+  })();
 }
