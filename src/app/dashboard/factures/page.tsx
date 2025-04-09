@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { Facture, Client, Article } from "@/types/facture";
 import { generateInvoicePDF } from "@/services/pdfGenerator";
 import { useAuth } from "@/lib/authContext";
+import { FirestoreTimestamp } from "@/types/facture";
 
 export default function FacturesPage() {
   const router = useRouter();
@@ -125,6 +126,22 @@ export default function FacturesPage() {
 
   const openEditModal = (facture: Facture) => {
     setSelectedFacture(facture);
+
+    // Gestion de la date de création en prenant en compte les différents types possibles
+    let dateCreation: Date;
+    if (facture.dateCreation instanceof Date) {
+      dateCreation = facture.dateCreation;
+    } else if (typeof facture.dateCreation === "string") {
+      dateCreation = new Date(facture.dateCreation);
+    } else if (
+      facture.dateCreation &&
+      typeof (facture.dateCreation as FirestoreTimestamp).toDate === "function"
+    ) {
+      dateCreation = (facture.dateCreation as FirestoreTimestamp).toDate();
+    } else {
+      dateCreation = new Date();
+    }
+
     setNewFacture({
       numero: facture.numero,
       client: facture.client,
@@ -133,9 +150,7 @@ export default function FacturesPage() {
       totalHT: facture.totalHT,
       totalTTC: facture.totalTTC,
       userId: facture.userId || user?.uid || "",
-      dateCreation: facture.dateCreation
-        ? new Date(facture.dateCreation)
-        : new Date(),
+      dateCreation: dateCreation,
     });
     setIsModalOpen(true);
   };
@@ -370,13 +385,32 @@ export default function FacturesPage() {
                   <td className="py-3 px-4">{facture.numero}</td>
                   <td className="py-3 px-4">{facture.client.nom}</td>
                   <td className="py-3 px-4">
-                    {facture.dateCreation instanceof Date
-                      ? facture.dateCreation.toLocaleDateString("fr-FR")
-                      : facture.dateCreation
-                      ? new Date(facture.dateCreation).toLocaleDateString(
-                          "fr-FR"
-                        )
-                      : "-"}
+                    {(() => {
+                      let formattedDate = "-";
+                      if (facture.dateCreation instanceof Date) {
+                        formattedDate =
+                          facture.dateCreation.toLocaleDateString("fr-FR");
+                      } else if (typeof facture.dateCreation === "string") {
+                        try {
+                          formattedDate = new Date(
+                            facture.dateCreation
+                          ).toLocaleDateString("fr-FR");
+                        } catch (e) {}
+                      } else if (
+                        facture.dateCreation &&
+                        typeof (facture.dateCreation as FirestoreTimestamp)
+                          .toDate === "function"
+                      ) {
+                        try {
+                          formattedDate = (
+                            facture.dateCreation as FirestoreTimestamp
+                          )
+                            .toDate()
+                            .toLocaleDateString("fr-FR");
+                        } catch (e) {}
+                      }
+                      return formattedDate;
+                    })()}
                   </td>
                   <td className="py-3 px-4">{facture.totalTTC.toFixed(2)} €</td>
                   <td className="py-3 px-4">
@@ -480,13 +514,35 @@ export default function FacturesPage() {
                   <input
                     type="date"
                     id="date-facture"
-                    value={
-                      newFacture.dateCreation
-                        ? new Date(newFacture.dateCreation)
+                    value={(() => {
+                      if (newFacture.dateCreation instanceof Date) {
+                        return newFacture.dateCreation
+                          .toISOString()
+                          .split("T")[0];
+                      } else if (typeof newFacture.dateCreation === "string") {
+                        try {
+                          return new Date(newFacture.dateCreation)
                             .toISOString()
-                            .split("T")[0]
-                        : ""
-                    }
+                            .split("T")[0];
+                        } catch (e) {
+                          return "";
+                        }
+                      } else if (
+                        newFacture.dateCreation &&
+                        typeof (newFacture.dateCreation as FirestoreTimestamp)
+                          .toDate === "function"
+                      ) {
+                        try {
+                          return (newFacture.dateCreation as FirestoreTimestamp)
+                            .toDate()
+                            .toISOString()
+                            .split("T")[0];
+                        } catch (e) {
+                          return "";
+                        }
+                      }
+                      return "";
+                    })()}
                     onChange={(e) => {
                       const date = e.target.value
                         ? new Date(e.target.value)
