@@ -102,7 +102,15 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
               facturesEnAttente++;
             }
 
-            totalMontant += parseFloat(facture.totalTTC) || 0;
+            // S'assurer que totalTTC est correctement converti en nombre
+            const montant =
+              typeof facture.totalTTC === "number"
+                ? facture.totalTTC
+                : typeof facture.totalTTC === "string"
+                ? parseFloat(facture.totalTTC) || 0
+                : 0;
+
+            totalMontant += montant;
           }
         });
 

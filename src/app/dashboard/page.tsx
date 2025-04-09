@@ -8,6 +8,8 @@ import Image from "next/image";
 import RevenueChart from "@/components/dashboard/RevenueChart";
 import DashboardStats from "@/components/dashboard/DashboardStats";
 import DateFilter, { DateRange } from "@/components/dashboard/DateFilter";
+import ClientsChart from "@/components/dashboard/ClientsChart";
+import InvoiceStatusChart from "@/components/dashboard/InvoiceStatusChart";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -85,12 +87,18 @@ export default function Dashboard() {
       </aside>
 
       {/* Contenu principal */}
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-6 overflow-auto">
         {/* Topbar */}
         <div className="flex justify-between items-center bg-white p-4 shadow-md rounded-md mb-8">
           <h1 className="text-2xl font-semibold flex items-center">
             Bienvenue, {user.email || "Utilisateur"}
-            <img src="/favicon.ico" alt="Logo" className="ml-2 h-6 w-6" />
+            <Image
+              src="/favicon.ico"
+              alt="Logo"
+              width={24}
+              height={24}
+              className="ml-2"
+            />
           </h1>
           <DateFilter onDateChange={handleDateChange} className="w-56" />
         </div>
@@ -100,9 +108,19 @@ export default function Dashboard() {
           <DashboardStats user={user} dateRange={dateRange} />
         </div>
 
+        {/* Graphiques de statut des factures */}
+        <div className="mb-8">
+          <InvoiceStatusChart dateRange={dateRange} />
+        </div>
+
         {/* Graphique de chiffre d'affaires */}
         <div className="mb-8">
           <RevenueChart dateRange={dateRange} />
+        </div>
+
+        {/* Graphique d'évolution des clients */}
+        <div className="mb-8">
+          <ClientsChart dateRange={dateRange} />
         </div>
 
         {/* Navigation */}

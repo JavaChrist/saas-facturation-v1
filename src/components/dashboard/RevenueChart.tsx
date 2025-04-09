@@ -186,7 +186,14 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
             // S'assurer que totalTTC est un nombre
             let amount = 0;
             try {
-              amount = parseFloat(facture.totalTTC);
+              // Vérifier le type de totalTTC et le convertir correctement
+              amount =
+                typeof facture.totalTTC === "number"
+                  ? facture.totalTTC
+                  : typeof facture.totalTTC === "string"
+                  ? parseFloat(facture.totalTTC) || 0
+                  : 0;
+
               if (isNaN(amount)) {
                 console.warn(
                   `Montant TTC invalide pour la facture ${doc.id}:`,
