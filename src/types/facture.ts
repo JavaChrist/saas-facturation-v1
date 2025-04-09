@@ -19,6 +19,13 @@ export interface Article {
   isComment?: boolean;
 }
 
+// Interface pour représenter le timestamp Firestore
+export interface FirestoreTimestamp {
+  toDate: () => Date;
+  seconds: number;
+  nanoseconds: number;
+}
+
 export interface Facture {
   id: string;
   userId: string;
@@ -28,5 +35,5 @@ export interface Facture {
   articles: Article[];
   totalHT: number;
   totalTTC: number;
-  dateCreation?: Date | string;
+  dateCreation?: Date | string | FirestoreTimestamp;
 }

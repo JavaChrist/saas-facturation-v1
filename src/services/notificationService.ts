@@ -1,5 +1,5 @@
 import { Notification } from "@/types/notification";
-import { Facture } from "@/types/facture";
+import { Facture, FirestoreTimestamp } from "@/types/facture";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -13,13 +13,6 @@ import {
   writeBatch,
   limit,
 } from "firebase/firestore";
-
-// Interface pour représenter le format Timestamp de Firestore
-interface FirestoreTimestamp {
-  toDate: () => Date;
-  seconds: number;
-  nanoseconds: number;
-}
 
 // Fonction pour vérifier les factures en retard de manière directe (sans API)
 export const verifierFacturesEnRetardDirectement = async (
@@ -52,11 +45,10 @@ export const verifierFacturesEnRetardDirectement = async (
         dateCreation = new Date(facture.dateCreation);
       } else if (
         facture.dateCreation &&
-        // @ts-ignore
-        typeof facture.dateCreation.toDate === "function"
+        typeof (facture.dateCreation as FirestoreTimestamp).toDate ===
+          "function"
       ) {
-        // @ts-ignore
-        dateCreation = facture.dateCreation.toDate();
+        dateCreation = (facture.dateCreation as FirestoreTimestamp).toDate();
       } else {
         console.error("Format de date non reconnu pour la facture", facture.id);
         continue;

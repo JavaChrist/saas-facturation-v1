@@ -5,7 +5,7 @@ import {
 } from "@/services/notificationService";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { Facture } from "@/types/facture";
+import { Facture, FirestoreTimestamp } from "@/types/facture";
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,9 +39,10 @@ export async function GET(request: NextRequest) {
         dateCreation = new Date(facture.dateCreation);
       } else if (
         facture.dateCreation &&
-        typeof facture.dateCreation.toDate === "function"
+        typeof (facture.dateCreation as FirestoreTimestamp).toDate ===
+          "function"
       ) {
-        dateCreation = facture.dateCreation.toDate();
+        dateCreation = (facture.dateCreation as FirestoreTimestamp).toDate();
       } else {
         dateCreation = new Date(); // Fallback
       }
