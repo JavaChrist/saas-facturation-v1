@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
+import React from "react";
 
 export default function LoginPage() {
   const {
@@ -17,25 +18,43 @@ export default function LoginPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
   const [showResetForm, setShowResetForm] = useState(false);
 
-  // États pour les champs de formulaire de connexion
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  // État unique pour forcer le remontage des formulaires
+  const [formKey, setFormKey] = useState(Date.now());
 
-  // États pour les champs de formulaire d'inscription
-  const [registerEmail, setRegisterEmail] = useState("");
-  const [registerPassword, setRegisterPassword] = useState("");
+  // États pour contrôler l'affichage du mot de passe
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
+  // Lors de la connexion, utiliser des références aux formulaires plutôt que des états
+  const loginFormRef = React.useRef<HTMLFormElement>(null);
+  const registerFormRef = React.useRef<HTMLFormElement>(null);
+  const resetFormRef = React.useRef<HTMLFormElement>(null);
+
+  // Fonction pour réinitialiser tous les formulaires
+  const resetAllForms = () => {
+    setTimeout(() => {
+      // Réinitialiser les formulaires via les références
+      if (loginFormRef.current) loginFormRef.current.reset();
+      if (registerFormRef.current) registerFormRef.current.reset();
+      if (resetFormRef.current) resetFormRef.current.reset();
+
+      // Mettre à jour la clé pour forcer le remontage
+      setFormKey(Date.now());
+
+      console.log("Formulaires réinitialisés");
+    }, 0);
+  };
+
+  // Fonction de connexion Google simplifiée
   const handleGoogleLogin = async () => {
     try {
       setIsLoading(true);
       setError(null);
       setSuccess(null);
       await loginWithGoogle();
+      setSuccess("Connexion Google réussie ! Redirection...");
     } catch (err: any) {
       console.error("Erreur de connexion Google:", err);
       if (err.code === "auth/popup-closed-by-user") {
@@ -50,19 +69,30 @@ export default function LoginPage() {
     }
   };
 
+  // Gestion de la connexion par email en utilisant les valeurs du formulaire directement
   const handleEmailLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isLoading) return;
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    if (!email || !password) return;
+
     try {
       setIsLoading(true);
       setError(null);
       setSuccess(null);
-      await loginWithEmail(loginEmail, loginPassword);
-      // Réinitialiser les champs après une connexion réussie
-      setLoginEmail("");
-      setLoginPassword("");
-      setSuccess("Connexion réussie ! Redirection...");
+
+      await loginWithEmail(email, password);
+
+      form.reset();
+      setSuccess(`Connexion réussie ! Redirection...`);
     } catch (err: any) {
       console.error("Erreur de connexion email:", err);
+
       if (err.code === "auth/invalid-credential") {
         setError(
           "Email ou mot de passe incorrect. Veuillez vérifier vos identifiants."
@@ -80,29 +110,37 @@ export default function LoginPage() {
       } else {
         setError("Erreur de connexion. Veuillez réessayer.");
       }
-      // Réinitialiser les champs après une erreur
-      setLoginEmail("");
-      setLoginPassword("");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Gestion de l'inscription avec la même approche
   const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isLoading) return;
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    if (!email || !password) return;
+
     try {
       setIsLoading(true);
       setError(null);
       setSuccess(null);
-      await registerWithEmail(registerEmail, registerPassword);
-      // Réinitialiser les champs après une inscription réussie
-      setRegisterEmail("");
-      setRegisterPassword("");
+
+      await registerWithEmail(email, password);
+
+      form.reset();
       setSuccess(
-        "Compte créé avec succès ! Vous pouvez maintenant vous connecter."
+        `Compte créé avec succès ! Vous pouvez maintenant vous connecter.`
       );
     } catch (err: any) {
       console.error("Erreur d'inscription:", err);
+
       if (err.code === "auth/email-already-in-use") {
         setError(
           "Cette adresse email est déjà utilisée. Veuillez vous connecter ou utiliser une autre adresse."
@@ -122,27 +160,39 @@ export default function LoginPage() {
       } else {
         setError("Erreur lors de l'inscription. Veuillez réessayer.");
       }
-      // Réinitialiser les champs après une erreur
-      setRegisterEmail("");
-      setRegisterPassword("");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Gestion du formulaire de réinitialisation de mot de passe
   const handlePasswordReset = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isLoading) return;
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const email = formData.get("email") as string;
+
+    if (!email) return;
+
     try {
       setIsLoading(true);
       setError(null);
       setSuccess(null);
-      await resetPassword(resetEmail);
+
+      await resetPassword(email);
+
+      form.reset();
+      setSuccess(`Un email de réinitialisation a été envoyé à ${email}.`);
       setResetEmailSent(true);
-      setSuccess(
-        "Un email de réinitialisation a été envoyé à votre adresse email."
-      );
+
+      setTimeout(() => {
+        setShowResetForm(false);
+      }, 3000);
     } catch (err: any) {
       console.error("Erreur de réinitialisation:", err);
+
       if (err.code === "auth/user-not-found") {
         setError("Aucun compte n'existe avec cet email.");
       } else if (err.code === "auth/invalid-email") {
@@ -159,10 +209,66 @@ export default function LoginPage() {
     }
   };
 
-  // Si l'utilisateur est déjà connecté, rediriger vers le tableau de bord
+  // Effet pour rediriger l'utilisateur connecté
+  useEffect(() => {
+    if (user) {
+      const redirectTimer = setTimeout(() => {
+        router.replace("/dashboard");
+      }, 2000);
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [user, router]);
+
+  // Effet pour détecter une déconnexion récente
+  useEffect(() => {
+    const justLoggedOut = sessionStorage.getItem("just_logged_out");
+    if (justLoggedOut) {
+      console.log("Détection de déconnexion récente - purge forcée");
+      sessionStorage.removeItem("just_logged_out");
+      resetAllForms();
+      setError(null);
+      setSuccess(null);
+    }
+  }, []);
+
+  // Créer un marqueur lors de la déconnexion
+  useEffect(() => {
+    return () => {
+      if (!user) {
+        console.log("Marquage de déconnexion récente");
+        sessionStorage.setItem("just_logged_out", "true");
+      }
+    };
+  }, [user]);
+
+  // Effet pour purger les formulaires au montage
+  useEffect(() => {
+    resetAllForms();
+    console.log("Réinitialisation des formulaires au montage");
+  }, []);
+
+  // Affichage de la redirection si l'utilisateur est connecté
   if (user) {
-    router.replace("/dashboard");
-    return null;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-100">
+        <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
+          <h1 className="mb-6 text-center text-3xl font-bold text-blue-500">
+            Connexion
+          </h1>
+          {success && (
+            <div className="mb-4 rounded-md bg-green-100 p-3 text-green-700">
+              {success}
+            </div>
+          )}
+          <div className="mt-4 text-center text-gray-600">
+            Connexion réussie, redirection en cours...
+          </div>
+          <div className="mt-4 flex justify-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -192,21 +298,28 @@ export default function LoginPage() {
 
         {showResetForm ? (
           <div>
-            <form onSubmit={handlePasswordReset} className="mb-6">
+            <form
+              key={`reset-${formKey}`}
+              ref={resetFormRef}
+              id="reset-form"
+              onSubmit={handlePasswordReset}
+              className="mb-6"
+              autoComplete="new-password"
+            >
               <div className="mb-4">
                 <label
-                  htmlFor="reset-email"
+                  htmlFor="email"
                   className="mb-2 block text-sm font-medium text-gray-700"
                 >
                   Email
                 </label>
                 <input
                   type="email"
-                  id="reset-email"
-                  value={resetEmail}
-                  onChange={(e) => setResetEmail(e.target.value)}
+                  id="email"
+                  name="email"
                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
                   required
+                  autoComplete="email"
                 />
               </div>
               <button
@@ -266,7 +379,24 @@ export default function LoginPage() {
               <div className="flex-grow border-t border-gray-300"></div>
             </div>
 
-            <form onSubmit={handleEmailLogin} className="mb-6">
+            <form
+              key={`login-${formKey}`}
+              ref={loginFormRef}
+              id="login-form"
+              onSubmit={handleEmailLogin}
+              className="mb-6"
+              autoComplete="new-password"
+            >
+              {/* Champs cachés pour tromper le remplissage automatique */}
+              <div style={{ display: "none" }}>
+                <input type="text" name="username" autoComplete="username" />
+                <input
+                  type="password"
+                  name="current-password"
+                  autoComplete="current-password"
+                />
+              </div>
+
               <div className="mb-4">
                 <label
                   htmlFor="email"
@@ -277,10 +407,10 @@ export default function LoginPage() {
                 <input
                   type="email"
                   id="email"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
+                  name="email"
                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
                   required
+                  autoComplete="email"
                 />
               </div>
               <div className="mb-4">
@@ -294,15 +424,18 @@ export default function LoginPage() {
                   <input
                     type={showLoginPassword ? "text" : "password"}
                     id="password"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
+                    name="password"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
                     required
+                    autoComplete="off"
                   />
                   <button
                     type="button"
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowLoginPassword(!showLoginPassword);
+                    }}
                   >
                     {showLoginPassword ? (
                       <svg
@@ -316,7 +449,7 @@ export default function LoginPage() {
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
-                          d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"
+                          d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.007 9.963 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"
                         />
                       </svg>
                     ) : (
@@ -367,7 +500,23 @@ export default function LoginPage() {
               <div className="flex-grow border-t border-gray-300"></div>
             </div>
 
-            <form onSubmit={handleRegister}>
+            <form
+              key={`register-${formKey}`}
+              ref={registerFormRef}
+              id="register-form"
+              onSubmit={handleRegister}
+              autoComplete="new-password"
+            >
+              {/* Champs cachés pour tromper le remplissage automatique */}
+              <div style={{ display: "none" }}>
+                <input type="text" name="username" autoComplete="username" />
+                <input
+                  type="password"
+                  name="current-password"
+                  autoComplete="current-password"
+                />
+              </div>
+
               <h2 className="mb-4 text-center text-xl font-semibold text-gray-700">
                 Créer un compte
               </h2>
@@ -381,10 +530,10 @@ export default function LoginPage() {
                 <input
                   type="email"
                   id="register-email"
-                  value={registerEmail}
-                  onChange={(e) => setRegisterEmail(e.target.value)}
+                  name="email"
                   className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
                   required
+                  autoComplete="email"
                 />
               </div>
               <div className="mb-4">
@@ -398,17 +547,18 @@ export default function LoginPage() {
                   <input
                     type={showRegisterPassword ? "text" : "password"}
                     id="register-password"
-                    value={registerPassword}
-                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    name="password"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
                     required
+                    autoComplete="off"
                   />
                   <button
                     type="button"
                     className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    onClick={() =>
-                      setShowRegisterPassword(!showRegisterPassword)
-                    }
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setShowRegisterPassword(!showRegisterPassword);
+                    }}
                   >
                     {showRegisterPassword ? (
                       <svg

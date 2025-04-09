@@ -31,6 +31,22 @@ export default function Dashboard() {
     setDateRange(newDateRange);
   };
 
+  // Fonction de déconnexion améliorée
+  const handleLogout = async () => {
+    try {
+      // Marquer qu'une déconnexion vient de se produire
+      sessionStorage.setItem("just_logged_out", "true");
+
+      // Exécuter la déconnexion
+      await logout();
+
+      // Rediriger vers la page de connexion
+      router.push("/login");
+    } catch (error) {
+      console.error("Erreur lors de la déconnexion:", error);
+    }
+  };
+
   if (!user) {
     return <p className="text-center text-gray-600 mt-10">Redirection...</p>;
   }
@@ -79,7 +95,7 @@ export default function Dashboard() {
           </Link>
         </nav>
         <button
-          onClick={logout}
+          onClick={handleLogout}
           className="mt-6 w-full bg-red-500 py-2 rounded-md hover:bg-red-600 transition"
         >
           Déconnexion

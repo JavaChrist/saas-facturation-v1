@@ -69,7 +69,7 @@ export default function ParametresPage() {
     };
 
     checkAuthAndFetchData();
-  }, [user, router, entreprise]);
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,110 +195,23 @@ export default function ParametresPage() {
                           try {
                             setIsSaving(true);
 
-                            // Créer une image et attendre son chargement
-                            const loadImage = (
-                              file: File
-                            ): Promise<HTMLImageElement> => {
-                              return new Promise((resolve, reject) => {
-                                const img = document.createElement("img");
-                                img.onload = () => resolve(img);
-                                img.onerror = reject;
-                                img.src = URL.createObjectURL(file);
-                              });
-                            };
+                            // Créer une URL locale pour l'image sélectionnée
+                            const imageUrl = URL.createObjectURL(file);
 
-                            // Redimensionner et sauvegarder en JPEG
-                            const resizeAndSaveImage = async (
-                              img: HTMLImageElement
-                            ): Promise<string> => {
-                              const canvas = document.createElement("canvas");
-                              const MAX_SIZE = 200;
-                              let width = img.width;
-                              let height = img.height;
-
-                              // Calculer les nouvelles dimensions en gardant le ratio
-                              if (width > height) {
-                                if (width > MAX_SIZE) {
-                                  height = Math.round(
-                                    (height * MAX_SIZE) / width
-                                  );
-                                  width = MAX_SIZE;
-                                }
-                              } else {
-                                if (height > MAX_SIZE) {
-                                  width = Math.round(
-                                    (width * MAX_SIZE) / height
-                                  );
-                                  height = MAX_SIZE;
-                                }
-                              }
-
-                              canvas.width = width;
-                              canvas.height = height;
-
-                              const ctx = canvas.getContext("2d");
-                              if (!ctx) {
-                                throw new Error(
-                                  "Impossible de créer le contexte 2D"
-                                );
-                              }
-
-                              // Remplir le canvas avec un fond blanc
-                              ctx.fillStyle = "#FFFFFF";
-                              ctx.fillRect(0, 0, width, height);
-
-                              // Dessiner l'image
-                              ctx.drawImage(img, 0, 0, width, height);
-
-                              // Générer un nom de fichier unique
-                              const fileName = `logo-${Date.now()}.jpg`;
-                              const logoPath = `/logos/${fileName}`;
-
-                              // Convertir le canvas en blob
-                              const blob = await new Promise<Blob>(
-                                (resolve) => {
-                                  canvas.toBlob(
-                                    (blob) => {
-                                      resolve(blob as Blob);
-                                    },
-                                    "image/jpeg",
-                                    0.95
-                                  );
-                                }
-                              );
-
-                              // Sauvegarder le fichier dans le dossier public/logos
-                              const formData = new FormData();
-                              formData.append("file", blob, fileName);
-
-                              const response = await fetch("/api/upload", {
-                                method: "POST",
-                                body: formData,
-                              });
-
-                              if (!response.ok) {
-                                throw new Error(
-                                  "Erreur lors de l'upload du fichier"
-                                );
-                              }
-
-                              const data = await response.json();
-                              return data.path;
-                            };
-
-                            const img = await loadImage(file);
-                            const logoPath = await resizeAndSaveImage(img);
-
-                            // Mettre à jour l'entreprise avec le chemin du logo
+                            // Mettre à jour l'entreprise avec l'URL de l'image
                             setEntreprise((prev) => ({
                               ...prev,
-                              logo: logoPath,
+                              logo: imageUrl,
                             }));
 
-                            setSaveMessage("✅ Logo uploadé avec succès");
+                            setSaveMessage("✅ Logo chargé avec succès");
+
+                            // NOTE: Dans une application réelle, vous voudriez
+                            // télécharger l'image dans un service de stockage
+                            // comme Firebase Storage au lieu d'utiliser une URL locale
                           } catch (error) {
-                            console.error("Erreur lors de l'upload:", error);
-                            setError("Erreur lors de l'upload du logo");
+                            console.error("Erreur lors du chargement:", error);
+                            setError("Erreur lors du chargement du logo");
                           } finally {
                             setIsSaving(false);
                           }
