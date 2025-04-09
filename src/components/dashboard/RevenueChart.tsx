@@ -16,6 +16,7 @@ import { Line } from "react-chartjs-2";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
+import { DateRange } from "./DateFilter";
 
 // Enregistrement des composants nécessaires pour Chart.js
 ChartJS.register(
@@ -41,7 +42,11 @@ interface RevenueData {
   };
 }
 
-const RevenueChart: React.FC = () => {
+interface RevenueChartProps {
+  dateRange?: DateRange;
+}
+
+const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [revenueData, setRevenueData] = useState<RevenueData>({
@@ -104,6 +109,14 @@ const RevenueChart: React.FC = () => {
         const lastYearData = Array(12).fill(0);
         const debugFactures: any[] = [];
 
+        // Date de début et de fin filtrées
+        const filteredStartDate = dateRange
+          ? new Date(dateRange.startDate)
+          : new Date(currentYear, 0, 1);
+        const filteredEndDate = dateRange
+          ? new Date(dateRange.endDate)
+          : new Date();
+
         // Calculer le chiffre d'affaires par mois
         querySnapshot.forEach((doc) => {
           const facture = doc.data();
@@ -157,6 +170,14 @@ const RevenueChart: React.FC = () => {
                 facture.dateCreation
               );
               return; // Passer à la facture suivante
+            }
+
+            // Vérifier si la facture est dans la plage de dates filtrée
+            if (
+              dateRange &&
+              (date < filteredStartDate || date > filteredEndDate)
+            ) {
+              return; // Ignorer cette facture si elle est en dehors de la plage
             }
 
             const factureYear = date.getFullYear();
@@ -283,7 +304,7 @@ const RevenueChart: React.FC = () => {
     };
 
     fetchRevenueData();
-  }, [user]);
+  }, [user, dateRange]); // Ajouter dateRange comme dépendance
 
   const chartData = {
     labels: revenueData.labels,
@@ -391,10 +412,26 @@ const RevenueChart: React.FC = () => {
     },
   };
 
+  const getPeriodLabel = () => {
+    if (dateRange) {
+      const formatDate = (date: Date) => {
+        return date.toLocaleDateString("fr-FR", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+      };
+      return `${formatDate(dateRange.startDate)} - ${formatDate(
+        dateRange.endDate
+      )}`;
+    }
+    return "2 ans";
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-xl font-semibold mb-4">
-        Chiffre d'affaires sur 2 ans
+        Chiffre d'affaires sur {getPeriodLabel()}
       </h2>
 
       {loading ? (

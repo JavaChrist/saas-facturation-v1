@@ -41,6 +41,7 @@ export default function FacturesPage() {
     totalHT: 0,
     totalTTC: 0,
     userId: user?.uid || "",
+    dateCreation: new Date(),
   });
   const [selectedFacture, setSelectedFacture] = useState<Facture | null>(null);
 
@@ -107,6 +108,9 @@ export default function FacturesPage() {
       totalHT: facture.totalHT,
       totalTTC: facture.totalTTC,
       userId: facture.userId || user?.uid || "",
+      dateCreation: facture.dateCreation
+        ? new Date(facture.dateCreation)
+        : new Date(),
     });
     setIsModalOpen(true);
   };
@@ -130,6 +134,7 @@ export default function FacturesPage() {
       totalHT: 0,
       totalTTC: 0,
       userId: user?.uid || "",
+      dateCreation: new Date(),
     });
     setIsModalOpen(false);
   };
@@ -256,6 +261,7 @@ export default function FacturesPage() {
           articles: newFacture.articles,
           totalHT: newFacture.totalHT,
           totalTTC: newFacture.totalTTC,
+          dateCreation: newFacture.dateCreation,
           userId: user.uid,
         });
       } else {
@@ -267,7 +273,7 @@ export default function FacturesPage() {
           articles: newFacture.articles,
           totalHT: newFacture.totalHT,
           totalTTC: newFacture.totalTTC,
-          dateCreation: new Date(),
+          dateCreation: newFacture.dateCreation,
           userId: user.uid,
         });
       }
@@ -325,6 +331,7 @@ export default function FacturesPage() {
             <tr>
               <th className="py-3 px-4 text-left">N° Facture</th>
               <th className="py-3 px-4 text-left">Client</th>
+              <th className="py-3 px-4 text-left">Date de facture</th>
               <th className="py-3 px-4 text-left">Total TTC</th>
               <th className="py-3 px-4 text-left">Statut</th>
               <th className="py-3 px-4 text-center">Actions</th>
@@ -337,6 +344,15 @@ export default function FacturesPage() {
                 <tr key={facture.id} className="border-b hover:bg-gray-100">
                   <td className="py-3 px-4">{facture.numero}</td>
                   <td className="py-3 px-4">{facture.client.nom}</td>
+                  <td className="py-3 px-4">
+                    {facture.dateCreation instanceof Date
+                      ? facture.dateCreation.toLocaleDateString("fr-FR")
+                      : facture.dateCreation
+                      ? new Date(facture.dateCreation).toLocaleDateString(
+                          "fr-FR"
+                        )
+                      : "-"}
+                  </td>
                   <td className="py-3 px-4">{facture.totalTTC.toFixed(2)} €</td>
                   <td className="py-3 px-4">
                     <span
@@ -426,6 +442,41 @@ export default function FacturesPage() {
                   <option value="Payée">Payée</option>
                   <option value="À relancer">À relancer</option>
                 </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <label
+                    htmlFor="date-facture"
+                    className="text-sm text-gray-600 mb-1"
+                  >
+                    Date de la facture
+                  </label>
+                  <input
+                    type="date"
+                    id="date-facture"
+                    value={
+                      newFacture.dateCreation
+                        ? new Date(newFacture.dateCreation)
+                            .toISOString()
+                            .split("T")[0]
+                        : ""
+                    }
+                    onChange={(e) => {
+                      const date = e.target.value
+                        ? new Date(e.target.value)
+                        : new Date();
+                      date.setHours(12, 0, 0, 0); // Midi pour éviter les problèmes de fuseau horaire
+                      setNewFacture({
+                        ...newFacture,
+                        dateCreation: date,
+                      });
+                    }}
+                    className="w-full p-2 border rounded"
+                    required
+                  />
+                </div>
+                <div></div>
               </div>
 
               <select
