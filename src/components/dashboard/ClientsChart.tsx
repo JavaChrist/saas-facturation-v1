@@ -41,6 +41,14 @@ interface ClientData {
   labels: string[];
 }
 
+// Définir une interface explicite pour le client
+interface Client {
+  id: string;
+  dateCreation?: any; // Using any for flexibility with different date formats
+  userId?: string;
+  [key: string]: any; // Pour les autres propriétés
+}
+
 const ClientsChart: React.FC<ClientsChartProps> = ({ dateRange }) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -108,7 +116,7 @@ const ClientsChart: React.FC<ClientsChartProps> = ({ dateRange }) => {
         let totalClients = 0;
 
         // Calculer les nouveaux clients par mois et le total cumulé
-        const clients = querySnapshot.docs.map((doc) => ({
+        const clients: Client[] = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
