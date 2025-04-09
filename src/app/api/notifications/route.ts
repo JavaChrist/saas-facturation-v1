@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifierFacturesEnRetard, getNotificationsNonLues } from "@/services/notificationService";
+import {
+  verifierFacturesEnRetard,
+  getNotificationsNonLues,
+} from "@/services/notificationService";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { Facture } from "@/types/facture";
@@ -7,7 +10,7 @@ import { Facture } from "@/types/facture";
 export async function GET(request: NextRequest) {
   try {
     const userId = request.nextUrl.searchParams.get("userId");
-    
+
     if (!userId) {
       return NextResponse.json({ error: "UserId manquant" }, { status: 400 });
     }
@@ -20,21 +23,24 @@ export async function GET(request: NextRequest) {
     );
 
     const facturesSnapshot = await getDocs(facturesQuery);
-    const factures = facturesSnapshot.docs.map(doc => ({
+    const factures = facturesSnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     })) as Facture[];
 
     // 2. Pour chaque facture, calculer la date d'échéance
-    const aujourd'hui = new Date();
-    const facturesDetails = factures.map(facture => {
+    const aujourdhui = new Date();
+    const facturesDetails = factures.map((facture) => {
       // Convertir la date de création en objet Date
       let dateCreation: Date;
       if (facture.dateCreation instanceof Date) {
         dateCreation = facture.dateCreation;
       } else if (typeof facture.dateCreation === "string") {
         dateCreation = new Date(facture.dateCreation);
-      } else if (facture.dateCreation && typeof facture.dateCreation.toDate === "function") {
+      } else if (
+        facture.dateCreation &&
+        typeof facture.dateCreation.toDate === "function"
+      ) {
         dateCreation = facture.dateCreation.toDate();
       } else {
         dateCreation = new Date(); // Fallback
@@ -59,8 +65,10 @@ export async function GET(request: NextRequest) {
           dateEcheance.setDate(dateCreation.getDate() + 30);
       }
 
-      const estEnRetard = aujourd'hui > dateEcheance;
-      const diffJours = Math.floor((dateEcheance.getTime() - aujourd'hui.getTime()) / (1000 * 3600 * 24));
+      const estEnRetard = aujourdhui > dateEcheance;
+      const diffJours = Math.floor(
+        (dateEcheance.getTime() - aujourdhui.getTime()) / (1000 * 3600 * 24)
+      );
       const echeanceProche = diffJours <= 3 && diffJours >= 0;
 
       return {
@@ -74,7 +82,7 @@ export async function GET(request: NextRequest) {
         estEnRetard,
         joursRestants: diffJours,
         echeanceProche,
-        delaisPaiement: facture.client.delaisPaiement
+        delaisPaiement: facture.client.delaisPaiement,
       };
     });
 
@@ -86,9 +94,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       factures: facturesDetails,
-      facturesEnRetard: facturesDetails.filter(f => f.estEnRetard),
-      facturesEcheanceProche: facturesDetails.filter(f => f.echeanceProche),
-      notifications
+      facturesEnRetard: facturesDetails.filter((f) => f.estEnRetard),
+      facturesEcheanceProche: facturesDetails.filter((f) => f.echeanceProche),
+      notifications,
     });
   } catch (error) {
     console.error("Erreur lors de la vérification des notifications:", error);
@@ -97,4 +105,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}

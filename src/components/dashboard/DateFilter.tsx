@@ -40,7 +40,7 @@ const DateFilter: React.FC<DateFilterProps> = ({
         startDate.setHours(0, 0, 0, 0);
         endDate = new Date(today);
         endDate.setHours(23, 59, 59, 999);
-        label = "Aujourd'hui";
+        label = "Aujourdhui";
         break;
       case "yesterday":
         startDate = new Date(today);
@@ -165,7 +165,7 @@ const DateFilter: React.FC<DateFilterProps> = ({
                 selectedRange === "today" ? "bg-blue-50 text-blue-700" : ""
               }`}
             >
-              Aujourd'hui
+              Aujourdhui
             </button>
             <button
               onClick={() => handleRangeSelect("yesterday")}
