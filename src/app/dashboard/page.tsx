@@ -113,6 +113,7 @@ export default function Dashboard() {
               alt="Logo"
               width={24}
               height={24}
+              style={{ width: "auto", height: "auto" }}
               className="ml-2"
             />
           </h1>
