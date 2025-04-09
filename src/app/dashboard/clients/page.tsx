@@ -156,7 +156,7 @@ export default function ClientsPage() {
       </div>
       <h1 className="text-2xl font-semibold mb-6">👥 Clients</h1>
       <div className="overflow-x-auto">
-        <table className="w-full bg-white shadow-md rounded-lg">
+        <table className="w-full bg-white dark:bg-gray-700 shadow-md rounded-lg">
           <thead className="bg-gray-800 text-white">
             <tr>
               <th className="py-3 px-4 text-left">Réf Client</th>
@@ -174,13 +174,27 @@ export default function ClientsPage() {
               .filter((client) => client.id) // ✅ Ignore les clients sans ID
               .map((client) => (
                 <tr key={client.id} className="border-b hover:bg-gray-100">
-                  <td className="py-3 px-4">{client.refClient}</td>
-                  <td className="py-3 px-4">{client.nom}</td>
-                  <td className="py-3 px-4">{client.rue}</td>
-                  <td className="py-3 px-4">{client.codePostal}</td>
-                  <td className="py-3 px-4">{client.ville}</td>
-                  <td className="py-3 px-4">{client.email}</td>
-                  <td className="py-3 px-4">{client.delaisPaiement}</td>
+                  <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
+                    {client.refClient}
+                  </td>
+                  <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
+                    {client.nom}
+                  </td>
+                  <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
+                    {client.rue}
+                  </td>
+                  <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
+                    {client.codePostal}
+                  </td>
+                  <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
+                    {client.ville}
+                  </td>
+                  <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
+                    {client.email}
+                  </td>
+                  <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
+                    {client.delaisPaiement}
+                  </td>
                   <td className="py-3 px-4 text-center flex justify-center space-x-2">
                     <button
                       className="text-blue-500 hover:text-blue-700"
@@ -204,8 +218,8 @@ export default function ClientsPage() {
       {/* Modal de création / modification client */}
       {isModalOpen && selectedClient && (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-[400px]">
-            <h2 className="text-xl font-semibold mb-4">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-[400px]">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
               {selectedClient.id ? "Modifier Client" : "Ajouter un Client"}
             </h2>
 
@@ -220,7 +234,7 @@ export default function ClientsPage() {
                     refClient: e.target.value.toUpperCase(),
                   })
                 }
-                className="w-full p-2 border mb-2 uppercase"
+                className="w-full p-2 border mb-2 uppercase bg-white text-black"
               />
               <input
                 type="text"
@@ -232,7 +246,7 @@ export default function ClientsPage() {
                     nom: e.target.value.toUpperCase(),
                   })
                 }
-                className="w-full p-2 border mb-2 uppercase"
+                className="w-full p-2 border mb-2 uppercase bg-white text-black"
               />
               <input
                 type="text"
@@ -241,7 +255,7 @@ export default function ClientsPage() {
                 onChange={(e) =>
                   setSelectedClient({ ...selectedClient, rue: e.target.value })
                 }
-                className="w-full p-2 border mb-2"
+                className="w-full p-2 border mb-2 bg-white text-black"
               />
               <input
                 type="text"
@@ -253,7 +267,7 @@ export default function ClientsPage() {
                     codePostal: e.target.value,
                   })
                 }
-                className="w-full p-2 border mb-2"
+                className="w-full p-2 border mb-2 bg-white text-black"
               />
               <input
                 type="text"
@@ -265,7 +279,7 @@ export default function ClientsPage() {
                     ville: e.target.value,
                   })
                 }
-                className="w-full p-2 border mb-2"
+                className="w-full p-2 border mb-2 bg-white text-black"
               />
               <input
                 type="email"
@@ -277,10 +291,10 @@ export default function ClientsPage() {
                     email: e.target.value,
                   })
                 }
-                className="w-full p-2 border mb-2"
+                className="w-full p-2 border mb-2 bg-white text-black"
               />
               <select
-                className="w-full p-2 border mb-2"
+                className="w-full p-2 border mb-2 bg-white text-black"
                 value={selectedClient.delaisPaiement}
                 onChange={(e) =>
                   setSelectedClient({

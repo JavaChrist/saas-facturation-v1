@@ -17,6 +17,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { DateRange } from "./DateFilter";
+import { useTheme } from "@/lib/themeContext";
 
 // Enregistrement des composants nécessaires pour Chart.js
 ChartJS.register(
@@ -51,6 +52,7 @@ interface Client {
 
 const ClientsChart: React.FC<ClientsChartProps> = ({ dateRange }) => {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [clientData, setClientData] = useState<ClientData>({
     totalClients: 0,
@@ -303,28 +305,124 @@ const ClientsChart: React.FC<ClientsChartProps> = ({ dateRange }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-xl font-semibold mb-4">Évolution des clients</h2>
+    <div className="bg-card-light dark:bg-card-dark rounded-lg shadow-md p-6">
+      <h2 className="text-xl font-semibold mb-4 text-text-light dark:text-text-dark">
+        Évolution des clients
+      </h2>
 
       {loading ? (
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
         </div>
       ) : (
         <>
           <div className="mb-6">
-            <div className="bg-blue-50 p-4 rounded-lg inline-block">
-              <p className="text-sm text-gray-600">Total clients</p>
-              <p className="text-2xl font-bold">{clientData.totalClients}</p>
+            <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg inline-block">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Total clients
+              </p>
+              <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                {clientData.totalClients}
+              </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="h-64">
-              <Bar data={barChartData} options={barOptions} />
+              <Bar
+                data={barChartData}
+                options={{
+                  ...barOptions,
+                  plugins: {
+                    ...barOptions.plugins,
+                    legend: {
+                      ...barOptions.plugins?.legend,
+                      labels: {
+                        color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                      },
+                    },
+                    title: {
+                      ...barOptions.plugins?.title,
+                      color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                    },
+                  },
+                  scales: {
+                    ...barOptions.scales,
+                    x: {
+                      ticks: {
+                        color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                      },
+                      grid: {
+                        color:
+                          theme === "dark"
+                            ? "rgba(255, 255, 255, 0.1)"
+                            : "rgba(0, 0, 0, 0.1)",
+                      },
+                    },
+                    y: {
+                      ...barOptions.scales?.y,
+                      ticks: {
+                        ...barOptions.scales?.y?.ticks,
+                        color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                      },
+                      grid: {
+                        color:
+                          theme === "dark"
+                            ? "rgba(255, 255, 255, 0.1)"
+                            : "rgba(0, 0, 0, 0.1)",
+                      },
+                    },
+                  },
+                }}
+              />
             </div>
             <div className="h-64">
-              <Line data={lineChartData} options={lineOptions} />
+              <Line
+                data={lineChartData}
+                options={{
+                  ...lineOptions,
+                  plugins: {
+                    ...lineOptions.plugins,
+                    legend: {
+                      ...lineOptions.plugins?.legend,
+                      labels: {
+                        color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                      },
+                    },
+                    title: {
+                      ...lineOptions.plugins?.title,
+                      color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                    },
+                  },
+                  scales: {
+                    ...lineOptions.scales,
+                    x: {
+                      ticks: {
+                        color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                      },
+                      grid: {
+                        color:
+                          theme === "dark"
+                            ? "rgba(255, 255, 255, 0.1)"
+                            : "rgba(0, 0, 0, 0.1)",
+                      },
+                    },
+                    y: {
+                      ...lineOptions.scales?.y,
+                      ticks: {
+                        ...lineOptions.scales?.y?.ticks,
+                        color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                      },
+                      grid: {
+                        color:
+                          theme === "dark"
+                            ? "rgba(255, 255, 255, 0.1)"
+                            : "rgba(0, 0, 0, 0.1)",
+                      },
+                    },
+                  },
+                }}
+              />
             </div>
           </div>
         </>

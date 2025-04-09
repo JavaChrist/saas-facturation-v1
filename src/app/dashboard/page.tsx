@@ -11,6 +11,7 @@ import DateFilter, { DateRange } from "@/components/dashboard/DateFilter";
 import ClientsChart from "@/components/dashboard/ClientsChart";
 import InvoiceStatusChart from "@/components/dashboard/InvoiceStatusChart";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -53,9 +54,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
       {/* Sidebar */}
-      <aside className="w-50 bg-gray-800 text-white min-h-screen p-5">
+      <aside className="w-50 bg-gray-800 dark:bg-gray-900 text-white min-h-screen p-5">
         <div className="flex items-center gap-3 mb-6">
           <div className="relative w-12 h-12 flex-shrink-0">
             <Image
@@ -72,48 +73,52 @@ export default function Dashboard() {
         <nav className="space-y-2">
           <Link
             href="/dashboard"
-            className="block py-2 px-4 rounded-md bg-gray-700 hover:bg-gray-600"
+            className="block py-2 px-4 rounded-md bg-gray-700 dark:bg-gray-800 hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             Dashboard
           </Link>
           <Link
             href="/dashboard/factures"
-            className="block py-2 px-4 rounded-md hover:bg-gray-600"
+            className="block py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             Factures
           </Link>
           <Link
             href="/dashboard/clients"
-            className="block py-2 px-4 rounded-md hover:bg-gray-600"
+            className="block py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             Clients
           </Link>
           <Link
             href="/dashboard/parametres"
-            className="block py-2 px-4 rounded-md hover:bg-gray-600"
+            className="block py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             Paramètres
           </Link>
           <Link
             href="/dashboard/notifications"
-            className="block py-2 px-4 rounded-md hover:bg-gray-600"
+            className="block py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             Notifications
           </Link>
         </nav>
-        <button
-          onClick={handleLogout}
-          className="mt-6 w-full bg-red-500 py-2 rounded-md hover:bg-red-600 transition"
-        >
-          Déconnexion
-        </button>
+
+        <div className="mt-6 space-y-3">
+          <ThemeToggle />
+          <button
+            onClick={handleLogout}
+            className="w-full bg-red-500 py-2 rounded-md hover:bg-red-600 transition"
+          >
+            Déconnexion
+          </button>
+        </div>
       </aside>
 
       {/* Contenu principal */}
       <main className="flex-1 p-6 overflow-auto">
         {/* Topbar */}
-        <div className="flex justify-between items-center bg-white p-4 shadow-md rounded-md mb-8">
-          <h1 className="text-2xl font-semibold flex items-center">
+        <div className="flex justify-between items-center bg-card-light dark:bg-card-dark p-4 shadow-md rounded-md mb-8">
+          <h1 className="text-2xl font-semibold flex items-center text-text-light dark:text-text-dark">
             Bienvenue, {user.email || "Utilisateur"}
             <Image
               src="/favicon.ico"
@@ -157,14 +162,18 @@ export default function Dashboard() {
             href="/dashboard/clients"
             className="transform hover:scale-105 transition-transform duration-300"
           >
-            <div className="bg-white p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
+            <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
               <div className="flex items-center space-x-4">
-                <div className="bg-green-100 p-3 rounded-full">
-                  <FiUsers className="text-green-500 text-xl" />
+                <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
+                  <FiUsers className="text-green-500 dark:text-green-400 text-xl" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold">Clients</h3>
-                  <p className="text-gray-500">Gérer vos clients</p>
+                  <h3 className="text-xl font-semibold text-text-light dark:text-text-dark">
+                    Clients
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Gérer vos clients
+                  </p>
                 </div>
               </div>
             </div>
@@ -174,14 +183,18 @@ export default function Dashboard() {
             href="/dashboard/factures"
             className="transform hover:scale-105 transition-transform duration-300"
           >
-            <div className="bg-white p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
+            <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
               <div className="flex items-center space-x-4">
-                <div className="bg-blue-100 p-3 rounded-full">
-                  <FiFileText className="text-blue-500 text-xl" />
+                <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full">
+                  <FiFileText className="text-blue-500 dark:text-blue-400 text-xl" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold">Factures</h3>
-                  <p className="text-gray-500">Gérer vos factures</p>
+                  <h3 className="text-xl font-semibold text-text-light dark:text-text-dark">
+                    Factures
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Gérer vos factures
+                  </p>
                 </div>
               </div>
             </div>
@@ -191,14 +204,18 @@ export default function Dashboard() {
             href="/dashboard/parametres"
             className="transform hover:scale-105 transition-transform duration-300"
           >
-            <div className="bg-white p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
+            <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
               <div className="flex items-center space-x-4">
-                <div className="bg-purple-100 p-3 rounded-full">
-                  <FiSettings className="text-purple-500 text-xl" />
+                <div className="bg-purple-100 dark:bg-purple-900 p-3 rounded-full">
+                  <FiSettings className="text-purple-500 dark:text-purple-400 text-xl" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold">Paramètres</h3>
-                  <p className="text-gray-500">Configurer votre compte</p>
+                  <h3 className="text-xl font-semibold text-text-light dark:text-text-dark">
+                    Paramètres
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Configurer votre compte
+                  </p>
                 </div>
               </div>
             </div>

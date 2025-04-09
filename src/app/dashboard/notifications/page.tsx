@@ -109,13 +109,15 @@ export default function NotificationsPage() {
   const groupedNotifications = groupNotificationsByDate();
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-4xl mx-auto">
+    <div className="p-6 bg-background-light dark:bg-background-dark min-h-screen flex flex-col items-center">
+      <div className="max-w-4xl mx-auto w-full">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-semibold">🔔 Notifications</h1>
+          <h1 className="text-3xl font-semibold text-gray-800 dark:text-white">
+            🔔 Notifications
+          </h1>
           <button
             onClick={() => router.push("/dashboard")}
-            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center"
+            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
           >
             <FiArrowLeft size={18} className="mr-2" /> Retour
           </button>
@@ -123,11 +125,11 @@ export default function NotificationsPage() {
 
         {loading ? (
           <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
           </div>
         ) : notifications.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-8 text-center">
-            <p className="text-gray-500 text-lg">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 text-center">
+            <p className="text-gray-500 dark:text-gray-300 text-lg">
               Aucune notification disponible
             </p>
           </div>
@@ -136,10 +138,10 @@ export default function NotificationsPage() {
             {groupedNotifications.map((group) => (
               <div
                 key={group.date.toISOString()}
-                className="bg-white rounded-lg shadow-md overflow-hidden"
+                className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden"
               >
-                <div className="bg-gray-100 px-6 py-3 border-b">
-                  <h2 className="font-medium">
+                <div className="bg-gray-100 dark:bg-gray-700 px-6 py-3 border-b dark:border-gray-600">
+                  <h2 className="font-medium text-gray-800 dark:text-white">
                     {group.date.toLocaleDateString("fr-FR", {
                       weekday: "long",
                       day: "numeric",
@@ -149,11 +151,11 @@ export default function NotificationsPage() {
                   </h2>
                 </div>
 
-                <div className="divide-y">
+                <div className="divide-y dark:divide-gray-700">
                   {group.notifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`px-6 py-4 flex justify-between items-start hover:bg-gray-50 ${
+                      className={`px-6 py-4 flex justify-between items-start hover:bg-gray-50 dark:hover:bg-gray-700 ${
                         !notification.lue ? "border-l-4 border-l-blue-500" : ""
                       }`}
                     >
@@ -174,15 +176,15 @@ export default function NotificationsPage() {
                                   : "bg-blue-500"
                               }`}
                             />
-                            <h3 className="font-medium">
+                            <h3 className="font-medium text-gray-800 dark:text-white">
                               {notification.clientNom} -{" "}
                               {notification.factureNumero}
                             </h3>
                           </div>
-                          <p className="text-gray-600 mt-1">
+                          <p className="text-gray-600 dark:text-gray-300 mt-1">
                             {notification.message}
                           </p>
-                          <p className="text-xs text-gray-400 mt-1">
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                             {formatDate(notification.dateCreation)}
                           </p>
                         </div>
@@ -192,7 +194,7 @@ export default function NotificationsPage() {
                         {!notification.lue && (
                           <button
                             onClick={() => handleMarkAsRead(notification)}
-                            className="text-blue-500 hover:bg-blue-50 p-1 rounded"
+                            className="text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-1 rounded"
                             title="Marquer comme lu"
                           >
                             <FiCheck size={18} />
@@ -200,7 +202,7 @@ export default function NotificationsPage() {
                         )}
                         <button
                           onClick={() => handleDelete(notification.id)}
-                          className="text-red-500 hover:bg-red-50 p-1 rounded"
+                          className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 p-1 rounded"
                           title="Supprimer"
                         >
                           <FiTrash2 size={18} />

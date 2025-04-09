@@ -128,9 +128,11 @@ export default function ParametresPage() {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-4xl font-semibold">⚙️ Paramètres</h1>
+    <div className="p-6 flex flex-col items-center">
+      <div className="flex justify-between items-center mb-6 w-full max-w-3xl">
+        <h1 className="text-4xl font-semibold text-gray-800 dark:text-white">
+          ⚙️ Paramètres
+        </h1>
         <button
           onClick={() => router.push("/dashboard")}
           className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
@@ -144,18 +146,18 @@ export default function ParametresPage() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
         </div>
       ) : error ? (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4 max-w-3xl w-full">
           {error}
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">
+        <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl w-full">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
               Informations de l'entreprise
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Logo de l'entreprise
                 </label>
                 <div className="flex items-center gap-4">
@@ -248,8 +250,8 @@ export default function ParametresPage() {
                         }
                       }}
                     />
-                    <FiUpload className="text-gray-600" />
-                    <span className="text-gray-600">
+                    <FiUpload className="text-gray-600 dark:text-gray-300" />
+                    <span className="text-gray-600 dark:text-gray-300">
                       {isSaving ? "Upload en cours..." : "Choisir un logo"}
                     </span>
                   </label>
@@ -257,7 +259,7 @@ export default function ParametresPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Nom de l'entreprise
                 </label>
                 <input
@@ -265,12 +267,12 @@ export default function ParametresPage() {
                   name="nom"
                   value={entreprise.nom}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                  className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Rue
                 </label>
                 <input
@@ -278,12 +280,12 @@ export default function ParametresPage() {
                   name="rue"
                   value={entreprise.rue}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                  className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Code postal
                 </label>
                 <input
@@ -291,12 +293,12 @@ export default function ParametresPage() {
                   name="codePostal"
                   value={entreprise.codePostal}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                  className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Ville
                 </label>
                 <input
@@ -304,12 +306,12 @@ export default function ParametresPage() {
                   name="ville"
                   value={entreprise.ville}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                  className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Téléphone
                 </label>
                 <input
@@ -317,12 +319,12 @@ export default function ParametresPage() {
                   name="telephone"
                   value={entreprise.telephone}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                  className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Email
                 </label>
                 <input
@@ -330,12 +332,12 @@ export default function ParametresPage() {
                   name="email"
                   value={entreprise.email}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                  className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   SIRET
                 </label>
                 <input
@@ -343,12 +345,12 @@ export default function ParametresPage() {
                   name="siret"
                   value={entreprise.siret}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                  className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   N° TVA Intracommunautaire
                 </label>
                 <input
@@ -356,19 +358,19 @@ export default function ParametresPage() {
                   name="tvaIntracommunautaire"
                   value={entreprise.tvaIntracommunautaire}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                  className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                 />
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
               Coordonnées bancaires
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   IBAN
                 </label>
                 <input
@@ -376,11 +378,11 @@ export default function ParametresPage() {
                   name="rib.iban"
                   value={entreprise.rib?.iban}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                  className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   BIC
                 </label>
                 <input
@@ -388,11 +390,11 @@ export default function ParametresPage() {
                   name="rib.bic"
                   value={entreprise.rib?.bic}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                  className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                 />
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   Banque
                 </label>
                 <input
@@ -400,18 +402,20 @@ export default function ParametresPage() {
                   name="rib.banque"
                   value={entreprise.rib?.banque}
                   onChange={handleChange}
-                  className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                  className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                 />
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4">Mentions légales</h2>
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
+              Mentions légales
+            </h2>
             <div className="space-y-4">
               {entreprise.mentionsLegales?.map((mention, index) => (
                 <div key={index}>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Mention {index + 1}
                   </label>
                   <input
@@ -420,7 +424,7 @@ export default function ParametresPage() {
                     onChange={(e) =>
                       handleMentionsLegalesChange(index, e.target.value)
                     }
-                    className="mt-1 block w-full rounded-md border border-gray-300 p-2"
+                    className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
                   />
                 </div>
               ))}
@@ -429,7 +433,7 @@ export default function ParametresPage() {
 
           <div className="flex justify-between items-center">
             <span
-              className={`transition-opacity duration-300 ${
+              className={`transition-opacity duration-300 text-gray-800 dark:text-gray-300 ${
                 saveMessage ? "opacity-100" : "opacity-0"
               }`}
             >

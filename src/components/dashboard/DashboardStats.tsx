@@ -5,6 +5,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { User } from "firebase/auth";
 import { DateRange } from "./DateFilter";
+import { TbCash, TbUsers, TbFileInvoice } from "react-icons/tb";
 
 interface Facture {
   id: string;
@@ -25,6 +26,12 @@ interface Stats {
   totalClients: number;
   facturesEnAttente: number;
   moyenneFacture: number;
+  caTotal: number;
+  clientCount: number;
+  invoiceCount: number;
+  caTotalVariation: number | null;
+  clientCountVariation: number | null;
+  invoiceCountVariation: number | null;
 }
 
 interface DashboardStatsProps {
@@ -38,6 +45,12 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
     totalClients: 0,
     facturesEnAttente: 0,
     moyenneFacture: 0,
+    caTotal: 0,
+    clientCount: 0,
+    invoiceCount: 0,
+    caTotalVariation: null,
+    clientCountVariation: null,
+    invoiceCountVariation: null,
   });
   const [loading, setLoading] = useState(true);
 
@@ -177,6 +190,12 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
           totalClients: clientsInRange.length,
           facturesEnAttente: facturesEnAttente,
           moyenneFacture: moyenneFacture,
+          caTotal: totalMontant,
+          clientCount: clientsInRange.length,
+          invoiceCount: facturesInRange.length,
+          caTotalVariation: null,
+          clientCountVariation: null,
+          invoiceCountVariation: null,
         });
       } catch (error) {
         console.error(
@@ -193,82 +212,91 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">Vue d'ensemble</h2>
-        <span className="text-sm text-gray-500">{dateRange.label}</span>
+      <h2 className="text-xl font-semibold mb-4 text-text-light dark:text-text-dark">
+        Statistiques
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* CA total */}
+        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
+          <div className="bg-green-100 dark:bg-green-900 p-4 rounded-lg mr-4">
+            <TbCash className="text-green-500 dark:text-green-400 text-2xl" />
+          </div>
+          <div>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
+              Chiffre d'affaires total
+            </p>
+            <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+              {loading ? "Chargement..." : `${stats.caTotal.toFixed(2)} €`}
+            </p>
+            {stats.caTotalVariation !== null && (
+              <p
+                className={`text-sm ${
+                  stats.caTotalVariation >= 0
+                    ? "text-green-500"
+                    : "text-red-500"
+                }`}
+              >
+                {stats.caTotalVariation > 0 ? "+" : ""}
+                {stats.caTotalVariation.toFixed(2)}% vs période précédente
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Nombre clients */}
+        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
+          <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-lg mr-4">
+            <TbUsers className="text-blue-500 dark:text-blue-400 text-2xl" />
+          </div>
+          <div>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
+              Nombre de clients
+            </p>
+            <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+              {loading ? "Chargement..." : stats.clientCount}
+            </p>
+            {stats.clientCountVariation !== null && (
+              <p
+                className={`text-sm ${
+                  stats.clientCountVariation >= 0
+                    ? "text-green-500"
+                    : "text-red-500"
+                }`}
+              >
+                {stats.clientCountVariation > 0 ? "+" : ""}
+                {stats.clientCountVariation.toFixed(2)}% vs période précédente
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Nombre factures */}
+        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
+          <div className="bg-purple-100 dark:bg-purple-900 p-4 rounded-lg mr-4">
+            <TbFileInvoice className="text-purple-500 dark:text-purple-400 text-2xl" />
+          </div>
+          <div>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
+              Nombre de factures
+            </p>
+            <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+              {loading ? "Chargement..." : stats.invoiceCount}
+            </p>
+            {stats.invoiceCountVariation !== null && (
+              <p
+                className={`text-sm ${
+                  stats.invoiceCountVariation >= 0
+                    ? "text-green-500"
+                    : "text-red-500"
+                }`}
+              >
+                {stats.invoiceCountVariation > 0 ? "+" : ""}
+                {stats.invoiceCountVariation.toFixed(2)}% vs période précédente
+              </p>
+            )}
+          </div>
+        </div>
       </div>
-
-      {loading ? (
-        <div className="flex justify-center items-center h-32">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-md transform hover:scale-105 transition-transform duration-300">
-            <div className="flex items-center justify-between w-full">
-              <div>
-                <p className="text-gray-500 mb-2">Total Factures</p>
-                <h2 className="text-3xl font-bold">
-                  {stats.totalMontantFactures.toLocaleString("fr-FR", {
-                    style: "currency",
-                    currency: "EUR",
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0,
-                  })}
-                </h2>
-              </div>
-              <div className="bg-blue-100 p-3 rounded-full">
-                <FiFileText className="text-blue-500 text-xl" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-md transform hover:scale-105 transition-transform duration-300">
-            <div className="flex items-center justify-between w-full">
-              <div>
-                <p className="text-gray-500 mb-2">Montant moyen</p>
-                <h2 className="text-3xl font-bold">
-                  {stats.moyenneFacture.toLocaleString("fr-FR", {
-                    style: "currency",
-                    currency: "EUR",
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0,
-                  })}
-                </h2>
-              </div>
-              <div className="bg-purple-100 p-3 rounded-full">
-                <FiTrendingUp className="text-purple-500 text-xl" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-md transform hover:scale-105 transition-transform duration-300">
-            <div className="flex items-center justify-between w-full">
-              <div>
-                <p className="text-gray-500 mb-2">Clients</p>
-                <h2 className="text-3xl font-bold">{stats.totalClients}</h2>
-              </div>
-              <div className="bg-green-100 p-3 rounded-full">
-                <FiUsers className="text-green-500 text-xl" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-md transform hover:scale-105 transition-transform duration-300">
-            <div className="flex items-center justify-between w-full">
-              <div>
-                <p className="text-gray-500 mb-2">Factures en attente</p>
-                <h2 className="text-3xl font-bold">
-                  {stats.facturesEnAttente}
-                </h2>
-              </div>
-              <div className="bg-yellow-100 p-3 rounded-full">
-                <FiClock className="text-yellow-500 text-xl" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

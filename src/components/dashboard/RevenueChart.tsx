@@ -17,6 +17,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { DateRange } from "./DateFilter";
+import { useTheme } from "@/lib/themeContext";
 
 // Enregistrement des composants nécessaires pour Chart.js
 ChartJS.register(
@@ -48,6 +49,7 @@ interface RevenueChartProps {
 
 const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [revenueData, setRevenueData] = useState<RevenueData>({
     labels: [],
@@ -436,41 +438,49 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-xl font-semibold mb-4">
+    <div className="bg-card-light dark:bg-card-dark rounded-lg shadow-md p-6">
+      <h2 className="text-xl font-semibold mb-4 text-text-light dark:text-text-dark">
         Chiffre d'affaires sur {getPeriodLabel()}
       </h2>
 
       {loading ? (
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
         </div>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600">Cette année</p>
-              <p className="text-2xl font-bold">
+            <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Cette année
+              </p>
+              <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                 {revenueData.total.thisYear.toFixed(2)} €
               </p>
             </div>
-            <div className="bg-red-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600">Année précédente</p>
-              <p className="text-2xl font-bold">
+            <div className="bg-red-50 dark:bg-red-900/30 p-4 rounded-lg">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Année précédente
+              </p>
+              <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                 {revenueData.total.lastYear.toFixed(2)} €
               </p>
             </div>
             <div
               className={`p-4 rounded-lg ${
-                revenueData.total.variation >= 0 ? "bg-green-50" : "bg-red-50"
+                revenueData.total.variation >= 0
+                  ? "bg-green-50 dark:bg-green-900/30"
+                  : "bg-red-50 dark:bg-red-900/30"
               }`}
             >
-              <p className="text-sm text-gray-600">Évolution</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Évolution
+              </p>
               <p
                 className={`text-2xl font-bold ${
                   revenueData.total.variation >= 0
-                    ? "text-green-600"
-                    : "text-red-600"
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-red-600 dark:text-red-400"
                 }`}
               >
                 {revenueData.total.variation > 0 ? "+" : ""}
@@ -480,26 +490,118 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
           </div>
 
           <div className="h-80 mb-8">
-            <Line data={chartData} options={options} />
+            <Line
+              data={chartData}
+              options={{
+                ...options,
+                plugins: {
+                  ...options.plugins,
+                  legend: {
+                    ...options.plugins?.legend,
+                    labels: {
+                      color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                    },
+                  },
+                  title: {
+                    ...options.plugins?.title,
+                    color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                  },
+                },
+                scales: {
+                  ...options.scales,
+                  x: {
+                    ticks: {
+                      color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                    },
+                    grid: {
+                      color:
+                        theme === "dark"
+                          ? "rgba(255, 255, 255, 0.1)"
+                          : "rgba(0, 0, 0, 0.1)",
+                    },
+                  },
+                  y: {
+                    ...options.scales?.y,
+                    ticks: {
+                      ...options.scales?.y?.ticks,
+                      color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                    },
+                    grid: {
+                      color:
+                        theme === "dark"
+                          ? "rgba(255, 255, 255, 0.1)"
+                          : "rgba(0, 0, 0, 0.1)",
+                    },
+                  },
+                },
+              }}
+            />
           </div>
 
           <div className="h-80">
-            <Line data={variationChartData} options={variationOptions} />
+            <Line
+              data={variationChartData}
+              options={{
+                ...variationOptions,
+                plugins: {
+                  ...variationOptions.plugins,
+                  legend: {
+                    ...variationOptions.plugins?.legend,
+                    labels: {
+                      color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                    },
+                  },
+                  title: {
+                    ...variationOptions.plugins?.title,
+                    color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                  },
+                },
+                scales: {
+                  ...variationOptions.scales,
+                  x: {
+                    ticks: {
+                      color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                    },
+                    grid: {
+                      color:
+                        theme === "dark"
+                          ? "rgba(255, 255, 255, 0.1)"
+                          : "rgba(0, 0, 0, 0.1)",
+                    },
+                  },
+                  y: {
+                    ...variationOptions.scales?.y,
+                    ticks: {
+                      ...variationOptions.scales?.y?.ticks,
+                      color: theme === "dark" ? "#F9FAFB" : "#1F2937",
+                    },
+                    grid: {
+                      color:
+                        theme === "dark"
+                          ? "rgba(255, 255, 255, 0.1)"
+                          : "rgba(0, 0, 0, 0.1)",
+                    },
+                  },
+                },
+              }}
+            />
           </div>
 
           {/* Tableau des évolutions mensuelles */}
           <div className="mt-8 overflow-x-auto">
-            <table className="min-w-full bg-white rounded-lg overflow-hidden shadow-md">
-              <thead className="bg-gray-100">
+            <table className="min-w-full bg-card-light dark:bg-card-dark rounded-lg overflow-hidden shadow-md">
+              <thead className="bg-gray-100 dark:bg-gray-800">
                 <tr>
-                  <th className="px-4 py-2 border-b">Mois</th>
-                  <th className="px-4 py-2 border-b text-right">
+                  <th className="px-4 py-2 border-b dark:border-gray-700 text-text-light dark:text-text-dark">
+                    Mois
+                  </th>
+                  <th className="px-4 py-2 border-b dark:border-gray-700 text-right text-text-light dark:text-text-dark">
                     Cette année (€)
                   </th>
-                  <th className="px-4 py-2 border-b text-right">
+                  <th className="px-4 py-2 border-b dark:border-gray-700 text-right text-text-light dark:text-text-dark">
                     Année préc. (€)
                   </th>
-                  <th className="px-4 py-2 border-b text-right">
+                  <th className="px-4 py-2 border-b dark:border-gray-700 text-right text-text-light dark:text-text-dark">
                     Évolution (%)
                   </th>
                 </tr>
@@ -508,20 +610,26 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
                 {revenueData.labels.map((month, index) => (
                   <tr
                     key={index}
-                    className={index % 2 === 0 ? "bg-gray-50" : ""}
+                    className={
+                      index % 2 === 0
+                        ? "bg-gray-50 dark:bg-gray-800/50"
+                        : "dark:bg-gray-800/30"
+                    }
                   >
-                    <td className="px-4 py-2 border-b">{month}</td>
-                    <td className="px-4 py-2 border-b text-right">
+                    <td className="px-4 py-2 border-b dark:border-gray-700 text-text-light dark:text-text-dark">
+                      {month}
+                    </td>
+                    <td className="px-4 py-2 border-b dark:border-gray-700 text-right text-text-light dark:text-text-dark">
                       {revenueData.thisYear[index].toFixed(2)} €
                     </td>
-                    <td className="px-4 py-2 border-b text-right">
+                    <td className="px-4 py-2 border-b dark:border-gray-700 text-right text-text-light dark:text-text-dark">
                       {revenueData.lastYear[index].toFixed(2)} €
                     </td>
                     <td
-                      className={`px-4 py-2 border-b text-right ${
+                      className={`px-4 py-2 border-b dark:border-gray-700 text-right ${
                         revenueData.monthlyVariation[index] >= 0
-                          ? "text-green-600"
-                          : "text-red-600"
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-red-600 dark:text-red-400"
                       }`}
                     >
                       {revenueData.monthlyVariation[index] > 0 ? "+" : ""}
@@ -535,33 +643,51 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
 
           {/* Section de débogage - Activer seulement pour le développement */}
           {debugData.length > 0 && (
-            <div className="mt-6 border-t pt-4">
+            <div className="mt-6 border-t dark:border-gray-700 pt-4">
               <details>
-                <summary className="cursor-pointer text-sm text-gray-500">
+                <summary className="cursor-pointer text-sm text-gray-500 dark:text-gray-400">
                   Informations de débogage (Développement uniquement)
                 </summary>
                 <div className="mt-2 overflow-x-auto">
                   <table className="min-w-full text-xs">
-                    <thead>
+                    <thead className="bg-gray-100 dark:bg-gray-800">
                       <tr>
-                        <th className="border p-1">ID</th>
-                        <th className="border p-1">Date</th>
-                        <th className="border p-1">Montant</th>
-                        <th className="border p-1">UserId</th>
+                        <th className="border dark:border-gray-700 p-1 text-text-light dark:text-text-dark">
+                          ID
+                        </th>
+                        <th className="border dark:border-gray-700 p-1 text-text-light dark:text-text-dark">
+                          Date
+                        </th>
+                        <th className="border dark:border-gray-700 p-1 text-text-light dark:text-text-dark">
+                          Montant
+                        </th>
+                        <th className="border dark:border-gray-700 p-1 text-text-light dark:text-text-dark">
+                          UserId
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {debugData.map((facture, index) => (
                         <tr
                           key={index}
-                          className={index % 2 === 0 ? "bg-gray-50" : ""}
+                          className={
+                            index % 2 === 0
+                              ? "bg-gray-50 dark:bg-gray-800/50"
+                              : "dark:bg-gray-800/30"
+                          }
                         >
-                          <td className="border p-1">{facture.id}</td>
-                          <td className="border p-1">
+                          <td className="border dark:border-gray-700 p-1 text-text-light dark:text-text-dark">
+                            {facture.id}
+                          </td>
+                          <td className="border dark:border-gray-700 p-1 text-text-light dark:text-text-dark">
                             {facture.dateCreation?.toString()}
                           </td>
-                          <td className="border p-1">{facture.totalTTC}</td>
-                          <td className="border p-1">{facture.userId}</td>
+                          <td className="border dark:border-gray-700 p-1 text-text-light dark:text-text-dark">
+                            {facture.totalTTC}
+                          </td>
+                          <td className="border dark:border-gray-700 p-1 text-text-light dark:text-text-dark">
+                            {facture.userId}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

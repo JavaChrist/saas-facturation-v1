@@ -17,11 +17,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr">
+    <html lang="fr" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
-      <body>
+      <body className="bg-background-light dark:bg-background-dark text-text-light dark:text-text-dark">
         {/* Préchargement du favicon avec priorité pour résoudre l'avertissement LCP */}
         <div
           style={{

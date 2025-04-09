@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import {
   collection,
-  getDocs,
   addDoc,
   deleteDoc,
   doc,
@@ -345,9 +344,11 @@ export default function FacturesPage() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-6 bg-background-light dark:bg-background-dark">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-4xl font-semibold">📜 Factures</h1>
+        <h1 className="text-4xl font-semibold text-text-light dark:text-text-dark">
+          📜 Factures
+        </h1>
         <div className="flex space-x-4">
           <button
             onClick={() => router.push("/dashboard")}
@@ -366,7 +367,7 @@ export default function FacturesPage() {
 
       {/* Tableau des factures */}
       <div className="overflow-x-auto">
-        <table className="w-full bg-white shadow-md rounded-lg">
+        <table className="w-full bg-card-light dark:bg-card-dark shadow-md rounded-lg">
           <thead className="bg-gray-800 text-white">
             <tr>
               <th className="py-3 px-4 text-left">N° Facture</th>
@@ -381,10 +382,17 @@ export default function FacturesPage() {
             {factures
               .filter((facture) => facture && facture.id)
               .map((facture) => (
-                <tr key={facture.id} className="border-b hover:bg-gray-100">
-                  <td className="py-3 px-4">{facture.numero}</td>
-                  <td className="py-3 px-4">{facture.client.nom}</td>
-                  <td className="py-3 px-4">
+                <tr
+                  key={facture.id}
+                  className="border-b dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/70"
+                >
+                  <td className="py-3 px-4 text-text-light dark:text-text-dark">
+                    {facture.numero}
+                  </td>
+                  <td className="py-3 px-4 text-text-light dark:text-text-dark">
+                    {facture.client.nom}
+                  </td>
+                  <td className="py-3 px-4 text-text-light dark:text-text-dark">
                     {(() => {
                       let formattedDate = "-";
                       if (facture.dateCreation instanceof Date) {
@@ -412,8 +420,10 @@ export default function FacturesPage() {
                       return formattedDate;
                     })()}
                   </td>
-                  <td className="py-3 px-4">{facture.totalTTC.toFixed(2)} €</td>
-                  <td className="py-3 px-4">
+                  <td className="py-3 px-4 text-text-light dark:text-text-dark">
+                    {facture.totalTTC.toFixed(2)} €
+                  </td>
+                  <td className="py-3 px-4 text-text-light dark:text-text-dark">
                     <span
                       className={`py-1 px-3 rounded-full text-white text-sm ${
                         facture.statut === "Payée"
@@ -428,24 +438,24 @@ export default function FacturesPage() {
                       {facture.statut}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-center flex justify-center space-x-2">
+                  <td className="py-3 px-4 text-center">
                     <button
                       onClick={() => generatePDF(facture)}
-                      className="text-gray-600 hover:text-gray-800"
+                      className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white mx-1"
                       title="Générer PDF"
                     >
                       <FiFileText size={18} />
                     </button>
                     <button
                       onClick={() => openEditModal(facture)}
-                      className="text-blue-500 hover:text-blue-700"
+                      className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 mx-1"
                       title="Modifier"
                     >
                       <FiEdit size={18} />
                     </button>
                     <button
                       onClick={() => deleteFacture(facture.id)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 mx-1"
                       title="Supprimer"
                     >
                       <FiTrash2 size={18} />
@@ -459,15 +469,15 @@ export default function FacturesPage() {
 
       {/* Modal amélioré */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-[1200px] relative">
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-[1200px] relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={closeModal}
-              className="absolute top-3 right-3 bg-gray-300 text-gray-800 px-3 py-1 rounded-full hover:bg-gray-400 transform hover:scale-105 transition-transform duration-300"
+              className="absolute top-3 right-3 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-3 py-1 rounded-full hover:bg-gray-400 dark:hover:bg-gray-600 transform hover:scale-105 transition-transform duration-300"
             >
               ❌
             </button>
-            <h2 className="text-xl font-semibold mb-4">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
               {selectedFacture ? "Modifier la facture" : "Ajouter une facture"}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -482,7 +492,7 @@ export default function FacturesPage() {
                       numero: e.target.value.toUpperCase(),
                     })
                   }
-                  className="w-full p-2 border"
+                  className="w-full p-2 border bg-white text-gray-800"
                   required
                 />
                 <select
@@ -493,7 +503,7 @@ export default function FacturesPage() {
                       statut: e.target.value as Facture["statut"],
                     })
                   }
-                  className="w-full p-2 border"
+                  className="w-full p-2 border bg-white text-gray-800"
                   required
                 >
                   <option value="En attente">En attente</option>
@@ -507,7 +517,7 @@ export default function FacturesPage() {
                 <div className="flex flex-col">
                   <label
                     htmlFor="date-facture"
-                    className="text-sm text-gray-600 mb-1"
+                    className="block font-semibold text-gray-800 dark:text-white mb-2"
                   >
                     Date de la facture
                   </label>
@@ -553,7 +563,7 @@ export default function FacturesPage() {
                         dateCreation: date,
                       });
                     }}
-                    className="w-full p-2 border rounded"
+                    className="w-full p-2 border rounded bg-white text-gray-800"
                     required
                   />
                 </div>
@@ -563,7 +573,7 @@ export default function FacturesPage() {
               <select
                 value={newFacture.client.id}
                 onChange={(e) => handleClientChange(e.target.value)}
-                className="w-full p-2 border"
+                className="w-full p-2 border bg-white text-gray-800"
                 required
               >
                 <option value="">Sélectionnez un client</option>
@@ -575,7 +585,7 @@ export default function FacturesPage() {
               </select>
 
               {newFacture.client.id && (
-                <div className="bg-gray-100 p-4 rounded-md">
+                <div className="bg-gray-100 p-4 rounded-md text-gray-800">
                   <h4 className="font-semibold mb-2">Informations client</h4>
                   <p>
                     <span className="font-medium">Adresse:</span>{" "}
@@ -596,7 +606,9 @@ export default function FacturesPage() {
                 </div>
               )}
 
-              <h3 className="font-semibold">Articles</h3>
+              <h3 className="font-semibold text-gray-800 dark:text-white">
+                Articles
+              </h3>
               {newFacture.articles.map((article, index) => (
                 <div key={article.id} className="flex space-x-2">
                   <input
@@ -608,8 +620,8 @@ export default function FacturesPage() {
                     onChange={(e) =>
                       handleArticleChange(index, "description", e.target.value)
                     }
-                    className={`flex-1 p-2 border ${
-                      article.isComment ? "bg-gray-50" : ""
+                    className={`flex-1 p-2 border text-gray-800 ${
+                      article.isComment ? "bg-gray-50" : "bg-white"
                     }`}
                   />
                   {!article.isComment && (
@@ -625,7 +637,7 @@ export default function FacturesPage() {
                             Number(e.target.value)
                           )
                         }
-                        className="w-16 p-2 border"
+                        className="w-16 p-2 border bg-white text-gray-800"
                       />
                       <input
                         type="number"
@@ -638,7 +650,7 @@ export default function FacturesPage() {
                             Number(e.target.value)
                           )
                         }
-                        className="w-24 p-2 border"
+                        className="w-24 p-2 border bg-white text-gray-800"
                       />
                       <input
                         type="number"
@@ -651,7 +663,7 @@ export default function FacturesPage() {
                             Number(e.target.value)
                           )
                         }
-                        className="w-16 p-2 border"
+                        className="w-16 p-2 border bg-white text-gray-800"
                       />
                       <p className="w-24 text-center font-semibold">
                         {article.totalTTC.toFixed(2)} €
