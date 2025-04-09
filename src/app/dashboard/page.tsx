@@ -10,6 +10,7 @@ import DashboardStats from "@/components/dashboard/DashboardStats";
 import DateFilter, { DateRange } from "@/components/dashboard/DateFilter";
 import ClientsChart from "@/components/dashboard/ClientsChart";
 import InvoiceStatusChart from "@/components/dashboard/InvoiceStatusChart";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -93,6 +94,12 @@ export default function Dashboard() {
           >
             Paramètres
           </Link>
+          <Link
+            href="/dashboard/notifications"
+            className="block py-2 px-4 rounded-md hover:bg-gray-600"
+          >
+            Notifications
+          </Link>
         </nav>
         <button
           onClick={handleLogout}
@@ -115,9 +122,13 @@ export default function Dashboard() {
               height={24}
               style={{ width: "auto", height: "auto" }}
               className="ml-2"
+              priority
             />
           </h1>
-          <DateFilter onDateChange={handleDateChange} className="w-56" />
+          <div className="flex items-center gap-4">
+            <NotificationBell />
+            <DateFilter onDateChange={handleDateChange} className="w-56" />
+          </div>
         </div>
 
         {/* Statistiques */}

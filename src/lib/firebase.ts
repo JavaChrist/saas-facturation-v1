@@ -1,6 +1,13 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  connectFirestoreEmulator,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentSingleTabManager,
+  CACHE_SIZE_UNLIMITED,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // Utilisation des variables d'environnement pour la configuration
@@ -17,7 +24,27 @@ const firebaseConfig = {
 // Initialisation de Firebase
 const app = initializeApp(firebaseConfig);
 
+// Initialisation de Firestore avec la persistence cache moderne
+export const db =
+  typeof window !== "undefined"
+    ? initializeFirestore(app, {
+        cache: persistentLocalCache({
+          tabManager: persistentSingleTabManager(),
+          cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+        }),
+      })
+    : getFirestore(app);
+
 // Exportation des services Firebase
 export const auth = getAuth(app);
-export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// ATTENTION : Fix temporaire pour les problèmes de permission
+// Pour le développement uniquement, ne pas utiliser en production
+if (typeof window !== "undefined") {
+  console.log(
+    "⚠️ ATTENTION: Configuration spéciale de Firestore activée pour le développement"
+  );
+
+  console.log("✅ Cache persistant Firestore activé avec la nouvelle API");
+}

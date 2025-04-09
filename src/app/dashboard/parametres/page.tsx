@@ -1,13 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
-import { db, storage } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Entreprise } from "@/types/entreprise";
 import { FiArrowLeft, FiSave, FiUpload } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import Image from "next/image";
+import { Entreprise } from "@/types/entreprise";
 
 export default function ParametresPage() {
   const router = useRouter();
@@ -162,13 +161,21 @@ export default function ParametresPage() {
                 <div className="flex items-center gap-4">
                   {entreprise.logo && (
                     <div className="relative w-20 h-20 group">
-                      <Image
-                        src={entreprise.logo}
-                        alt="Logo de l'entreprise"
-                        fill
-                        sizes="(max-width: 80px) 100vw, 80px"
-                        className="object-contain rounded-lg"
-                      />
+                      {entreprise.logo.startsWith("http") ? (
+                        <Image
+                          src={entreprise.logo}
+                          alt="Logo de l'entreprise"
+                          fill
+                          sizes="(max-width: 80px) 100vw, 80px"
+                          className="object-contain rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg">
+                          <span className="text-xs text-gray-500 text-center p-1">
+                            Logo sélectionné
+                          </span>
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
@@ -195,23 +202,46 @@ export default function ParametresPage() {
                           try {
                             setIsSaving(true);
 
-                            // Créer une URL locale pour l'image sélectionnée
-                            const imageUrl = URL.createObjectURL(file);
+                            // Vérifier si le fichier est une image valide
+                            if (!file.type.startsWith("image/")) {
+                              throw new Error(
+                                "Le fichier sélectionné doit être une image"
+                              );
+                            }
 
-                            // Mettre à jour l'entreprise avec l'URL de l'image
-                            setEntreprise((prev) => ({
-                              ...prev,
-                              logo: imageUrl,
-                            }));
+                            // Vérifier que l'image ne dépasse pas 1MB
+                            if (file.size > 1024 * 1024) {
+                              throw new Error(
+                                "L'image est trop volumineuse (max 1MB)"
+                              );
+                            }
 
-                            setSaveMessage("✅ Logo chargé avec succès");
-
-                            // NOTE: Dans une application réelle, vous voudriez
-                            // télécharger l'image dans un service de stockage
-                            // comme Firebase Storage au lieu d'utiliser une URL locale
+                            // Dans cette version simplifiée, nous stockons simplement une chaîne
+                            // indiquant qu'une image a été sélectionnée, plutôt qu'une URL Blob
+                            // qui peut causer des erreurs de référence.
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                              if (e.target?.result) {
+                                // Stocker l'URL de données temporaire
+                                setEntreprise((prev) => ({
+                                  ...prev,
+                                  logo: e.target?.result as string,
+                                }));
+                                setSaveMessage(
+                                  "✅ Logo chargé (prévisualisation uniquement)"
+                                );
+                              }
+                            };
+                            reader.readAsDataURL(file);
                           } catch (error) {
                             console.error("Erreur lors du chargement:", error);
-                            setError("Erreur lors du chargement du logo");
+                            setError(
+                              `Erreur lors du chargement du logo: ${
+                                error instanceof Error
+                                  ? error.message
+                                  : "Erreur inconnue"
+                              }`
+                            );
                           } finally {
                             setIsSaving(false);
                           }

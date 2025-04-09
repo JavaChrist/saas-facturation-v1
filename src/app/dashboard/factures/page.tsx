@@ -44,6 +44,19 @@ export default function FacturesPage() {
     dateCreation: new Date(),
   });
   const [selectedFacture, setSelectedFacture] = useState<Facture | null>(null);
+  const [searchParams, setSearchParams] = useState<{ id?: string }>({});
+
+  // Récupérer les paramètres de l'URL
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const factureId = urlParams.get("id");
+
+      if (factureId) {
+        setSearchParams({ id: factureId });
+      }
+    }
+  }, []);
 
   // Charger les factures depuis Firestore
   useEffect(() => {
@@ -61,10 +74,22 @@ export default function FacturesPage() {
         dateCreation: doc.data().dateCreation?.toDate(),
       })) as Facture[];
       setFactures(facturesData);
+
+      // Si un ID est spécifié dans l'URL, ouvrir la facture correspondante
+      if (searchParams.id) {
+        const factureToOpen = facturesData.find(
+          (f) => f.id === searchParams.id
+        );
+        if (factureToOpen) {
+          openEditModal(factureToOpen);
+          // Réinitialiser l'ID pour éviter de rouvrir la facture à chaque rafraîchissement
+          setSearchParams({});
+        }
+      }
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, searchParams.id]);
 
   // Charger les clients depuis Firestore
   useEffect(() => {
