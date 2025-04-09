@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable, { UserOptions } from "jspdf-autotable";
-import { Facture } from "@/types/facture";
+import { Facture, FirestoreTimestamp } from "@/types/facture";
 import { Entreprise } from "@/types/entreprise";
 import { db, storage } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -29,14 +29,20 @@ export const generateInvoicePDF = async (facture: Facture) => {
     }
 
     // Vérifier l'authentification
-    const auth = getAuth();
-    if (!auth.currentUser) {
+    const authService = getAuth();
+    if (!authService.currentUser) {
       throw new Error("Utilisateur non authentifié");
     }
 
     // Récupération des informations de l'entreprise
     const entrepriseDoc = await getDoc(
-      doc(db, "parametres", auth.currentUser.uid, "entreprise", "default")
+      doc(
+        db,
+        "parametres",
+        authService.currentUser.uid,
+        "entreprise",
+        "default"
+      )
     );
     if (!entrepriseDoc.exists()) {
       throw new Error(
@@ -88,9 +94,30 @@ export const generateInvoicePDF = async (facture: Facture) => {
 
     // Numéro de facture et date (en haut à droite)
     console.log("Ajout du numéro de facture et de la date");
-    const dateStr = facture.dateCreation
-      ? new Date(facture.dateCreation).toLocaleDateString("fr-FR")
-      : new Date().toLocaleDateString("fr-FR");
+    let dateStr: string;
+
+    if (facture.dateCreation instanceof Date) {
+      dateStr = facture.dateCreation.toLocaleDateString("fr-FR");
+    } else if (typeof facture.dateCreation === "string") {
+      try {
+        dateStr = new Date(facture.dateCreation).toLocaleDateString("fr-FR");
+      } catch (e) {
+        dateStr = new Date().toLocaleDateString("fr-FR");
+      }
+    } else if (
+      facture.dateCreation &&
+      typeof (facture.dateCreation as FirestoreTimestamp).toDate === "function"
+    ) {
+      try {
+        dateStr = (facture.dateCreation as FirestoreTimestamp)
+          .toDate()
+          .toLocaleDateString("fr-FR");
+      } catch (e) {
+        dateStr = new Date().toLocaleDateString("fr-FR");
+      }
+    } else {
+      dateStr = new Date().toLocaleDateString("fr-FR");
+    }
 
     pdfDoc.setFont("helvetica", "bold");
     pdfDoc.text(`Facture N° ${facture.numero}`, pageWidth - 60, 30);
@@ -252,7 +279,7 @@ export const generateInvoicePDF = async (facture: Facture) => {
         });
 
         // Création du chemin avec l'ID de l'utilisateur
-        const userId = auth.currentUser.uid;
+        const userId = authService.currentUser.uid;
         const storageRef = ref(
           storage,
           `factures/${userId}/${facture.numero}.pdf`
