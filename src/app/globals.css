@@ -31,3 +31,12 @@ body {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 300ms;
 }
+
+/* Correction des inputs de type date en mode sombre */
+.dark input[type="date"],
+.dark input[type="datetime-local"],
+.dark input[type="month"],
+.dark input[type="time"],
+.dark input[type="week"] {
+  color-scheme: dark;
+}

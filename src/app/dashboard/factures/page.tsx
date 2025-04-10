@@ -357,6 +357,18 @@ export default function FacturesPage() {
             <FiArrowLeft size={18} className="mr-2" /> Retour
           </button>
           <button
+            onClick={() => router.push("/dashboard/factures/modeles")}
+            className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center transform hover:scale-105 transition-transform duration-300"
+          >
+            📝 Modèles
+          </button>
+          <button
+            onClick={() => router.push("/dashboard/factures/recurrentes")}
+            className="bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 flex items-center transform hover:scale-105 transition-transform duration-300"
+          >
+            🔄 Récurrentes
+          </button>
+          <button
             onClick={openModal}
             className="bg-gray-800 text-white py-2 px-4 rounded-md hover:bg-gray-600 transform hover:scale-105 transition-transform duration-300"
           >

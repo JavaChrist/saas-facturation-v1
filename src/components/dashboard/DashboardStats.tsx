@@ -214,14 +214,14 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
     <div>
       <h2 className="text-xl font-semibold mb-4 text-text-light dark:text-text-dark">
         Statistiques
-      </h2>
+                </h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* CA total */}
         <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
           <div className="bg-green-100 dark:bg-green-900 p-4 rounded-lg mr-4">
             <TbCash className="text-green-500 dark:text-green-400 text-2xl" />
           </div>
-          <div>
+              <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
               Chiffre d'affaires total
             </p>
@@ -240,15 +240,15 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
                 {stats.caTotalVariation.toFixed(2)}% vs période précédente
               </p>
             )}
-          </div>
-        </div>
+              </div>
+            </div>
 
         {/* Nombre clients */}
         <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
           <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-lg mr-4">
             <TbUsers className="text-blue-500 dark:text-blue-400 text-2xl" />
           </div>
-          <div>
+              <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
               Nombre de clients
             </p>
@@ -267,15 +267,15 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
                 {stats.clientCountVariation.toFixed(2)}% vs période précédente
               </p>
             )}
-          </div>
-        </div>
+              </div>
+            </div>
 
         {/* Nombre factures */}
         <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
           <div className="bg-purple-100 dark:bg-purple-900 p-4 rounded-lg mr-4">
             <TbFileInvoice className="text-purple-500 dark:text-purple-400 text-2xl" />
           </div>
-          <div>
+              <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
               Nombre de factures
             </p>
