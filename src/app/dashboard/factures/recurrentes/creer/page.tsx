@@ -113,15 +113,21 @@ export default function CreerFactureRecurrentePage() {
 
   // Mise à jour de la prochaine émission lors du changement de fréquence ou de jour
   useEffect(() => {
-    const prochaine = calculerProchaineEmission(
-      factureRecurrente.frequence,
-      factureRecurrente.jourEmission,
-      factureRecurrente.moisEmission
-    );
-    setFactureRecurrente((prev) => ({
-      ...prev,
-      prochaineEmission: prochaine,
-    }));
+    if (
+      factureRecurrente &&
+      factureRecurrente.frequence &&
+      factureRecurrente.jourEmission
+    ) {
+      const prochaine = calculerProchaineEmission(
+        factureRecurrente.frequence,
+        factureRecurrente.jourEmission,
+        factureRecurrente.moisEmission
+      );
+      setFactureRecurrente((prev) => ({
+        ...prev,
+        prochaineEmission: prochaine,
+      }));
+    }
   }, [
     factureRecurrente.frequence,
     factureRecurrente.jourEmission,

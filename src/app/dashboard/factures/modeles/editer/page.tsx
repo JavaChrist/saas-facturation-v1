@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FiArrowLeft, FiSave } from "react-icons/fi";
 import { useAuth } from "@/lib/authContext";
@@ -10,7 +10,7 @@ import {
 } from "@/services/modeleFactureService";
 import { ModeleFacture, StyleModele } from "@/types/modeleFacture";
 
-export default function EditerModelePage() {
+function EditerModeleContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -425,5 +425,20 @@ export default function EditerModelePage() {
         </div>
       </form>
     </div>
+  );
+}
+
+// Composant principal qui enveloppe le contenu dans un Suspense
+export default function EditerModelePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 flex items-center justify-center h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
+        </div>
+      }
+    >
+      <EditerModeleContent />
+    </Suspense>
   );
 }

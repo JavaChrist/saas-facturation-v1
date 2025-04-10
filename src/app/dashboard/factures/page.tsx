@@ -79,6 +79,37 @@ export default function FacturesPage() {
     return () => unsubscribe();
   }, [user]);
 
+  const openEditModal = (facture: Facture) => {
+    setSelectedFacture(facture);
+
+    // Gestion de la date de création en prenant en compte les différents types possibles
+    let dateCreation: Date;
+    if (facture.dateCreation instanceof Date) {
+      dateCreation = facture.dateCreation;
+    } else if (typeof facture.dateCreation === "string") {
+      dateCreation = new Date(facture.dateCreation);
+    } else if (
+      facture.dateCreation &&
+      typeof (facture.dateCreation as FirestoreTimestamp).toDate === "function"
+    ) {
+      dateCreation = (facture.dateCreation as FirestoreTimestamp).toDate();
+    } else {
+      dateCreation = new Date();
+    }
+
+    setNewFacture({
+      numero: facture.numero,
+      client: facture.client,
+      statut: facture.statut,
+      articles: facture.articles,
+      totalHT: facture.totalHT,
+      totalTTC: facture.totalTTC,
+      userId: facture.userId || user?.uid || "",
+      dateCreation: dateCreation,
+    });
+    setIsModalOpen(true);
+  };
+
   // Ouvrir la facture si un ID est spécifié dans l'URL
   useEffect(() => {
     if (searchParams.id && factures.length > 0) {
@@ -89,7 +120,7 @@ export default function FacturesPage() {
         setSearchParams({});
       }
     }
-  }, [searchParams.id, factures]);
+  }, [searchParams.id, factures, openEditModal]);
 
   // Charger les clients depuis Firestore
   useEffect(() => {
@@ -119,37 +150,6 @@ export default function FacturesPage() {
     setNewFacture({
       ...newFacture,
       numero: newNumero,
-    });
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (facture: Facture) => {
-    setSelectedFacture(facture);
-
-    // Gestion de la date de création en prenant en compte les différents types possibles
-    let dateCreation: Date;
-    if (facture.dateCreation instanceof Date) {
-      dateCreation = facture.dateCreation;
-    } else if (typeof facture.dateCreation === "string") {
-      dateCreation = new Date(facture.dateCreation);
-    } else if (
-      facture.dateCreation &&
-      typeof (facture.dateCreation as FirestoreTimestamp).toDate === "function"
-    ) {
-      dateCreation = (facture.dateCreation as FirestoreTimestamp).toDate();
-    } else {
-      dateCreation = new Date();
-    }
-
-    setNewFacture({
-      numero: facture.numero,
-      client: facture.client,
-      statut: facture.statut,
-      articles: facture.articles,
-      totalHT: facture.totalHT,
-      totalTTC: facture.totalTTC,
-      userId: facture.userId || user?.uid || "",
-      dateCreation: dateCreation,
     });
     setIsModalOpen(true);
   };
