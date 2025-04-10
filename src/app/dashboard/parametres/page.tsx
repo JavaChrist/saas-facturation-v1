@@ -68,7 +68,7 @@ export default function ParametresPage() {
     };
 
     checkAuthAndFetchData();
-  }, [user, router]);
+  }, [user, router, entreprise]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

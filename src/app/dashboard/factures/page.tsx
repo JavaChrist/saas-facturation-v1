@@ -74,22 +74,22 @@ export default function FacturesPage() {
         dateCreation: doc.data().dateCreation?.toDate(),
       })) as Facture[];
       setFactures(facturesData);
-
-      // Si un ID est spécifié dans l'URL, ouvrir la facture correspondante
-      if (searchParams.id) {
-        const factureToOpen = facturesData.find(
-          (f) => f.id === searchParams.id
-        );
-        if (factureToOpen) {
-          openEditModal(factureToOpen);
-          // Réinitialiser l'ID pour éviter de rouvrir la facture à chaque rafraîchissement
-          setSearchParams({});
-        }
-      }
     });
 
     return () => unsubscribe();
-  }, [user, searchParams.id]);
+  }, [user]);
+
+  // Ouvrir la facture si un ID est spécifié dans l'URL
+  useEffect(() => {
+    if (searchParams.id && factures.length > 0) {
+      const factureToOpen = factures.find((f) => f.id === searchParams.id);
+      if (factureToOpen) {
+        openEditModal(factureToOpen);
+        // Réinitialiser l'ID pour éviter de rouvrir la facture à chaque rafraîchissement
+        setSearchParams({});
+      }
+    }
+  }, [searchParams.id, factures]);
 
   // Charger les clients depuis Firestore
   useEffect(() => {

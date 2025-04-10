@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/authContext";
 import { useRouter } from "next/navigation";
 import { FiArrowLeft, FiRefreshCw } from "react-icons/fi";
@@ -27,7 +27,7 @@ export default function DebugPage() {
     message: string;
   }>({ status: "none", message: "" });
 
-  const fetchDebugData = async () => {
+  const fetchDebugData = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -49,7 +49,7 @@ export default function DebugPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   const forceCheckOverdueInvoices = async () => {
     if (!user) return;
@@ -170,7 +170,7 @@ export default function DebugPage() {
     }
 
     fetchDebugData();
-  }, [user, router]);
+  }, [user, router, fetchDebugData]);
 
   if (!user) {
     return <p className="text-center text-gray-600 mt-10">Redirection...</p>;

@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/authContext";
 import { DateRange } from "./DateFilter";
 import { FiClock, FiCheckCircle, FiXCircle, FiSend } from "react-icons/fi";
 import { useTheme } from "@/lib/themeContext";
+import { Facture } from "@/types/facture";
 
 interface InvoiceStatusChartProps {
   dateRange: DateRange;
@@ -40,7 +41,7 @@ export default function InvoiceStatusChart({
         const factures = querySnapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
-        }));
+        })) as Facture[];
 
         // Filtrer par plage de dates si nécessaire
         // (Code simplifié pour l'exemple)
