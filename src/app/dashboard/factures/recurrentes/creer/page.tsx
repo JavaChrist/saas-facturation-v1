@@ -88,16 +88,8 @@ export default function CreerFactureRecurrentePage() {
           }));
         }
 
-        // Calcul de la prochaine émission
-        const prochaine = calculerProchaineEmission(
-          factureRecurrente.frequence,
-          factureRecurrente.jourEmission,
-          factureRecurrente.moisEmission
-        );
-        setFactureRecurrente((prev) => ({
-          ...prev,
-          prochaineEmission: prochaine,
-        }));
+        // Le calcul de la prochaine émission se fera automatiquement
+        // dans le second useEffect quand factureRecurrente sera mis à jour
       } catch (err) {
         console.error("Erreur lors du chargement des données:", err);
         if (err instanceof Error) {
@@ -113,13 +105,9 @@ export default function CreerFactureRecurrentePage() {
     fetchData();
   }, [user, router]);
 
-  // On sépare la logique de calcul de la prochaine émission dans un useEffect dédié
+  // UseEffect dédié au calcul de prochaine émission à chaque changement des propriétés pertinentes
   useEffect(() => {
-    if (
-      factureRecurrente &&
-      factureRecurrente.frequence &&
-      factureRecurrente.jourEmission
-    ) {
+    if (factureRecurrente.frequence && factureRecurrente.jourEmission) {
       const prochaine = calculerProchaineEmission(
         factureRecurrente.frequence,
         factureRecurrente.jourEmission,

@@ -108,7 +108,10 @@ export async function POST(request: NextRequest) {
     }
 
     // En mode développement, on saute la vérification d'authentification
-    if (process.env.NODE_ENV !== "development") {
+    if (
+      process.env.NODE_ENV === "production" ||
+      process.env.NODE_ENV === "test"
+    ) {
       try {
         // Vérifier l'authentification (optionnel si vous avez déjà vérifié l'utilisateur)
         console.log(
