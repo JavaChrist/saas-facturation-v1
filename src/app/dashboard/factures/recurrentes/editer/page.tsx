@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FiArrowLeft, FiSave } from "react-icons/fi";
 import { useAuth } from "@/lib/authContext";
@@ -14,7 +14,17 @@ import { Client, Article } from "@/types/facture";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
-export default function EditerFactureRecurrentePage() {
+// Composant de chargement
+function LoadingState() {
+  return (
+    <div className="p-6 flex items-center justify-center h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
+    </div>
+  );
+}
+
+// Composant principal enveloppé dans un Suspense
+function FactureRecurrenteEditor() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const factureId = searchParams.get("id");
@@ -799,5 +809,14 @@ export default function EditerFactureRecurrentePage() {
         </div>
       </form>
     </div>
+  );
+}
+
+// Composant exporté avec Suspense
+export default function EditerFactureRecurrentePage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <FactureRecurrenteEditor />
+    </Suspense>
   );
 }

@@ -130,12 +130,7 @@ export default function CreerFactureRecurrentePage() {
         prochaineEmission: prochaine,
       }));
     }
-  }, [
-    factureRecurrente,
-    factureRecurrente.frequence,
-    factureRecurrente.jourEmission,
-    factureRecurrente.moisEmission,
-  ]);
+  }, [factureRecurrente]);
 
   // Gestion des champs de base
   const handleChange = (
