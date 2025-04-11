@@ -63,12 +63,11 @@ export async function POST(request: NextRequest) {
             session.subscription as string
           );
 
-          if (subscription && subscription.current_period_end) {
+          if (subscription) {
             // Calculer les dates
-            const dateStart = new Date(
-              subscription.current_period_start * 1000
-            );
-            const dateEnd = new Date(subscription.current_period_end * 1000);
+            const dateStart = new Date(Date.now());
+            const dateEnd = new Date();
+            dateEnd.setMonth(dateEnd.getMonth() + 1); // Date de fin dans un mois
 
             // Mettre à jour l'abonnement de l'utilisateur
             await updateUserSubscription(
@@ -96,8 +95,9 @@ export async function POST(request: NextRequest) {
           const planId = subscription.metadata.planId;
 
           // Calculer les dates
-          const dateStart = new Date(subscription.current_period_start * 1000);
-          const dateEnd = new Date(subscription.current_period_end * 1000);
+          const dateStart = new Date(Date.now());
+          const dateEnd = new Date();
+          dateEnd.setMonth(dateEnd.getMonth() + 1); // Date de fin dans un mois
 
           // Mettre à jour l'abonnement
           await updateUserSubscription(
