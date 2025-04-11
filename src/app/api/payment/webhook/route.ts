@@ -7,6 +7,13 @@ import { updateFactureStatus } from "@/services/factureService";
  * Route API pour gérer les webhooks Stripe
  * Cette route est appelée par Stripe pour nous notifier des événements (paiements, etc.)
  */
+
+// Cette route ne nécessite pas de vérification CSRF pour les webhooks Stripe
+export const dynamic = "force-dynamic";
+export const runtime = "edge";
+export const preferredRegion = "auto";
+
+// Désactiver le parseur de body par défaut car nous avons besoin du body brut
 export async function POST(req: NextRequest) {
   try {
     // Vérifier que le secret est configuré
@@ -62,10 +69,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
-// Cette route ne nécessite pas de vérification CSRF pour les webhooks Stripe
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
