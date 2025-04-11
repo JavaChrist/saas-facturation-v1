@@ -8,8 +8,8 @@ import {
 } from "@/config/stripe";
 
 // Initialiser Stripe avec la clé secrète
-const stripe = new Stripe(STRIPE_SECRET_KEY, {
-  apiVersion: "2023-10-16", // Utilisez la dernière version disponible
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+  apiVersion: "2025-03-31.basil", // Version de l'API compatible
 });
 
 /**

@@ -111,7 +111,7 @@ export default function CreerFactureRecurrentePage() {
     };
 
     fetchData();
-  }, [user, router]);
+  }, [user, router, factureRecurrente]);
 
   // Mise à jour de la prochaine émission lors du changement de fréquence ou de jour
   useEffect(() => {

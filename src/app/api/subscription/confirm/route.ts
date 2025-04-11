@@ -28,7 +28,7 @@ const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
 // Initialisation de l'instance Stripe
 const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, { apiVersion: "2023-10-16" })
+  ? new Stripe(stripeSecretKey, { apiVersion: "2025-03-31.basil" })
   : null;
 
 // Limites par défaut pour chaque plan

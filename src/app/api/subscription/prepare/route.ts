@@ -33,7 +33,7 @@ console.log(
 
 // Initialisation de l'instance Stripe
 const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, { apiVersion: "2023-10-16" })
+  ? new Stripe(stripeSecretKey, { apiVersion: "2025-03-31.basil" })
   : null;
 
 // Configuration des prix Stripe pour chaque plan
