@@ -379,7 +379,11 @@ export default function AbonnementPage() {
       };
     } catch (e) {
       console.error("[DEBUG] Erreur critique lors de la simulation:", e);
-      setError(`Erreur de simulation: ${e.message || "Erreur inconnue"}`);
+      setError(
+        `Erreur de simulation: ${
+          e instanceof Error ? e.message : "Erreur inconnue"
+        }`
+      );
       setIsLoading(false);
       return null;
     }
