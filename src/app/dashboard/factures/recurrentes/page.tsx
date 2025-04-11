@@ -15,7 +15,14 @@ import {
   genererFactureDepuisRecurrente,
 } from "@/services/factureRecurrenteService";
 import { FactureRecurrente } from "@/types/modeleFacture";
-import { getDoc, doc } from "firebase/firestore";
+import {
+  getDoc,
+  doc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Client } from "@/types/facture";
 
@@ -27,41 +34,54 @@ export default function FacturesRecurrentesPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [clients, setClients] = useState<Record<string, Client>>({});
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Charger les factures récurrentes
+  // Charger les factures récurrentes et les clients
   useEffect(() => {
     if (!user) return;
 
-    const fetchFacturesRecurrentes = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
         console.log(
           "Tentative de récupération des factures récurrentes pour l'utilisateur:",
           user.uid
         );
+
+        // Récupérer les factures récurrentes
         const factures = await getFacturesRecurrentes(user.uid);
         console.log("Factures récurrentes récupérées avec succès:", factures);
         setFacturesRecurrentes(factures);
-      } catch (err) {
-        console.error(
-          "Erreur détaillée lors du chargement des factures récurrentes:",
-          err
+
+        // Récupérer tous les clients pour affichage
+        const clientsQuery = query(
+          collection(db, "clients"),
+          where("userId", "==", user.uid)
         );
+        const clientsSnapshot = await getDocs(clientsQuery);
+        const clientsMap: Record<string, Client> = {};
+
+        clientsSnapshot.docs.forEach((doc) => {
+          clientsMap[doc.id] = { id: doc.id, ...doc.data() } as Client;
+        });
+
+        setClients(clientsMap);
+      } catch (err) {
+        console.error("Erreur détaillée lors du chargement des données:", err);
         if (err instanceof Error) {
           setError(
-            `Impossible de charger les factures récurrentes: ${err.message}. Veuillez réessayer.`
+            `Impossible de charger les données: ${err.message}. Veuillez réessayer.`
           );
         } else {
-          setError(
-            "Impossible de charger les factures récurrentes. Veuillez réessayer."
-          );
+          setError("Impossible de charger les données. Veuillez réessayer.");
         }
       } finally {
         setLoading(false);
       }
     };
 
-    fetchFacturesRecurrentes();
+    fetchData();
   }, [user]);
 
   // Naviguer vers la création d'une nouvelle facture récurrente
@@ -98,16 +118,22 @@ export default function FacturesRecurrentesPage() {
   // Générer manuellement une facture depuis une facturation récurrente
   const handleGenerate = async (factureRecurrente: FactureRecurrente) => {
     try {
-      // Récupérer le client
-      const clientDoc = await getDoc(
-        doc(db, "clients", factureRecurrente.clientId)
-      );
-      if (!clientDoc.exists()) {
-        alert("Client introuvable");
-        return;
-      }
+      // Vérifier si le client est déjà chargé
+      let client: Client;
 
-      const client = { id: clientDoc.id, ...clientDoc.data() } as Client;
+      if (clients[factureRecurrente.clientId]) {
+        client = clients[factureRecurrente.clientId];
+      } else {
+        // Récupérer le client si non disponible
+        const clientDoc = await getDoc(
+          doc(db, "clients", factureRecurrente.clientId)
+        );
+        if (!clientDoc.exists()) {
+          alert("Client introuvable");
+          return;
+        }
+        client = { id: clientDoc.id, ...clientDoc.data() } as Client;
+      }
 
       // Générer la facture
       const factureId = await genererFactureDepuisRecurrente(
@@ -115,8 +141,16 @@ export default function FacturesRecurrentesPage() {
         client
       );
 
-      // Rediriger vers la facture créée
-      router.push(`/dashboard/factures?id=${factureId}`);
+      // Afficher un message de succès
+      setSuccessMessage(`Facture générée avec succès`);
+
+      // Masquer le message après 3 secondes
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+
+      // Rediriger vers la page de factures (sans paramètre id pour éviter des erreurs 404)
+      router.push(`/dashboard/factures`);
     } catch (err) {
       console.error("Erreur lors de la génération de la facture:", err);
       alert("Impossible de générer la facture. Veuillez réessayer.");
@@ -127,20 +161,38 @@ export default function FacturesRecurrentesPage() {
   const formatFrequence = (
     frequence: string,
     jourEmission: number,
-    moisEmission?: number[]
+    nombreRepetitions?: number
   ) => {
+    let base = "";
+
     switch (frequence) {
       case "mensuelle":
-        return `Mensuelle (le ${jourEmission} de chaque mois)`;
+        base = `Mensuelle (le ${jourEmission} de chaque mois)`;
+        break;
       case "trimestrielle":
-        return `Trimestrielle (le ${jourEmission} du mois)`;
+        base = `Trimestrielle (le ${jourEmission} du mois)`;
+        break;
       case "semestrielle":
-        return `Semestrielle (le ${jourEmission} du mois)`;
+        base = `Semestrielle (le ${jourEmission} du mois)`;
+        break;
       case "annuelle":
-        return `Annuelle (le ${jourEmission} du mois)`;
+        base = `Annuelle (le ${jourEmission} du mois)`;
+        break;
       default:
-        return frequence;
+        base = frequence;
     }
+
+    // Ajouter l'information sur le nombre de répétitions
+    if (nombreRepetitions !== undefined) {
+      return `${base} × ${nombreRepetitions}`;
+    }
+
+    return base;
+  };
+
+  // Obtenir le nom du client à partir de son ID
+  const getClientName = (clientId: string) => {
+    return clients[clientId]?.nom || `Client (${clientId})`;
   };
 
   return (
@@ -164,6 +216,29 @@ export default function FacturesRecurrentesPage() {
           </button>
         </div>
       </div>
+
+      {/* Message de succès */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-3 rounded shadow-md animate-fadeIn">
+          <div className="flex items-center">
+            <svg
+              className="w-5 h-5 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M5 13l4 4L19 7"
+              ></path>
+            </svg>
+            <p>{successMessage}</p>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center items-center h-64">
@@ -207,14 +282,13 @@ export default function FacturesRecurrentesPage() {
                   className="border-b dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
-                    {facture.clientId}{" "}
-                    {/* Idéalement, afficher le nom du client */}
+                    {getClientName(facture.clientId)}
                   </td>
                   <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
                     {formatFrequence(
                       facture.frequence,
                       facture.jourEmission,
-                      facture.moisEmission
+                      facture.nombreRepetitions
                     )}
                   </td>
                   <td className="py-3 px-4 text-gray-800 dark:text-gray-200">

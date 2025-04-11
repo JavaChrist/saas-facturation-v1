@@ -223,92 +223,138 @@ export default function ClientsPage() {
               {selectedClient.id ? "Modifier Client" : "Ajouter un Client"}
             </h2>
 
-            <form onSubmit={handleSubmit}>
-              <input
-                type="text"
-                placeholder="Réf Client"
-                value={selectedClient.refClient}
-                onChange={(e) =>
-                  setSelectedClient({
-                    ...selectedClient,
-                    refClient: e.target.value.toUpperCase(),
-                  })
-                }
-                className="w-full p-2 border mb-2 uppercase bg-white text-black"
-              />
-              <input
-                type="text"
-                placeholder="Nom"
-                value={selectedClient.nom}
-                onChange={(e) =>
-                  setSelectedClient({
-                    ...selectedClient,
-                    nom: e.target.value.toUpperCase(),
-                  })
-                }
-                className="w-full p-2 border mb-2 uppercase bg-white text-black"
-              />
-              <input
-                type="text"
-                placeholder="Rue"
-                value={selectedClient.rue}
-                onChange={(e) =>
-                  setSelectedClient({ ...selectedClient, rue: e.target.value })
-                }
-                className="w-full p-2 border mb-2 bg-white text-black"
-              />
-              <input
-                type="text"
-                placeholder="Code Postal"
-                value={selectedClient.codePostal}
-                onChange={(e) =>
-                  setSelectedClient({
-                    ...selectedClient,
-                    codePostal: e.target.value,
-                  })
-                }
-                className="w-full p-2 border mb-2 bg-white text-black"
-              />
-              <input
-                type="text"
-                placeholder="Ville"
-                value={selectedClient.ville}
-                onChange={(e) =>
-                  setSelectedClient({
-                    ...selectedClient,
-                    ville: e.target.value,
-                  })
-                }
-                className="w-full p-2 border mb-2 bg-white text-black"
-              />
-              <input
-                type="email"
-                placeholder="Email"
-                value={selectedClient.email}
-                onChange={(e) =>
-                  setSelectedClient({
-                    ...selectedClient,
-                    email: e.target.value,
-                  })
-                }
-                className="w-full p-2 border mb-2 bg-white text-black"
-              />
-              <select
-                className="w-full p-2 border mb-2 bg-white text-black"
-                value={selectedClient.delaisPaiement}
-                onChange={(e) =>
-                  setSelectedClient({
-                    ...selectedClient,
-                    delaisPaiement: e.target.value as Client["delaisPaiement"],
-                  })
-                }
-              >
-                <option value="Comptant">Comptant</option>
-                <option value="8 jours">8 jours</option>
-                <option value="30 jours">30 jours</option>
-                <option value="60 jours">60 jours</option>
-              </select>
-              <div className="flex justify-end space-x-2">
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Réf Client
+                </label>
+                <input
+                  type="text"
+                  placeholder="Réf Client"
+                  value={selectedClient.refClient}
+                  onChange={(e) =>
+                    setSelectedClient({
+                      ...selectedClient,
+                      refClient: e.target.value.toUpperCase(),
+                    })
+                  }
+                  className="w-full p-2 border rounded-md uppercase bg-white text-black"
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Nom
+                </label>
+                <input
+                  type="text"
+                  placeholder="Nom"
+                  value={selectedClient.nom}
+                  onChange={(e) =>
+                    setSelectedClient({
+                      ...selectedClient,
+                      nom: e.target.value.toUpperCase(),
+                    })
+                  }
+                  className="w-full p-2 border rounded-md uppercase bg-white text-black"
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Rue
+                </label>
+                <input
+                  type="text"
+                  placeholder="Rue"
+                  value={selectedClient.rue}
+                  onChange={(e) =>
+                    setSelectedClient({
+                      ...selectedClient,
+                      rue: e.target.value,
+                    })
+                  }
+                  className="w-full p-2 border rounded-md bg-white text-black"
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Code Postal
+                </label>
+                <input
+                  type="text"
+                  placeholder="Code Postal"
+                  value={selectedClient.codePostal}
+                  onChange={(e) =>
+                    setSelectedClient({
+                      ...selectedClient,
+                      codePostal: e.target.value,
+                    })
+                  }
+                  className="w-full p-2 border rounded-md bg-white text-black"
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Ville
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ville"
+                  value={selectedClient.ville}
+                  onChange={(e) =>
+                    setSelectedClient({
+                      ...selectedClient,
+                      ville: e.target.value,
+                    })
+                  }
+                  className="w-full p-2 border rounded-md bg-white text-black"
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={selectedClient.email}
+                  onChange={(e) =>
+                    setSelectedClient({
+                      ...selectedClient,
+                      email: e.target.value,
+                    })
+                  }
+                  className="w-full p-2 border rounded-md bg-white text-black"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Délai de paiement
+                </label>
+                <select
+                  className="w-full p-2 border rounded-md bg-white text-black"
+                  value={selectedClient.delaisPaiement}
+                  onChange={(e) =>
+                    setSelectedClient({
+                      ...selectedClient,
+                      delaisPaiement: e.target
+                        .value as Client["delaisPaiement"],
+                    })
+                  }
+                >
+                  <option value="Comptant">Comptant</option>
+                  <option value="8 jours">8 jours</option>
+                  <option value="30 jours">30 jours</option>
+                  <option value="60 jours">60 jours</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end space-x-2 mt-6">
                 <button
                   type="button"
                   onClick={closeModal}

@@ -331,8 +331,8 @@ function EditerModeleContent() {
                 onChange={handleStyleChange}
                 className="w-full p-2 border rounded-md bg-white text-gray-800"
               >
-                <option value="haut">En haut</option>
-                <option value="bas">En bas</option>
+                <option value="haut">En haut à gauche</option>
+                <option value="droite">En haut à droite</option>
                 <option value="aucun">Ne pas afficher</option>
               </select>
             </div>

@@ -118,14 +118,13 @@ export default function Dashboard() {
       <main className="flex-1 p-6 overflow-auto">
         {/* Topbar */}
         <div className="flex justify-between items-center bg-card-light dark:bg-card-dark p-4 shadow-md rounded-md mb-8">
-          <h1 className="text-2xl font-semibold flex items-center text-text-light dark:text-text-dark">
+          <h1 className="text-2xl text-blue-400 font-semibold flex items-center text-text-light dark:text-text-dark">
             Bienvenue, {user.email || "Utilisateur"}
             <Image
               src="/favicon.ico"
               alt="Logo"
-              width={24}
-              height={24}
-              style={{ width: "auto", height: "auto" }}
+              width={48}
+              height={48}
               className="ml-2"
               priority
             />

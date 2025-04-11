@@ -1,10 +1,11 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FiArrowLeft, FiSave } from "react-icons/fi";
 import { useAuth } from "@/lib/authContext";
 import {
-  createFactureRecurrente,
+  getFactureRecurrente,
+  updateFactureRecurrente,
   calculerProchaineEmission,
 } from "@/services/factureRecurrenteService";
 import { getModelesFacture } from "@/services/modeleFactureService";
@@ -13,36 +14,22 @@ import { Client, Article } from "@/types/facture";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
-export default function CreerFactureRecurrentePage() {
+export default function EditerFactureRecurrentePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const factureId = searchParams.get("id");
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Données nécessaires pour créer une facture récurrente
+  // Données nécessaires pour éditer une facture récurrente
   const [clients, setClients] = useState<Client[]>([]);
   const [modeles, setModeles] = useState<ModeleFacture[]>([]);
 
-  // État initial de la facture récurrente
-  const [factureRecurrente, setFactureRecurrente] = useState<
-    Omit<FactureRecurrente, "id">
-  >({
-    modeleId: "",
-    clientId: "",
-    articles: [],
-    frequence: "mensuelle",
-    montantHT: 0,
-    montantTTC: 0,
-    jourEmission: 1,
-    moisEmission: [0, 3, 6, 9], // Pour les fréquences non mensuelles
-    prochaineEmission: new Date(),
-    actif: true,
-    nombreRepetitions: undefined, // Illimité par défaut
-    repetitionsEffectuees: 0,
-    dateCreation: new Date(),
-    userId: user?.uid || "",
-  });
+  // État de la facture récurrente
+  const [factureRecurrente, setFactureRecurrente] =
+    useState<FactureRecurrente | null>(null);
 
   // Chargement des données
   useEffect(() => {
@@ -52,8 +39,22 @@ export default function CreerFactureRecurrentePage() {
         return;
       }
 
+      if (!factureId) {
+        setError("ID de facture récurrente manquant");
+        return;
+      }
+
       try {
         setLoadingData(true);
+
+        // Charger la facture récurrente
+        const factureData = await getFactureRecurrente(factureId);
+
+        if (!factureData) {
+          throw new Error("Facture récurrente introuvable");
+        }
+
+        setFactureRecurrente(factureData);
 
         // Charger les clients
         const clientsQuery = query(
@@ -70,34 +71,6 @@ export default function CreerFactureRecurrentePage() {
         // Charger les modèles de facture
         const modelesData = await getModelesFacture(user.uid);
         setModeles(modelesData);
-
-        // Initialiser avec des valeurs par défaut
-        if (clientsData.length > 0) {
-          setFactureRecurrente((prev) => ({
-            ...prev,
-            clientId: clientsData[0].id,
-          }));
-        }
-
-        if (modelesData.length > 0) {
-          const modeleActif =
-            modelesData.find((m) => m.actif) || modelesData[0];
-          setFactureRecurrente((prev) => ({
-            ...prev,
-            modeleId: modeleActif.id,
-          }));
-        }
-
-        // Calcul de la prochaine émission
-        const prochaine = calculerProchaineEmission(
-          factureRecurrente.frequence,
-          factureRecurrente.jourEmission,
-          factureRecurrente.moisEmission
-        );
-        setFactureRecurrente((prev) => ({
-          ...prev,
-          prochaineEmission: prochaine,
-        }));
       } catch (err) {
         console.error("Erreur lors du chargement des données:", err);
         if (err instanceof Error) {
@@ -111,7 +84,7 @@ export default function CreerFactureRecurrentePage() {
     };
 
     fetchData();
-  }, [user, router]);
+  }, [user, router, factureId]);
 
   // Mise à jour de la prochaine émission lors du changement de fréquence ou de jour
   useEffect(() => {
@@ -125,21 +98,26 @@ export default function CreerFactureRecurrentePage() {
         factureRecurrente.jourEmission,
         factureRecurrente.moisEmission
       );
-      setFactureRecurrente((prev) => ({
-        ...prev,
-        prochaineEmission: prochaine,
-      }));
+      setFactureRecurrente((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          prochaineEmission: prochaine,
+        };
+      });
     }
   }, [
-    factureRecurrente.frequence,
-    factureRecurrente.jourEmission,
-    factureRecurrente.moisEmission,
+    factureRecurrente?.frequence,
+    factureRecurrente?.jourEmission,
+    factureRecurrente?.moisEmission,
   ]);
 
   // Gestion des champs de base
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
+    if (!factureRecurrente) return;
+
     const { name, value } = e.target;
 
     if (name === "jourEmission") {
@@ -169,13 +147,6 @@ export default function CreerFactureRecurrentePage() {
         ...factureRecurrente,
         actif: (e.target as HTMLInputElement).checked,
       });
-    } else if (name === "nombreRepetitions") {
-      const value =
-        e.target.value === "" ? undefined : parseInt(e.target.value);
-      setFactureRecurrente({
-        ...factureRecurrente,
-        nombreRepetitions: value,
-      });
     } else {
       setFactureRecurrente({ ...factureRecurrente, [name]: value });
     }
@@ -183,6 +154,8 @@ export default function CreerFactureRecurrentePage() {
 
   // Gestion des mois d'émission pour les fréquences non mensuelles
   const handleMoisEmissionChange = (mois: number) => {
+    if (!factureRecurrente) return;
+
     const currentMois = [...(factureRecurrente.moisEmission || [])];
 
     if (currentMois.includes(mois)) {
@@ -204,6 +177,8 @@ export default function CreerFactureRecurrentePage() {
 
   // Ajout d'un article à la facture
   const addArticle = () => {
+    if (!factureRecurrente) return;
+
     const newArticle: Article = {
       id: Date.now(),
       description: "",
@@ -225,6 +200,8 @@ export default function CreerFactureRecurrentePage() {
 
   // Mise à jour d'un article
   const handleArticleChange = (index: number, field: string, value: any) => {
+    if (!factureRecurrente) return;
+
     const updatedArticles = [...factureRecurrente.articles];
     updatedArticles[index] = { ...updatedArticles[index], [field]: value };
 
@@ -247,6 +224,8 @@ export default function CreerFactureRecurrentePage() {
 
   // Suppression d'un article
   const removeArticle = (id: number) => {
+    if (!factureRecurrente) return;
+
     const updatedArticles = factureRecurrente.articles.filter(
       (article) => article.id !== id
     );
@@ -262,6 +241,8 @@ export default function CreerFactureRecurrentePage() {
 
   // Calcul des totaux
   const calculerTotaux = (articles: Article[]) => {
+    if (!factureRecurrente) return;
+
     // Filtrer les commentaires qui ne sont pas des articles
     const articlesValides = articles.filter((a) => !a.isComment);
 
@@ -275,19 +256,42 @@ export default function CreerFactureRecurrentePage() {
       0
     );
 
-    setFactureRecurrente((prev) => ({
-      ...prev,
-      montantHT: totalHT,
-      montantTTC: totalTTC,
-    }));
+    setFactureRecurrente((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        montantHT: totalHT,
+        montantTTC: totalTTC,
+      };
+    });
   };
 
-  // Enregistrement de la facture récurrente
+  // Ajout d'un commentaire
+  const addComment = () => {
+    if (!factureRecurrente) return;
+
+    const newComment: Article = {
+      id: Date.now(),
+      description: "",
+      quantite: 0,
+      prixUnitaireHT: 0,
+      tva: 0,
+      totalTTC: 0,
+      isComment: true,
+    };
+
+    setFactureRecurrente({
+      ...factureRecurrente,
+      articles: [...factureRecurrente.articles, newComment],
+    });
+  };
+
+  // Enregistrement des modifications
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!user) {
-      setError("Vous devez être connecté pour créer une facture récurrente");
+    if (!user || !factureRecurrente) {
+      setError("Données de facture récurrente invalides");
       return;
     }
 
@@ -308,24 +312,18 @@ export default function CreerFactureRecurrentePage() {
         throw new Error("Veuillez ajouter au moins un article");
       }
 
-      // S'assurer que l'ID utilisateur est défini
-      const factureAvecUserId = {
-        ...factureRecurrente,
-        userId: user.uid,
-      };
-
-      await createFactureRecurrente(factureAvecUserId);
+      await updateFactureRecurrente(factureRecurrente.id, factureRecurrente);
       router.push("/dashboard/factures/recurrentes");
     } catch (err) {
       console.error(
-        "Erreur lors de la création de la facture récurrente:",
+        "Erreur lors de la mise à jour de la facture récurrente:",
         err
       );
       if (err instanceof Error) {
         setError(`Erreur: ${err.message}`);
       } else {
         setError(
-          "Une erreur est survenue lors de la création de la facture récurrente"
+          "Une erreur est survenue lors de la mise à jour de la facture récurrente"
         );
       }
     } finally {
@@ -342,11 +340,33 @@ export default function CreerFactureRecurrentePage() {
     );
   }
 
+  if (!factureRecurrente) {
+    return (
+      <div className="p-6 bg-background-light dark:bg-background-dark">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-4xl font-semibold text-gray-800 dark:text-white">
+            🔄 Édition Facturation Récurrente
+          </h1>
+          <button
+            onClick={() => router.push("/dashboard/factures/recurrentes")}
+            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
+          >
+            <FiArrowLeft size={18} className="mr-2" /> Retour
+          </button>
+        </div>
+
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6">
+          <p>{error || "Facture récurrente introuvable"}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 bg-background-light dark:bg-background-dark">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-4xl font-semibold text-gray-800 dark:text-white">
-          🔄 Nouvelle Facturation Récurrente
+          🔄 Édition Facturation Récurrente
         </h1>
         <button
           onClick={() => router.push("/dashboard/factures/recurrentes")}
@@ -496,8 +516,14 @@ export default function CreerFactureRecurrentePage() {
                   </label>
                 </div>
               </div>
+              {factureRecurrente.repetitionsEffectuees > 0 && (
+                <p className="text-sm font-medium text-blue-600 mt-1">
+                  {factureRecurrente.repetitionsEffectuees} facture(s) déjà
+                  générée(s)
+                </p>
+              )}
               <p className="text-sm text-gray-500 mt-1">
-                Nombre de factures à générer (laissez vide pour illimité)
+                Nombre total de factures à générer (laissez vide pour illimité)
               </p>
             </div>
 
@@ -629,13 +655,22 @@ export default function CreerFactureRecurrentePage() {
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
               Articles
             </h2>
-            <button
-              type="button"
-              onClick={addArticle}
-              className="bg-green-600 text-white py-1 px-3 rounded-md hover:bg-green-700 text-sm"
-            >
-              + Ajouter un article
-            </button>
+            <div className="space-x-2">
+              <button
+                type="button"
+                onClick={addArticle}
+                className="bg-green-600 text-white py-1 px-3 rounded-md hover:bg-green-700 text-sm"
+              >
+                + Ajouter un article
+              </button>
+              <button
+                type="button"
+                onClick={addComment}
+                className="bg-blue-600 text-white py-1 px-3 rounded-md hover:bg-blue-700 text-sm"
+              >
+                + Ajouter un commentaire
+              </button>
+            </div>
           </div>
 
           {factureRecurrente.articles.length === 0 ? (
@@ -664,58 +699,68 @@ export default function CreerFactureRecurrentePage() {
                       className="w-full p-2 border rounded-md bg-white text-gray-800"
                     />
                   </div>
-                  <div className="w-20">
-                    <input
-                      type="number"
-                      value={article.quantite === 0 ? "" : article.quantite}
-                      onChange={(e) =>
-                        handleArticleChange(
-                          index,
-                          "quantite",
-                          e.target.value === "" ? 0 : parseInt(e.target.value)
-                        )
-                      }
-                      placeholder="Qté"
-                      className="w-full p-2 border rounded-md bg-white text-gray-800"
-                    />
-                  </div>
-                  <div className="w-32">
-                    <input
-                      type="number"
-                      value={
-                        article.prixUnitaireHT === 0
-                          ? ""
-                          : article.prixUnitaireHT
-                      }
-                      onChange={(e) =>
-                        handleArticleChange(
-                          index,
-                          "prixUnitaireHT",
-                          e.target.value === "" ? 0 : parseFloat(e.target.value)
-                        )
-                      }
-                      placeholder="Prix HT"
-                      className="w-full p-2 border rounded-md bg-white text-gray-800"
-                    />
-                  </div>
-                  <div className="w-20">
-                    <input
-                      type="number"
-                      value={article.tva === 0 ? "" : article.tva}
-                      onChange={(e) =>
-                        handleArticleChange(
-                          index,
-                          "tva",
-                          e.target.value === "" ? 0 : parseFloat(e.target.value)
-                        )
-                      }
-                      placeholder="TVA %"
-                      className="w-full p-2 border rounded-md bg-white text-gray-800"
-                    />
-                  </div>
-                  <div className="w-32 font-medium">
-                    {article.totalTTC.toFixed(2)} €
-                  </div>
+                  {!article.isComment && (
+                    <>
+                      <div className="w-20">
+                        <input
+                          type="number"
+                          value={article.quantite === 0 ? "" : article.quantite}
+                          onChange={(e) =>
+                            handleArticleChange(
+                              index,
+                              "quantite",
+                              e.target.value === ""
+                                ? 0
+                                : parseInt(e.target.value)
+                            )
+                          }
+                          placeholder="Qté"
+                          className="w-full p-2 border rounded-md bg-white text-gray-800"
+                        />
+                      </div>
+                      <div className="w-32">
+                        <input
+                          type="number"
+                          value={
+                            article.prixUnitaireHT === 0
+                              ? ""
+                              : article.prixUnitaireHT
+                          }
+                          onChange={(e) =>
+                            handleArticleChange(
+                              index,
+                              "prixUnitaireHT",
+                              e.target.value === ""
+                                ? 0
+                                : parseFloat(e.target.value)
+                            )
+                          }
+                          placeholder="Prix HT"
+                          className="w-full p-2 border rounded-md bg-white text-gray-800"
+                        />
+                      </div>
+                      <div className="w-20">
+                        <input
+                          type="number"
+                          value={article.tva === 0 ? "" : article.tva}
+                          onChange={(e) =>
+                            handleArticleChange(
+                              index,
+                              "tva",
+                              e.target.value === ""
+                                ? 0
+                                : parseFloat(e.target.value)
+                            )
+                          }
+                          placeholder="TVA %"
+                          className="w-full p-2 border rounded-md bg-white text-gray-800"
+                        />
+                      </div>
+                      <div className="w-32 font-medium">
+                        {article.totalTTC.toFixed(2)} €
+                      </div>
+                    </>
+                  )}
                   <div>
                     <button
                       type="button"
@@ -746,8 +791,8 @@ export default function CreerFactureRecurrentePage() {
           >
             <FiSave size={18} className="mr-2" />
             {loading
-              ? "Création en cours..."
-              : "Créer la facturation récurrente"}
+              ? "Sauvegarde en cours..."
+              : "Enregistrer les modifications"}
           </button>
         </div>
       </form>

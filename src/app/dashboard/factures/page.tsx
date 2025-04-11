@@ -10,13 +10,20 @@ import {
   updateDoc,
   query,
   where,
+  getDocs,
+  getDoc,
 } from "firebase/firestore";
-import { FiArrowLeft, FiEdit, FiTrash2, FiFileText } from "react-icons/fi";
+import { FiArrowLeft, FiEdit, FiTrash2, FiFileText, FiX } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { Facture, Client, Article } from "@/types/facture";
-import { generateInvoicePDF } from "@/services/pdfGenerator";
+import {
+  generateInvoicePDF,
+  generateInvoicePDFWithSelectedTemplate,
+} from "@/services/pdfGenerator";
 import { useAuth } from "@/lib/authContext";
 import { FirestoreTimestamp } from "@/types/facture";
+import { ModeleFacture } from "@/types/modeleFacture";
+import { getModelesFacture } from "@/services/modeleFactureService";
 
 export default function FacturesPage() {
   const router = useRouter();
@@ -45,6 +52,13 @@ export default function FacturesPage() {
   });
   const [selectedFacture, setSelectedFacture] = useState<Facture | null>(null);
   const [searchParams, setSearchParams] = useState<{ id?: string }>({});
+
+  // État pour le modal de sélection de modèle
+  const [isModeleSelectorOpen, setIsModeleSelectorOpen] = useState(false);
+  const [modeles, setModeles] = useState<ModeleFacture[]>([]);
+  const [selectedModeleId, setSelectedModeleId] = useState<string | null>(null);
+  const [factureForPDF, setFactureForPDF] = useState<Facture | null>(null);
+  const [loadingModeles, setLoadingModeles] = useState(false);
 
   // Récupérer les paramètres de l'URL
   useEffect(() => {
@@ -187,7 +201,7 @@ export default function FacturesPage() {
         {
           id: Date.now(),
           description: "",
-          quantite: 1,
+          quantite: 0,
           prixUnitaireHT: 0,
           tva: 20,
           totalTTC: 0,
@@ -333,7 +347,56 @@ export default function FacturesPage() {
     }
   };
 
-  // Fonction pour générer le PDF de la facture
+  // Fonction pour charger les modèles de facture
+  const loadModeles = async () => {
+    if (!user) return;
+
+    try {
+      setLoadingModeles(true);
+      const modelesData = await getModelesFacture(user.uid);
+      setModeles(modelesData);
+    } catch (error) {
+      console.error("Erreur lors du chargement des modèles:", error);
+    } finally {
+      setLoadingModeles(false);
+    }
+  };
+
+  // Fonction pour ouvrir le sélecteur de modèle
+  const openModelSelector = (facture: Facture) => {
+    setFactureForPDF(facture);
+    setSelectedModeleId(null);
+    loadModeles();
+    setIsModeleSelectorOpen(true);
+  };
+
+  // Fonction pour fermer le sélecteur de modèle
+  const closeModelSelector = () => {
+    setIsModeleSelectorOpen(false);
+    setFactureForPDF(null);
+  };
+
+  // Fonction pour générer le PDF avec un modèle spécifique ou par défaut
+  const generatePDFWithSelectedTemplate = async () => {
+    if (!factureForPDF) return;
+
+    try {
+      if (selectedModeleId) {
+        await generateInvoicePDFWithSelectedTemplate(
+          factureForPDF,
+          selectedModeleId
+        );
+      } else {
+        await generateInvoicePDF(factureForPDF);
+      }
+      closeModelSelector();
+    } catch (error) {
+      console.error("Erreur lors de la génération du PDF:", error);
+      alert("Erreur lors de la génération du PDF");
+    }
+  };
+
+  // Fonction pour générer le PDF de la facture (utilisation directe)
   const generatePDF = async (facture: Facture) => {
     try {
       await generateInvoicePDF(facture);
@@ -452,7 +515,7 @@ export default function FacturesPage() {
                   </td>
                   <td className="py-3 px-4 text-center">
                     <button
-                      onClick={() => generatePDF(facture)}
+                      onClick={() => openModelSelector(facture)}
                       className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white mx-1"
                       title="Générer PDF"
                     >
@@ -618,11 +681,14 @@ export default function FacturesPage() {
                 </div>
               )}
 
-              <h3 className="font-semibold text-gray-800 dark:text-white">
+              <h3 className="font-semibold text-gray-800 dark:text-white mt-4 mb-2">
                 Articles
               </h3>
               {newFacture.articles.map((article, index) => (
-                <div key={article.id} className="flex space-x-2">
+                <div
+                  key={article.id}
+                  className="flex space-x-2 mb-2 items-center"
+                >
                   <input
                     type="text"
                     placeholder={
@@ -641,12 +707,12 @@ export default function FacturesPage() {
                       <input
                         type="number"
                         placeholder="Qté"
-                        value={article.quantite}
+                        value={article.quantite === 0 ? "" : article.quantite}
                         onChange={(e) =>
                           handleArticleChange(
                             index,
                             "quantite",
-                            Number(e.target.value)
+                            e.target.value === "" ? 0 : Number(e.target.value)
                           )
                         }
                         className="w-16 p-2 border bg-white text-gray-800"
@@ -654,12 +720,16 @@ export default function FacturesPage() {
                       <input
                         type="number"
                         placeholder="Prix HT"
-                        value={article.prixUnitaireHT}
+                        value={
+                          article.prixUnitaireHT === 0
+                            ? ""
+                            : article.prixUnitaireHT
+                        }
                         onChange={(e) =>
                           handleArticleChange(
                             index,
                             "prixUnitaireHT",
-                            Number(e.target.value)
+                            e.target.value === "" ? 0 : Number(e.target.value)
                           )
                         }
                         className="w-24 p-2 border bg-white text-gray-800"
@@ -667,12 +737,12 @@ export default function FacturesPage() {
                       <input
                         type="number"
                         placeholder="TVA %"
-                        value={article.tva}
+                        value={article.tva === 0 ? "" : article.tva}
                         onChange={(e) =>
                           handleArticleChange(
                             index,
                             "tva",
-                            Number(e.target.value)
+                            e.target.value === "" ? 0 : Number(e.target.value)
                           )
                         }
                         className="w-16 p-2 border bg-white text-gray-800"
@@ -719,6 +789,101 @@ export default function FacturesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de sélection de modèle */}
+      {isModeleSelectorOpen && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-[600px] relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={closeModelSelector}
+              className="absolute top-3 right-3 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-3 py-1 rounded-full hover:bg-gray-400 dark:hover:bg-gray-600 transform hover:scale-105 transition-transform duration-300"
+            >
+              <FiX size={16} />
+            </button>
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
+              Choisir un modèle de facture
+            </h2>
+
+            {loadingModeles ? (
+              <div className="flex justify-center items-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-gray-100"></div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  <div
+                    className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                      selectedModeleId === null
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                        : "hover:border-gray-400"
+                    }`}
+                    onClick={() => setSelectedModeleId(null)}
+                  >
+                    <div className="font-semibold">Modèle par défaut</div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      Utiliser le modèle standard pour votre papier à en-tête
+                    </p>
+                  </div>
+
+                  {modeles.map((modele) => (
+                    <div
+                      key={modele.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                        selectedModeleId === modele.id
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                          : "hover:border-gray-400"
+                      }`}
+                      onClick={() => setSelectedModeleId(modele.id)}
+                    >
+                      <div className="font-semibold">{modele.nom}</div>
+                      <p className="text-sm text-gray-600 dark:text-gray-300">
+                        {modele.description}
+                      </p>
+                      <div className="flex items-center mt-2">
+                        <div
+                          className="w-4 h-4 rounded-full mr-2"
+                          style={{
+                            backgroundColor: modele.style.couleurPrimaire,
+                          }}
+                        ></div>
+                        <div
+                          className="w-4 h-4 rounded-full mr-2"
+                          style={{
+                            backgroundColor: modele.style.couleurSecondaire,
+                          }}
+                        ></div>
+                        <span className="text-xs text-gray-500">
+                          {modele.style.police}
+                        </span>
+                        {modele.actif && (
+                          <span className="ml-auto text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                            Par défaut
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                  <button
+                    onClick={closeModelSelector}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 mr-2"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={generatePDFWithSelectedTemplate}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                  >
+                    Générer PDF
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

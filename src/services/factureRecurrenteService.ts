@@ -283,10 +283,28 @@ export const genererFactureDepuisRecurrente = async (
       now
     );
 
-    await updateDoc(doc(db, "facturesRecurrentes", factureRecurrente.id), {
+    // Mettre à jour le compteur de répétitions
+    const repetitionsEffectuees =
+      (factureRecurrente.repetitionsEffectuees || 0) + 1;
+
+    const updateData: Partial<FactureRecurrente> = {
       derniereEmission: now,
       prochaineEmission: prochaineEmission,
-    });
+      repetitionsEffectuees,
+    };
+
+    // Si le nombre de répétitions est défini et atteint, désactiver la facture récurrente
+    if (
+      factureRecurrente.nombreRepetitions !== undefined &&
+      repetitionsEffectuees >= factureRecurrente.nombreRepetitions
+    ) {
+      updateData.actif = false;
+    }
+
+    await updateDoc(
+      doc(db, "facturesRecurrentes", factureRecurrente.id),
+      updateData
+    );
 
     return factureRef.id;
   } catch (error) {

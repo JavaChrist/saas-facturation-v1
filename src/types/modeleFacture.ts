@@ -4,7 +4,7 @@ export interface StyleModele {
   police: string; // Police de caractères (helvetica, times, courier)
   avecEnTete: boolean; // Utiliser du papier à en-tête
   avecSignature: boolean; // Inclure une signature
-  logoPosition: "haut" | "bas" | "aucun"; // Position du logo
+  logoPosition: "haut" | "droite" | "aucun"; // Position du logo
 }
 
 export interface ChampPersonnalise {
@@ -40,6 +40,8 @@ export interface FactureRecurrente {
   prochaineEmission: Date; // Date de la prochaine émission
   derniereEmission?: Date; // Date de la dernière émission
   actif: boolean; // Indique si la facturation récurrente est active
+  nombreRepetitions?: number; // Nombre de fois que la facture sera répétée, null/undefined = illimité
+  repetitionsEffectuees?: number; // Nombre de factures déjà générées
   dateCreation: Date;
   userId: string;
 }

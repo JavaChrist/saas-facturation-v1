@@ -114,6 +114,46 @@ export const generateInvoicePDFWithTemplate = async (
     const pageWidth = pdfDoc.internal.pageSize.width;
     const pageHeight = pdfDoc.internal.pageSize.height;
 
+    // Ajout du logo si disponible et selon la position définie dans le modèle
+    if (entreprise.logo && modele.style.logoPosition !== "aucun") {
+      try {
+        console.log("Ajout du logo de l'entreprise");
+        // Pour les logos au format Data URL (base64)
+        if (entreprise.logo.startsWith("data:image")) {
+          // Placer le logo en haut à gauche ou à droite selon la configuration
+          const logoX =
+            modele.style.logoPosition === "haut" ? 15 : pageWidth - 45;
+          pdfDoc.addImage(
+            entreprise.logo,
+            "AUTO",
+            logoX,
+            5,
+            30,
+            15,
+            "logo",
+            "FAST"
+          );
+          console.log(
+            "Logo ajouté depuis Data URL à la position:",
+            modele.style.logoPosition
+          );
+        }
+        // Pour les logos avec URL
+        else if (entreprise.logo.startsWith("http")) {
+          // Note: jsPDF ne supporte pas directement le chargement d'URL externes
+          // Une solution serait d'implémenter un chargement via fetch, mais cela nécessiterait
+          // un traitement asynchrone plus complexe
+          console.log(
+            "URL de logo détectée mais non supportée directement:",
+            entreprise.logo
+          );
+        }
+      } catch (logoError) {
+        console.error("Erreur lors de l'ajout du logo:", logoError);
+        // Continuer sans le logo en cas d'erreur
+      }
+    }
+
     // Appliquer la police du modèle
     pdfDoc.setFont(modele.style.police, "bold");
 
@@ -458,6 +498,38 @@ export const generateInvoicePDFDefault = async (
     const pageWidth = pdfDoc.internal.pageSize.width;
     const pageHeight = pdfDoc.internal.pageSize.height;
 
+    // Ajout du logo si disponible
+    if (entreprise.logo) {
+      try {
+        console.log("Ajout du logo de l'entreprise");
+        // Pour les logos au format Data URL (base64)
+        if (entreprise.logo.startsWith("data:image")) {
+          pdfDoc.addImage(
+            entreprise.logo,
+            "AUTO",
+            15,
+            5,
+            30,
+            15,
+            "logo",
+            "FAST"
+          );
+          console.log("Logo ajouté depuis Data URL");
+        }
+        // Pour les logos avec URL
+        else if (entreprise.logo.startsWith("http")) {
+          // Note: jsPDF ne supporte pas directement le chargement d'URL externes
+          console.log(
+            "URL de logo détectée mais non supportée directement:",
+            entreprise.logo
+          );
+        }
+      } catch (logoError) {
+        console.error("Erreur lors de l'ajout du logo:", logoError);
+        // Continuer sans le logo en cas d'erreur
+      }
+    }
+
     // Titre "FACTURE"
     console.log("Ajout du titre");
     pdfDoc.setFont("helvetica", "bold");
@@ -719,6 +791,44 @@ export const generateInvoicePDFDefault = async (
     } else {
       throw new Error("Erreur inconnue lors de la génération du PDF");
     }
+  }
+};
+
+// Nouvelle fonction pour générer avec modèle spécifique choisi par l'utilisateur
+export const generateInvoicePDFWithSelectedTemplate = async (
+  facture: Facture,
+  modeleId?: string
+): Promise<boolean> => {
+  try {
+    // Vérifier l'authentification
+    const authService = getAuth();
+    if (!authService.currentUser) {
+      throw new Error("Utilisateur non authentifié");
+    }
+
+    // Si un ID de modèle est fourni, utiliser ce modèle
+    if (modeleId) {
+      const modeleDoc = await getDoc(doc(db, "modelesFacture", modeleId));
+
+      if (modeleDoc.exists()) {
+        const modele = {
+          id: modeleDoc.id,
+          ...modeleDoc.data(),
+        } as ModeleFacture;
+        return generateInvoicePDFWithTemplate(facture, modele);
+      } else {
+        throw new Error("Le modèle sélectionné n'existe pas");
+      }
+    }
+
+    // Si aucun modèle n'est spécifié, revenir au comportement par défaut
+    return generateInvoicePDF(facture);
+  } catch (error) {
+    console.error(
+      "Erreur lors de la génération du PDF avec modèle spécifique:",
+      error
+    );
+    throw error;
   }
 };
 

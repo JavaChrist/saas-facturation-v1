@@ -1,11 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import {
-  getFirestore,
-  connectFirestoreEmulator,
-  enableIndexedDbPersistence,
-  CACHE_SIZE_UNLIMITED,
-} from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // Utilisation des variables d'environnement pour la configuration
@@ -29,38 +24,10 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 
-// ATTENTION : Fix temporaire pour les problèmes de permission
-// Pour le développement uniquement, ne pas utiliser en production
+// ATTENTION : Configuration spéciale de Firestore activée pour le développement
 if (typeof window !== "undefined") {
   console.log(
     "⚠️ ATTENTION: Configuration spéciale de Firestore activée pour le développement"
   );
-
-  // Activer la persistance pour améliorer les performances
-  // Note: Cette fonctionnalité sera dépréciée dans le futur, mais elle est toujours
-  // la méthode la plus simple et compatible pour activer le cache
-  (async () => {
-    try {
-      await enableIndexedDbPersistence(db)
-        .then(() => console.log("✅ Persistance Firestore activée"))
-        .catch((err) => {
-          if (err.code === "failed-precondition") {
-            console.warn(
-              "⚠️ La persistance ne peut pas être activée car plusieurs onglets sont ouverts"
-            );
-          } else if (err.code === "unimplemented") {
-            console.warn(
-              "⚠️ Le navigateur ne prend pas en charge la persistance"
-            );
-          } else {
-            console.error(
-              "Erreur lors de l'activation de la persistance:",
-              err
-            );
-          }
-        });
-    } catch (error) {
-      console.error("Erreur lors de la configuration de Firestore:", error);
-    }
-  })();
+  console.log("✅ Firestore initialisé avec succès");
 }
