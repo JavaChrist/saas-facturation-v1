@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { FiArrowLeft, FiSave, FiUpload } from "react-icons/fi";
+import { FiArrowLeft, FiSave, FiUpload, FiDatabase } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import Image from "next/image";
@@ -68,7 +68,7 @@ export default function ParametresPage() {
     };
 
     checkAuthAndFetchData();
-  }, [user, router, entreprise]);
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,12 +133,20 @@ export default function ParametresPage() {
         <h1 className="text-4xl font-semibold text-gray-800 dark:text-white">
           ⚙️ Paramètres
         </h1>
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
-        >
-          <FiArrowLeft size={18} className="mr-2" /> Retour
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => router.push("/dashboard/parametres/sauvegardes")}
+            className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center transform hover:scale-105 transition-transform duration-300"
+          >
+            <FiDatabase size={18} className="mr-2" /> Sauvegardes
+          </button>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
+          >
+            <FiArrowLeft size={18} className="mr-2" /> Retour
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

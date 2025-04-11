@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import React from "react";
 
@@ -14,6 +14,8 @@ export default function LoginPage() {
     user,
   } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get("redirect");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -211,13 +213,18 @@ export default function LoginPage() {
 
   // Effet pour rediriger l'utilisateur connecté
   useEffect(() => {
-    if (user) {
-      const redirectTimer = setTimeout(() => {
-        router.replace("/dashboard");
-      }, 2000);
-      return () => clearTimeout(redirectTimer);
+    if (user && !loading) {
+      console.log("LoginPage - Utilisateur connecté, redirection");
+
+      // Si un chemin de redirection est présent dans l'URL, l'utiliser
+      if (redirectPath) {
+        console.log("LoginPage - Redirection vers:", redirectPath);
+        router.push(redirectPath);
+      } else {
+        router.push("/dashboard");
+      }
     }
-  }, [user, router]);
+  }, [user, loading, router, redirectPath]);
 
   // Effet pour détecter une déconnexion récente
   useEffect(() => {

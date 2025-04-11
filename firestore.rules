@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Fonction pour vérifier si l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Fonction pour vérifier si l'utilisateur est propriétaire du document
+    function isOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    // Fonction pour vérifier si l'utilisateur est propriétaire lors de la création
+    function willBeOwner() {
+      return isAuthenticated() && request.auth.uid == request.resource.data.userId;
+    }
+
+    // Règle par défaut - refuser tout accès
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Règles pour factures
+    match /factures/{factureId} {
+      allow read: if isAuthenticated() && (isOwner() || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && willBeOwner();
+      allow update, delete: if isOwner();
+    }
+
+    // Règles pour facturesRecurrentes
+    match /facturesRecurrentes/{factureId} {
+      allow read: if isAuthenticated() && (isOwner() || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && willBeOwner();
+      allow update, delete: if isOwner();
+    }
+
+    // Règles pour clients
+    match /clients/{clientId} {
+      allow read: if isAuthenticated() && (isOwner() || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && willBeOwner();
+      allow update, delete: if isOwner();
+    }
+
+    // Règles pour modeles
+    match /modeles/{modeleId} {
+      allow read: if isAuthenticated() && (isOwner() || resource.data.userId == request.auth.uid);
+      allow create: if isAuthenticated() && willBeOwner();
+      allow update, delete: if isOwner();
+    }
+
+    // Règles pour parametres
+    match /parametres/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Sous-collection entreprise dans parametres
+      match /entreprise/{docId} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      }
+    }
+
+    // Autres collections
+    match /{collectionName}/{documentId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+  }
+} 

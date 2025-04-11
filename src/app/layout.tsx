@@ -20,6 +20,17 @@ export default function RootLayout({
     <html lang="fr" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
+        {/* Script pour injecter des variables d'environnement */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.ENV = { 
+              NODE_ENV: "${process.env.NODE_ENV || "development"}", 
+              IS_DEV: ${
+                process.env.NODE_ENV === "development" ? "true" : "false"
+              }
+            };`,
+          }}
+        />
       </head>
       <body className="bg-background-light dark:bg-background-dark text-text-light dark:text-text-dark">
         {/* Préchargement du favicon avec priorité pour résoudre l'avertissement LCP */}
@@ -36,6 +47,7 @@ export default function RootLayout({
             alt="Favicon"
             width={32}
             height={32}
+            style={{ height: "auto" }}
             priority
           />
         </div>

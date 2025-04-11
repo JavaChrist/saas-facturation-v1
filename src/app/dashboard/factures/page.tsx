@@ -13,7 +13,14 @@ import {
   getDocs,
   getDoc,
 } from "firebase/firestore";
-import { FiArrowLeft, FiEdit, FiTrash2, FiFileText, FiX } from "react-icons/fi";
+import {
+  FiArrowLeft,
+  FiEdit,
+  FiTrash2,
+  FiFileText,
+  FiX,
+  FiEye,
+} from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { Facture, Client, Article } from "@/types/facture";
 import {
@@ -467,7 +474,12 @@ export default function FacturesPage() {
                   className="border-b dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/70"
                 >
                   <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                    {facture.numero}
+                    <a
+                      href={`/dashboard/factures/${facture.id}`}
+                      className="hover:text-blue-500 hover:underline cursor-pointer font-medium"
+                    >
+                      {facture.numero}
+                    </a>
                   </td>
                   <td className="py-3 px-4 text-text-light dark:text-text-dark">
                     {facture.client.nom}
@@ -519,6 +531,15 @@ export default function FacturesPage() {
                     </span>
                   </td>
                   <td className="py-3 px-4 text-center">
+                    <button
+                      onClick={() =>
+                        router.push(`/dashboard/factures/${facture.id}`)
+                      }
+                      className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white mx-1"
+                      title="Voir détails"
+                    >
+                      <FiEye size={18} />
+                    </button>
                     <button
                       onClick={() => openModelSelector(facture)}
                       className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white mx-1"
