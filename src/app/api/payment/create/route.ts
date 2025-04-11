@@ -10,7 +10,7 @@ const db = getFirestore(app);
 
 // Initialiser Stripe avec la clé API secrète
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2023-10-16", // Utiliser la dernière version de l'API
+  apiVersion: "2025-03-31.basil", // Version de l'API compatible avec Stripe
 });
 
 /**
