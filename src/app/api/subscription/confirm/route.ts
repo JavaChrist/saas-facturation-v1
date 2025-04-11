@@ -196,8 +196,9 @@ export async function POST(request: NextRequest) {
     });
 
     // 5. Calculer les dates de début et fin
-    const startDate = new Date(subscription.current_period_start * 1000);
-    const endDate = new Date(subscription.current_period_end * 1000);
+    const startDate = new Date(Date.now()); // Date actuelle comme début
+    const endDate = new Date();
+    endDate.setMonth(endDate.getMonth() + 1); // Date de fin dans un mois
 
     // 6. Enregistrer l'abonnement dans Firestore
     const userPlanRef = db.collection("userPlans").doc(userId);
