@@ -107,6 +107,7 @@ export default function EditerFactureRecurrentePage() {
       });
     }
   }, [
+    factureRecurrente,
     factureRecurrente?.frequence,
     factureRecurrente?.jourEmission,
     factureRecurrente?.moisEmission,
@@ -516,12 +517,13 @@ export default function EditerFactureRecurrentePage() {
                   </label>
                 </div>
               </div>
-              {factureRecurrente.repetitionsEffectuees > 0 && (
-                <p className="text-sm font-medium text-blue-600 mt-1">
-                  {factureRecurrente.repetitionsEffectuees} facture(s) déjà
-                  générée(s)
-                </p>
-              )}
+              {factureRecurrente.repetitionsEffectuees !== undefined &&
+                factureRecurrente.repetitionsEffectuees > 0 && (
+                  <p className="text-sm font-medium text-blue-600 mt-1">
+                    {factureRecurrente.repetitionsEffectuees} facture(s) déjà
+                    générée(s)
+                  </p>
+                )}
               <p className="text-sm text-gray-500 mt-1">
                 Nombre total de factures à générer (laissez vide pour illimité)
               </p>

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -93,36 +93,41 @@ export default function FacturesPage() {
     return () => unsubscribe();
   }, [user]);
 
-  const openEditModal = (facture: Facture) => {
-    setSelectedFacture(facture);
+  // Utiliser useCallback pour la fonction openEditModal
+  const openEditModal = useCallback(
+    (facture: Facture) => {
+      setSelectedFacture(facture);
 
-    // Gestion de la date de création en prenant en compte les différents types possibles
-    let dateCreation: Date;
-    if (facture.dateCreation instanceof Date) {
-      dateCreation = facture.dateCreation;
-    } else if (typeof facture.dateCreation === "string") {
-      dateCreation = new Date(facture.dateCreation);
-    } else if (
-      facture.dateCreation &&
-      typeof (facture.dateCreation as FirestoreTimestamp).toDate === "function"
-    ) {
-      dateCreation = (facture.dateCreation as FirestoreTimestamp).toDate();
-    } else {
-      dateCreation = new Date();
-    }
+      // Gestion de la date de création en prenant en compte les différents types possibles
+      let dateCreation: Date;
+      if (facture.dateCreation instanceof Date) {
+        dateCreation = facture.dateCreation;
+      } else if (typeof facture.dateCreation === "string") {
+        dateCreation = new Date(facture.dateCreation);
+      } else if (
+        facture.dateCreation &&
+        typeof (facture.dateCreation as FirestoreTimestamp).toDate ===
+          "function"
+      ) {
+        dateCreation = (facture.dateCreation as FirestoreTimestamp).toDate();
+      } else {
+        dateCreation = new Date();
+      }
 
-    setNewFacture({
-      numero: facture.numero,
-      client: facture.client,
-      statut: facture.statut,
-      articles: facture.articles,
-      totalHT: facture.totalHT,
-      totalTTC: facture.totalTTC,
-      userId: facture.userId || user?.uid || "",
-      dateCreation: dateCreation,
-    });
-    setIsModalOpen(true);
-  };
+      setNewFacture({
+        numero: facture.numero,
+        client: facture.client,
+        statut: facture.statut,
+        articles: facture.articles,
+        totalHT: facture.totalHT,
+        totalTTC: facture.totalTTC,
+        userId: facture.userId || user?.uid || "",
+        dateCreation: dateCreation,
+      });
+      setIsModalOpen(true);
+    },
+    [user]
+  );
 
   // Ouvrir la facture si un ID est spécifié dans l'URL
   useEffect(() => {

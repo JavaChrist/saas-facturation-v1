@@ -131,6 +131,7 @@ export default function CreerFactureRecurrentePage() {
       }));
     }
   }, [
+    factureRecurrente,
     factureRecurrente.frequence,
     factureRecurrente.jourEmission,
     factureRecurrente.moisEmission,
