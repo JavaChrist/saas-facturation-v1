@@ -6,7 +6,19 @@ import Stripe from "stripe";
 
 // Initialiser l'app Firebase Admin
 const app = initAdmin();
-const db = getFirestore(app);
+// Obtenir les références Firestore et Auth en mode sécurisé
+let db;
+let auth;
+
+try {
+  db = getFirestore(app);
+  auth = getAuth(app);
+} catch (error) {
+  console.error(
+    "Erreur lors de l'initialisation des services Firebase Admin:",
+    error
+  );
+}
 
 // Initialiser Stripe avec la clé API secrète
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
@@ -20,6 +32,21 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
 export async function POST(request: NextRequest) {
   console.log("API - /api/payment/create - Début de la requête");
   try {
+    // Vérifier si nous sommes en environnement de développement sans Firebase configuré
+    const isDevelopment = process.env.NODE_ENV === "development";
+    const isFirebaseConfigured = !!app && !!db && !!auth;
+
+    if (!isFirebaseConfigured && !isDevelopment) {
+      console.error("API - Firebase Admin n'est pas correctement configuré");
+      return NextResponse.json(
+        {
+          error: "Configuration du serveur incomplète",
+          detail: "Firebase Admin n'est pas initialisé",
+        },
+        { status: 500 }
+      );
+    }
+
     // Vérifier l'authentification
     const authHeader = request.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -27,17 +54,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
     }
 
+    // En développement, accepter un token simplifier si Firebase n'est pas configuré
     const token = authHeader.split("Bearer ")[1];
-    let decodedToken;
-    try {
-      console.log("API - Vérification du token Firebase");
-      decodedToken = await getAuth().verifyIdToken(token);
-    } catch (error) {
-      console.error("API - Erreur de vérification du token:", error);
-      return NextResponse.json({ error: "Token invalide" }, { status: 401 });
+    let userId;
+
+    if (isFirebaseConfigured) {
+      try {
+        console.log("API - Vérification du token Firebase");
+        const decodedToken = await auth.verifyIdToken(token);
+        userId = decodedToken.uid;
+      } catch (error) {
+        console.error("API - Erreur de vérification du token:", error);
+        return NextResponse.json({ error: "Token invalide" }, { status: 401 });
+      }
+    } else if (isDevelopment) {
+      // En développement, extraire l'userId directement du token pour les tests
+      try {
+        console.log("API - Mode développement: simulation d'authentification");
+        userId = token;
+      } catch (error) {
+        return NextResponse.json(
+          { error: "Token de test invalide" },
+          { status: 401 }
+        );
+      }
+    } else {
+      return NextResponse.json(
+        { error: "Service d'authentification non disponible" },
+        { status: 503 }
+      );
     }
 
-    const userId = decodedToken.uid;
     console.log("API - Utilisateur authentifié:", userId);
 
     // Récupérer les données de la requête
@@ -48,6 +95,18 @@ export async function POST(request: NextRequest) {
         { error: "ID de facture manquant" },
         { status: 400 }
       );
+    }
+
+    // Si Firebase n'est pas configuré en développement, simuler une réponse
+    if (!isFirebaseConfigured && isDevelopment) {
+      console.log(
+        "API - Mode développement: simulation de réponse pour la facture",
+        factureId
+      );
+      return NextResponse.json({
+        url: `http://localhost:3000/dashboard/factures/success?factureId=${factureId}`,
+        simulation: true,
+      });
     }
 
     console.log("API - Récupération de la facture:", factureId);
