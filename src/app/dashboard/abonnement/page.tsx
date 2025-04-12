@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { FiArrowLeft, FiCheck, FiX, FiCreditCard } from "react-icons/fi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
@@ -24,7 +24,8 @@ interface Plan {
   recommande?: boolean;
 }
 
-export default function AbonnementPage() {
+// Composant pour le contenu de la page qui utilise useSearchParams
+function AbonnementContent() {
   const router = useRouter();
   const { user } = useAuth();
   const [planActuel, setPlanActuel] = useState<string>("gratuit");
@@ -862,5 +863,20 @@ export default function AbonnementPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Composant principal exporté avec Suspense
+export default function AbonnementPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 flex items-center justify-center h-screen">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
+        </div>
+      }
+    >
+      <AbonnementContent />
+    </Suspense>
   );
 }

@@ -1,10 +1,11 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import React from "react";
 
-export default function LoginPage() {
+// Composant pour le contenu de la page qui utilise useSearchParams
+function LoginContent() {
   const {
     loginWithGoogle,
     loginWithEmail,
@@ -621,5 +622,27 @@ export default function LoginPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Composant principal exporté avec Suspense
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gray-100">
+          <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
+            <h1 className="mb-6 text-center text-3xl font-bold text-blue-500">
+              Connexion
+            </h1>
+            <div className="mt-4 flex justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }
