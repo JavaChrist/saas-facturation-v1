@@ -1,52 +1,40 @@
 import * as admin from "firebase-admin";
 
-// Fonction pour initialiser Firebase Admin si ce n'est pas déjà fait
-export function initAdmin() {
-  if (!admin.apps.length) {
+// Vérifie si Firebase Admin est déjà initialisé
+const getOrCreateFirebaseApp = () => {
+  if (admin.apps.length > 0) {
+    return admin.app();
+  }
+
+  // Si nous sommes en développement ou test, créer une app simulée
+  if (process.env.NODE_ENV !== "production") {
     try {
-      // Vérifier si nous sommes en production (Vercel) ou en développement
-      if (
-        process.env.FIREBASE_PROJECT_ID &&
-        process.env.FIREBASE_CLIENT_EMAIL &&
-        process.env.FIREBASE_PRIVATE_KEY
-      ) {
-        // Configuration en production avec variables d'environnement
-        admin.initializeApp({
-          credential: admin.credential.cert({
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-          }),
-          databaseURL: process.env.FIREBASE_DATABASE_URL,
-        });
-        console.log(
-          "Firebase Admin initialisé avec les variables d'environnement"
-        );
-      } else {
-        // Fallback en développement ou si les variables ne sont pas définies
-        // Créer une configuration simulée pour les environnements de prévisualisation/développement
-        admin.initializeApp({
-          projectId: "demo-facturation-app",
-        });
-        console.log(
-          "Firebase Admin initialisé en mode développement/prévisualisation"
-        );
-      }
+      return admin.initializeApp({
+        projectId: "demo-facturation-app",
+      });
     } catch (error) {
       console.error(
         "Erreur lors de l'initialisation de Firebase Admin:",
         error
       );
+      return null;
     }
   }
-  return admin.app();
+
+  // En production, ne rien initialiser
+  console.log("Mode production: Firebase Admin non initialisé");
+  return null;
+};
+
+// Tentative d'obtenir ou créer l'app
+const app = getOrCreateFirebaseApp();
+
+// Pas d'exports des services
+export const firestore = null;
+export const auth = null;
+
+export function initAdmin() {
+  return app;
 }
-
-// Initialisation de l'application Admin
-const app = initAdmin();
-
-// Export des services - avec vérification de disponibilité
-export const auth = admin.apps.length ? admin.auth() : null;
-export const firestore = admin.apps.length ? admin.firestore() : null;
 
 export default app;
