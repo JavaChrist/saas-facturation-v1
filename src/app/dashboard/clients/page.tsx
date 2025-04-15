@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { onSnapshot, collection, query, where } from "firebase/firestore";
 import { addDoc, getDocs, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { useAuth } from "@/lib/authContext";
+import { getUserPlan, checkPlanLimit } from "@/services/subscriptionService";
 
 interface Client {
   id: string;
@@ -24,6 +25,12 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
+  const [planInfo, setPlanInfo] = useState<{
+    planId: string;
+    maxClients: number;
+    currentClients: number;
+  }>({ planId: "", maxClients: 0, currentClients: 0 });
 
   // Définir fetchClients en dehors du useEffect
   const fetchClients = async () => {
@@ -46,19 +53,49 @@ export default function ClientsPage() {
       where("userId", "==", user.uid)
     );
 
-    const unsubscribe = onSnapshot(clientsQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(clientsQuery, async (snapshot) => {
       const clientsData = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Client[];
       setClients(clientsData);
+
+      // Vérifier les limites du plan
+      try {
+        const userPlan = await getUserPlan(user.uid);
+        const isLimitReached = await checkPlanLimit(
+          user.uid,
+          "clients",
+          clientsData.length
+        );
+        setLimitReached(isLimitReached);
+
+        setPlanInfo({
+          planId: userPlan.planId,
+          maxClients:
+            userPlan.limites.clients === -1
+              ? Infinity
+              : userPlan.limites.clients,
+          currentClients: clientsData.length,
+        });
+      } catch (err) {
+        console.error("Erreur lors de la vérification des limites:", err);
+      }
     });
 
     return () => unsubscribe();
   }, [user]);
 
   // ✅ Ouvrir le modal avec un client vide (Ajout)
-  const openNewClientModal = () => {
+  const openNewClientModal = async () => {
+    // Vérifier si l'utilisateur a atteint sa limite de clients
+    if (limitReached) {
+      alert(
+        `Vous avez atteint la limite de ${planInfo.currentClients} client(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de clients.`
+      );
+      return;
+    }
+
     setSelectedClient({
       id: "",
       refClient: "C00" + (clients.length + 1), // Génère une réf automatique
@@ -109,6 +146,20 @@ export default function ClientsPage() {
 
         await updateDoc(doc(db, "clients", selectedClient.id), clientData);
       } else {
+        // Vérifier à nouveau les limites avant la création
+        const isLimitReached = await checkPlanLimit(
+          user.uid,
+          "clients",
+          clients.length
+        );
+
+        if (isLimitReached) {
+          alert(
+            `Vous avez atteint la limite de ${planInfo.currentClients} client(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de clients.`
+          );
+          return;
+        }
+
         // Création d'un nouveau client
         const newClient: Omit<Client, "id"> = {
           refClient: selectedClient?.refClient || "C00" + (clients.length + 1),
@@ -149,12 +200,52 @@ export default function ClientsPage() {
         </button>
         <button
           onClick={openNewClientModal}
-          className="bg-green-500 text-white py-2 px-4 rounded-md hover:bg-green-700 flex items-center transform hover:scale-105 transition-transform duration-300"
+          disabled={limitReached}
+          className={`${
+            limitReached
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-green-500 hover:bg-green-700 transform hover:scale-105"
+          } text-white py-2 px-4 rounded-md flex items-center transition-transform duration-300`}
         >
           <FiPlusCircle size={18} className="mr-2" /> Ajouter un client
         </button>
       </div>
       <h1 className="text-2xl font-semibold mb-6">👥 Clients</h1>
+
+      {/* Information sur les limites du plan */}
+      {planInfo.planId && (
+        <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="font-medium text-gray-700 dark:text-gray-300">
+                Clients
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {planInfo.maxClients === Infinity
+                  ? `Vous utilisez ${planInfo.currentClients} client(s) (illimité avec le plan ${planInfo.planId})`
+                  : `Vous utilisez ${planInfo.currentClients} client(s) sur ${planInfo.maxClients} disponible(s) avec votre plan ${planInfo.planId}`}
+              </p>
+            </div>
+            {limitReached && (
+              <div className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 px-3 py-1 rounded-full text-sm">
+                Limite atteinte
+              </div>
+            )}
+          </div>
+          {limitReached && (
+            <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              <a
+                href="/dashboard/abonnement"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Passez à un plan supérieur
+              </a>{" "}
+              pour créer plus de clients.
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full bg-white dark:bg-gray-700 shadow-md rounded-lg">
           <thead className="bg-gray-800 text-white">

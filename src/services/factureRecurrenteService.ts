@@ -14,6 +14,7 @@ import {
 import { FactureRecurrente } from "@/types/modeleFacture";
 import { Facture, Client } from "@/types/facture";
 import { getModeleFacture } from "./modeleFactureService";
+import { checkPlanLimit } from "@/services/subscriptionService";
 
 // Récupérer toutes les factures récurrentes de l'utilisateur
 export const getFacturesRecurrentes = async (
@@ -99,12 +100,45 @@ export const getFactureRecurrente = async (
 
 // Créer une nouvelle facture récurrente
 export const createFactureRecurrente = async (
-  facture: Omit<FactureRecurrente, "id">
+  factureRecurrente: Omit<FactureRecurrente, "id">
 ): Promise<string> => {
   try {
+    // Vérifier si l'utilisateur a atteint sa limite de factures
+    // Récupérer toutes les factures existantes pour compter
+    const facturesQuery = query(
+      collection(db, "factures"),
+      where("userId", "==", factureRecurrente.userId)
+    );
+    const facturesSnapshot = await getDocs(facturesQuery);
+    const factureCount = facturesSnapshot.size;
+
+    // Les factures récurrentes comptent aussi comme des factures
+    const facRecQuery = query(
+      collection(db, "facturesRecurrentes"),
+      where("userId", "==", factureRecurrente.userId)
+    );
+    const facRecSnapshot = await getDocs(facRecQuery);
+    const facRecCount = facRecSnapshot.size;
+
+    // Vérifier la limite avec le total
+    const totalCount = factureCount + facRecCount;
+    const isLimitReached = await checkPlanLimit(
+      factureRecurrente.userId,
+      "factures",
+      totalCount
+    );
+
+    if (isLimitReached) {
+      throw new Error(
+        "Limite de factures atteinte pour votre plan. Veuillez passer à un plan supérieur pour créer plus de factures."
+      );
+    }
+
     const docRef = await addDoc(collection(db, "facturesRecurrentes"), {
-      ...facture,
+      ...factureRecurrente,
       dateCreation: new Date(),
+      derniereDemande: null,
+      prochaineDemande: factureRecurrente.prochaineDemande || null,
     });
     return docRef.id;
   } catch (error) {

@@ -9,6 +9,7 @@ import {
   setModeleParDefaut,
 } from "@/services/modeleFactureService";
 import { ModeleFacture } from "@/types/modeleFacture";
+import { getUserPlan, checkPlanLimit } from "@/services/subscriptionService";
 
 export default function ModelesFacturePage() {
   const router = useRouter();
@@ -16,21 +17,50 @@ export default function ModelesFacturePage() {
   const [modeles, setModeles] = useState<ModeleFacture[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
+  const [planInfo, setPlanInfo] = useState<{
+    planId: string;
+    maxModeles: number;
+    currentModeles: number;
+  }>({ planId: "gratuit", maxModeles: 1, currentModeles: 0 });
 
-  // Charger les modèles de facture
+  // Charger les modèles de facture et vérifier les limites
   useEffect(() => {
     if (!user) return;
 
-    const fetchModeles = async () => {
+    const fetchModelesAndLimits = async () => {
       try {
         setLoading(true);
         console.log(
           "Tentative de récupération des modèles pour l'utilisateur:",
           user.uid
         );
+
+        // Récupérer les modèles
         const modelesData = await getModelesFacture(user.uid);
         console.log("Modèles récupérés avec succès:", modelesData);
         setModeles(modelesData);
+
+        // Récupérer le plan de l'utilisateur
+        const userPlan = await getUserPlan(user.uid);
+
+        // Vérifier si la limite est atteinte
+        const isLimitReached = await checkPlanLimit(
+          user.uid,
+          "modeles",
+          modelesData.length
+        );
+        setLimitReached(isLimitReached);
+
+        // Définir les informations du plan
+        setPlanInfo({
+          planId: userPlan.planId,
+          maxModeles:
+            userPlan.limites.modeles === -1
+              ? Infinity
+              : userPlan.limites.modeles,
+          currentModeles: modelesData.length,
+        });
       } catch (err) {
         console.error("Erreur détaillée lors du chargement des modèles:", err);
         if (err instanceof Error) {
@@ -47,7 +77,7 @@ export default function ModelesFacturePage() {
       }
     };
 
-    fetchModeles();
+    fetchModelesAndLimits();
   }, [user]);
 
   // Naviguer vers la création d'un nouveau modèle
@@ -107,11 +137,53 @@ export default function ModelesFacturePage() {
           </button>
           <button
             onClick={handleCreateNew}
-            className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 flex items-center transform hover:scale-105 transition-transform duration-300"
+            disabled={limitReached}
+            className={`${
+              limitReached
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-green-600 hover:bg-green-700 transform hover:scale-105"
+            } text-white py-2 px-4 rounded-md flex items-center transition-transform duration-300`}
+            title={
+              limitReached
+                ? "Limite de modèles atteinte pour votre plan"
+                : "Créer un nouveau modèle"
+            }
           >
             <FiPlus size={18} className="mr-2" /> Nouveau modèle
           </button>
         </div>
+      </div>
+
+      {/* Afficher les informations sur les limites du plan */}
+      <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="font-medium text-gray-700 dark:text-gray-300">
+              Modèles de facture
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {planInfo.maxModeles === Infinity
+                ? `Vous utilisez ${planInfo.currentModeles} modèle(s) (illimité avec le plan ${planInfo.planId})`
+                : `Vous utilisez ${planInfo.currentModeles} modèle(s) sur ${planInfo.maxModeles} disponible(s) avec votre plan ${planInfo.planId}`}
+            </p>
+          </div>
+          {limitReached && (
+            <div className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 px-3 py-1 rounded-full text-sm">
+              Limite atteinte
+            </div>
+          )}
+        </div>
+        {limitReached && (
+          <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            <a
+              href="/dashboard/abonnement"
+              className="text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Passez à un plan supérieur
+            </a>{" "}
+            pour créer plus de modèles de facture.
+          </div>
+        )}
       </div>
 
       {loading ? (

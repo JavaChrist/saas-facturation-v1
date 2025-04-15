@@ -11,6 +11,7 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { ModeleFacture, StyleModele } from "@/types/modeleFacture";
+import { checkPlanLimit } from "@/services/subscriptionService";
 
 // Valeurs par défaut pour un nouveau modèle
 export const getStyleParDefaut = (): StyleModele => ({
@@ -84,6 +85,24 @@ export const createModeleFacture = async (
   modele: Omit<ModeleFacture, "id">
 ): Promise<string> => {
   try {
+    // Vérifier si l'utilisateur a atteint sa limite de modèles
+    const models = await getModelesFacture(modele.userId);
+    const modelCount = models.length;
+
+    // Vérifier la limite de modèles selon le plan de l'utilisateur
+    const limitReached = await checkPlanLimit(
+      modele.userId,
+      "modeles",
+      modelCount
+    );
+
+    if (limitReached) {
+      throw new Error(
+        "Limite de modèles atteinte pour votre plan. Veuillez passer à un plan supérieur pour créer plus de modèles."
+      );
+    }
+
+    // Si la limite n'est pas atteinte, créer le modèle
     const docRef = await addDoc(collection(db, "modelesFacture"), {
       ...modele,
       dateCreation: new Date(),

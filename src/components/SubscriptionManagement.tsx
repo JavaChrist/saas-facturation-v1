@@ -17,6 +17,8 @@ const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
   const isSubscriptionActive = userPlan?.isActive && planActuel !== "gratuit";
   const hasStripeInfo =
     userPlan?.stripeSubscriptionId && userPlan?.stripeCustomerId;
+  // Vérifier si nous sommes en développement - éviter la redirection Stripe
+  const isDevelopment = process.env.NODE_ENV === "development";
 
   // Formater la date d'expiration pour l'affichage
   const formatDate = (date: Date | any) => {
@@ -30,18 +32,18 @@ const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
   };
 
   const handleManageSubscription = async () => {
-    if (
-      process.env.NODE_ENV === "development" &&
-      !process.env.NEXT_PUBLIC_STRIPE_CUSTOMER_PORTAL_URL
-    ) {
-      alert(
-        "Portal de gestion Stripe non configuré en développement.\nEn production, cette action redirigerait vers le portail client Stripe."
-      );
+    // En mode développement, toujours utiliser la gestion locale
+    if (isDevelopment) {
+      // Rediriger vers la page d'abonnement avec un paramètre spécial
+      window.location.href = "/dashboard/abonnement?mode=change";
       return;
     }
 
-    if (customerPortalUrl) {
-      window.open(customerPortalUrl, "_blank");
+    // En production, vérifier si l'URL du portail est configurée
+    if (process.env.NEXT_PUBLIC_STRIPE_CUSTOMER_PORTAL_URL) {
+      window.open(process.env.NEXT_PUBLIC_STRIPE_CUSTOMER_PORTAL_URL, "_blank");
+    } else {
+      alert("Le portail de gestion des abonnements n'est pas configuré.");
     }
   };
 
@@ -92,11 +94,15 @@ const SubscriptionManagement: React.FC<SubscriptionManagementProps> = ({
               <div className="flex items-start bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md">
                 <FiAlertCircle className="text-blue-500 dark:text-blue-400 mr-3 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
                     Votre abonnement est géré localement en mode développement.
-                    En production, vous auriez accès à un portail pour gérer
-                    votre abonnement Stripe.
                   </p>
+                  <button
+                    onClick={handleManageSubscription}
+                    className="mt-2 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-md transition-colors duration-300"
+                  >
+                    Gérer mon abonnement localement
+                  </button>
                 </div>
               </div>
             )}

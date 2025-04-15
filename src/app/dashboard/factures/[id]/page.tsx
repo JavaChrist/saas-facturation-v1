@@ -9,6 +9,7 @@ import { Facture } from "@/types/facture";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { envoyerFactureParEmail } from "@/services/factureEmailService";
+import { emailService } from "@/services/emailService";
 
 export default function FactureDetailsPage({
   params,
@@ -24,6 +25,7 @@ export default function FactureDetailsPage({
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Vérifier l'état d'authentification à chaque rendu
   useEffect(() => {
@@ -116,6 +118,82 @@ export default function FactureDetailsPage({
     } catch (error) {
       console.error("Erreur lors de la génération du PDF:", error);
       alert("Erreur lors de la génération du PDF");
+    }
+  };
+
+  // Fonction pour envoyer une facture par email
+  const handleSendInvoiceByEmail = async (
+    factureId: string,
+    clientEmail: string
+  ) => {
+    if (!factureId || !clientEmail) {
+      alert("Informations manquantes pour l'envoi de la facture");
+      return;
+    }
+
+    try {
+      // Afficher une boîte de dialogue pour confirmer ou modifier l'email
+      const email = window.prompt(
+        "Veuillez confirmer ou modifier l'adresse email",
+        clientEmail
+      );
+
+      if (!email) return; // L'utilisateur a annulé
+
+      // Afficher un indicateur de chargement
+      setIsLoading(true);
+
+      // Appeler le service d'email pour envoyer la facture
+      const result = await emailService.sendInvoiceByEmail(factureId, email);
+
+      if (result.success) {
+        alert(`Facture envoyée avec succès à ${email}`);
+      } else {
+        alert(`Erreur lors de l'envoi : ${result.message}`);
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'envoi de la facture par email:", error);
+      alert("Une erreur est survenue lors de l'envoi de la facture.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fonction pour envoyer la facture par email
+  const handleSendEmail = async () => {
+    if (!facture) return;
+
+    // Vérifier que le client a un email
+    if (!facture.client.email) {
+      setEmailError("Le client n'a pas d'adresse email configurée.");
+      return;
+    }
+
+    setSendingEmail(true);
+    setEmailSuccess(null);
+    setEmailError(null);
+
+    try {
+      // Appeler la fonction handleSendInvoiceByEmail que nous avons créée précédemment
+      await handleSendInvoiceByEmail(facture.id, facture.client.email);
+
+      // Mise à jour du statut de facture comme avec l'ancienne fonction
+      if (facture.statut !== "Payée") {
+        // Mise à jour du statut (vous pouvez le faire via votre service factureService)
+        // Notez que cette partie n'est pas incluse dans handleSendInvoiceByEmail
+        // et doit être gérée séparément si nécessaire
+      }
+
+      setEmailSuccess(`Facture envoyée avec succès à ${facture.client.email}`);
+    } catch (error) {
+      console.error("Erreur lors de l'envoi de la facture par email:", error);
+      setEmailError(
+        `Une erreur est survenue lors de l'envoi: ${
+          error instanceof Error ? error.message : "Erreur inconnue"
+        }`
+      );
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -335,27 +413,7 @@ export default function FactureDetailsPage({
               </button>
               <button
                 className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center"
-                onClick={async () => {
-                  if (!facture) return;
-                  try {
-                    setSendingEmail(true);
-                    setEmailError(null);
-                    setEmailSuccess(null);
-
-                    const result = await envoyerFactureParEmail(facture);
-
-                    if (result.success) {
-                      setEmailSuccess(result.message);
-                    } else {
-                      setEmailError(result.message);
-                    }
-                  } catch (err) {
-                    console.error("Erreur lors de l'envoi de l'email:", err);
-                    setEmailError("Erreur lors de l'envoi de l'email");
-                  } finally {
-                    setSendingEmail(false);
-                  }
-                }}
+                onClick={handleSendEmail}
                 disabled={sendingEmail}
               >
                 <FiSend className="mr-2" />

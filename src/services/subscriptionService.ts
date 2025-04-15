@@ -31,6 +31,78 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
         "[DEBUG-SERVICE] Mode développement détecté, utilisation d'un plan factice"
       );
 
+      // Vérifier d'abord si lastUsedPlanId est défini (le plus fiable et récent)
+      if (typeof window !== "undefined") {
+        const lastUsedPlanId =
+          localStorage.getItem("lastUsedPlanId") ||
+          sessionStorage.getItem("lastUsedPlanId");
+
+        if (lastUsedPlanId) {
+          console.log("[DEBUG-SERVICE] lastUsedPlanId trouvé:", lastUsedPlanId);
+
+          // Forcer la création d'un plan à partir de lastUsedPlanId
+          const dateStart = new Date();
+          const dateEnd = new Date(
+            dateStart.getTime() + 30 * 24 * 60 * 60 * 1000
+          );
+
+          const freshPlan = {
+            planId: lastUsedPlanId,
+            isActive: true,
+            dateStart: dateStart,
+            dateEnd: dateEnd,
+            stripeSubscriptionId:
+              "sim_" + Math.random().toString(36).substring(2, 11),
+            stripeCustomerId:
+              "cus_sim_" + Math.random().toString(36).substring(2, 11),
+            limites: {
+              clients:
+                lastUsedPlanId === "premium"
+                  ? 50
+                  : lastUsedPlanId === "entreprise"
+                  ? -1
+                  : 5,
+              factures:
+                lastUsedPlanId === "premium"
+                  ? 500
+                  : lastUsedPlanId === "entreprise"
+                  ? -1
+                  : 20,
+              modeles:
+                lastUsedPlanId === "premium"
+                  ? 5
+                  : lastUsedPlanId === "entreprise"
+                  ? -1
+                  : 1,
+              utilisateurs:
+                lastUsedPlanId === "premium"
+                  ? 2
+                  : lastUsedPlanId === "entreprise"
+                  ? 10
+                  : 1,
+            },
+          };
+
+          // Sauvegarder le plan frais
+          try {
+            const planJSON = JSON.stringify(freshPlan);
+            localStorage.setItem("devUserPlan", planJSON);
+            sessionStorage.setItem("devUserPlan", planJSON);
+            console.log(
+              "[DEBUG-SERVICE] Plan frais créé et sauvegardé:",
+              freshPlan
+            );
+          } catch (e) {
+            console.error(
+              "[DEBUG-SERVICE] Erreur lors de la sauvegarde du plan frais:",
+              e
+            );
+          }
+
+          return freshPlan;
+        }
+      }
+
       // Vérifier si localStorage/sessionStorage est disponible (côté client uniquement)
       let storedPlan = null;
       if (typeof window !== "undefined") {
@@ -45,8 +117,8 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
             const planId = sessionStorage.getItem("planId");
             console.log("[DEBUG-SERVICE] Plan ID récemment changé:", planId);
 
-            // Réinitialiser le drapeau pour ne pas entrer dans cette condition à chaque fois
-            sessionStorage.removeItem("planJustChanged");
+            // Ne pas réinitialiser le drapeau ici pour permettre à toutes les pages de le détecter
+            // La réinitialisation sera faite par chaque composant après détection
 
             // Forcer la création d'un nouveau plan en fonction du planId stocké
             if (
@@ -98,6 +170,8 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
               try {
                 localStorage.setItem("devUserPlan", planJSON);
                 sessionStorage.setItem("devUserPlan", planJSON);
+                localStorage.setItem("lastUsedPlanId", planId);
+                sessionStorage.setItem("lastUsedPlanId", planId);
                 console.log(
                   "[DEBUG-SERVICE] Plan forcé sauvegardé avec succès"
                 );

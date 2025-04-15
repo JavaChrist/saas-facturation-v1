@@ -14,6 +14,43 @@ export default function BridgePage() {
       console.log("[BRIDGE] Plan ID détecté:", planId);
 
       try {
+        // Nettoyer complètement tous les stockages
+        console.log("[BRIDGE] Nettoyage complet des stockages...");
+
+        // Liste des clés à supprimer spécifiquement
+        const keysToRemove = [
+          "devUserPlan",
+          "permanentUserPlan",
+          "lastUsedPlanId",
+          "planJustChanged",
+          "planId",
+          "currentPlanId",
+          "forcedPlanUpdate",
+          "planUpdateTimestamp",
+        ];
+
+        // Suppression ciblée d'abord
+        keysToRemove.forEach((key) => {
+          try {
+            localStorage.removeItem(key);
+            sessionStorage.removeItem(key);
+          } catch (e) {
+            console.warn(
+              `[BRIDGE] Erreur lors de la suppression de ${key}:`,
+              e
+            );
+          }
+        });
+
+        // Puis nettoyage complet pour être sûr
+        localStorage.clear();
+        sessionStorage.clear();
+
+        console.log("[BRIDGE] Stockages nettoyés avec succès");
+
+        // Pause pour s'assurer que le nettoyage est bien effectué
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         // Enregistrer directement le plan dans tous les stockages possibles
         const dateStart = new Date();
         const dateEnd = new Date(
@@ -41,15 +78,24 @@ export default function BridgePage() {
           },
         };
 
-        // Sauvegarder le plan dans tous les stockages possibles
+        // Sauvegarder le plan dans tous les stockages possibles avec des clés différentes
+        // pour maximiser les chances de détection
         const planJSON = JSON.stringify(simulatedPlan);
-        localStorage.clear();
-        sessionStorage.clear();
         localStorage.setItem("devUserPlan", planJSON);
         sessionStorage.setItem("devUserPlan", planJSON);
         localStorage.setItem("permanentUserPlan", planJSON);
         localStorage.setItem("lastUsedPlanId", planId);
         sessionStorage.setItem("lastUsedPlanId", planId);
+        // Définir le flag de changement de plan pour s'assurer que toutes les pages le détectent
+        sessionStorage.setItem("planJustChanged", "true");
+        sessionStorage.setItem("planId", planId);
+        // Ajouter des clés supplémentaires pour garantir la détection
+        localStorage.setItem("currentPlanId", planId);
+        sessionStorage.setItem("currentPlanId", planId);
+        localStorage.setItem("forcedPlanUpdate", "true");
+        sessionStorage.setItem("forcedPlanUpdate", "true");
+        localStorage.setItem("planUpdateTimestamp", Date.now().toString());
+        sessionStorage.setItem("planUpdateTimestamp", Date.now().toString());
 
         console.log(
           "[BRIDGE] Plan enregistré dans tous les stockages:",
@@ -65,7 +111,7 @@ export default function BridgePage() {
       console.log("[BRIDGE] Redirection vers le dashboard...");
 
       // Force une actualisation complète pour garantir que le plan est bien chargé
-      window.location.href = "/dashboard";
+      window.location.href = "/dashboard?forceUpdate=" + Date.now();
     }, 1000);
   }, [router]);
 

@@ -31,6 +31,7 @@ import { useAuth } from "@/lib/authContext";
 import { FirestoreTimestamp } from "@/types/facture";
 import { ModeleFacture } from "@/types/modeleFacture";
 import { getModelesFacture } from "@/services/modeleFactureService";
+import { getUserPlan, checkPlanLimit } from "@/services/subscriptionService";
 
 export default function FacturesPage() {
   const router = useRouter();
@@ -59,6 +60,12 @@ export default function FacturesPage() {
   });
   const [selectedFacture, setSelectedFacture] = useState<Facture | null>(null);
   const [searchParams, setSearchParams] = useState<{ id?: string }>({});
+  const [limitReached, setLimitReached] = useState(false);
+  const [planInfo, setPlanInfo] = useState<{
+    planId: string;
+    maxFactures: number;
+    currentFactures: number;
+  }>({ planId: "", maxFactures: 0, currentFactures: 0 });
 
   // État pour le modal de sélection de modèle
   const [isModeleSelectorOpen, setIsModeleSelectorOpen] = useState(false);
@@ -81,24 +88,68 @@ export default function FacturesPage() {
 
   // Charger les factures depuis Firestore
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      router.push("/login");
+      return;
+    }
 
     const facturesQuery = query(
       collection(db, "factures"),
       where("userId", "==", user.uid)
     );
 
-    const unsubscribe = onSnapshot(facturesQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(facturesQuery, async (snapshot) => {
       const facturesData = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
-        dateCreation: doc.data().dateCreation?.toDate(),
+        dateCreation: doc.data().dateCreation
+          ? new Date(doc.data().dateCreation)
+          : new Date(),
       })) as Facture[];
       setFactures(facturesData);
+
+      // Vérifier les limites du plan
+      try {
+        const userPlan = await getUserPlan(user.uid);
+        const isLimitReached = await checkPlanLimit(
+          user.uid,
+          "factures",
+          facturesData.length
+        );
+        setLimitReached(isLimitReached);
+
+        setPlanInfo({
+          planId: userPlan.planId,
+          maxFactures:
+            userPlan.limites.factures === -1
+              ? Infinity
+              : userPlan.limites.factures,
+          currentFactures: facturesData.length,
+        });
+      } catch (err) {
+        console.error("Erreur lors de la vérification des limites:", err);
+      }
     });
 
-    return () => unsubscribe();
-  }, [user]);
+    // Récupérer les clients depuis Firestore
+    const clientsQuery = query(
+      collection(db, "clients"),
+      where("userId", "==", user.uid)
+    );
+
+    const clientsUnsubscribe = onSnapshot(clientsQuery, (snapshot) => {
+      const clientsData = snapshot.docs.map((doc) => ({
+        ...doc.data(),
+        id: doc.id,
+      })) as Client[];
+      setClients(clientsData);
+    });
+
+    return () => {
+      unsubscribe();
+      clientsUnsubscribe();
+    };
+  }, [user, router]);
 
   // Utiliser useCallback pour la fonction openEditModal
   const openEditModal = useCallback(
@@ -169,13 +220,44 @@ export default function FacturesPage() {
   }, [user]);
 
   const openModal = () => {
-    // Générer un nouveau numéro de facture
-    const newNumero = `FCT-${new Date().getFullYear()}${String(
-      factures.length + 1
-    ).padStart(3, "0")}`;
+    // Vérifier si l'utilisateur a atteint sa limite de factures
+    if (limitReached) {
+      alert(
+        `Vous avez atteint la limite de ${planInfo.currentFactures} facture(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de factures.`
+      );
+      return;
+    }
+
+    setSelectedFacture(null);
     setNewFacture({
-      ...newFacture,
-      numero: newNumero,
+      id: "",
+      numero: generateNewInvoiceNumber(),
+      statut: "En attente",
+      client: {
+        id: "",
+        refClient: "",
+        nom: "",
+        rue: "",
+        codePostal: "",
+        ville: "",
+        email: "",
+        delaisPaiement: "30 jours",
+      },
+      articles: [
+        {
+          id: 1,
+          description: "",
+          quantite: 1,
+          prixUnitaire: 0,
+          tva: 20,
+          totalHT: 0,
+          totalTTC: 0,
+          isComment: false,
+        },
+      ],
+      totalHT: 0,
+      totalTTC: 0,
+      dateCreation: new Date(),
     });
     setIsModalOpen(true);
   };
@@ -317,9 +399,10 @@ export default function FacturesPage() {
     }
 
     try {
-      if (selectedFacture) {
+      if (selectedFacture && selectedFacture.id) {
         // Modification d'une facture existante
-        await updateDoc(doc(db, "factures", selectedFacture.id), {
+        const factureRef = doc(db, "factures", selectedFacture.id);
+        await updateDoc(factureRef, {
           numero: newFacture.numero,
           client: newFacture.client,
           statut: newFacture.statut,
@@ -330,6 +413,20 @@ export default function FacturesPage() {
           userId: user.uid,
         });
       } else {
+        // Vérifier à nouveau les limites avant la création
+        const isLimitReached = await checkPlanLimit(
+          user.uid,
+          "factures",
+          factures.length
+        );
+
+        if (isLimitReached) {
+          alert(
+            `Vous avez atteint la limite de ${planInfo.currentFactures} facture(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de factures.`
+          );
+          return;
+        }
+
         // Création d'une nouvelle facture
         await addDoc(collection(db, "factures"), {
           numero: newFacture.numero,
@@ -445,12 +542,51 @@ export default function FacturesPage() {
           </button>
           <button
             onClick={openModal}
-            className="bg-gray-800 text-white py-2 px-4 rounded-md hover:bg-gray-600 transform hover:scale-105 transition-transform duration-300"
+            disabled={limitReached}
+            className={`${
+              limitReached
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-gray-800 hover:bg-gray-600 transform hover:scale-105"
+            } text-white py-2 px-4 rounded-md transition-transform duration-300`}
           >
             Ajouter une facture
           </button>
         </div>
       </div>
+
+      {/* Information sur les limites du plan */}
+      {planInfo.planId && (
+        <div className="mb-6 bg-white dark:bg-card-dark p-4 rounded-lg shadow-sm">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="font-medium text-text-light dark:text-text-dark">
+                Factures
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {planInfo.maxFactures === Infinity
+                  ? `Vous utilisez ${planInfo.currentFactures} facture(s) (illimité avec le plan ${planInfo.planId})`
+                  : `Vous utilisez ${planInfo.currentFactures} facture(s) sur ${planInfo.maxFactures} disponible(s) avec votre plan ${planInfo.planId}`}
+              </p>
+            </div>
+            {limitReached && (
+              <div className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 px-3 py-1 rounded-full text-sm">
+                Limite atteinte
+              </div>
+            )}
+          </div>
+          {limitReached && (
+            <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              <a
+                href="/dashboard/abonnement"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Passez à un plan supérieur
+              </a>{" "}
+              pour créer plus de factures.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tableau des factures */}
       <div className="overflow-x-auto">

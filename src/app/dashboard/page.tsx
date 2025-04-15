@@ -11,6 +11,7 @@ import {
   FiStar,
   FiAward,
   FiShield,
+  FiUserPlus,
 } from "react-icons/fi";
 import Link from "next/link";
 import Image from "next/image";
@@ -65,6 +66,58 @@ export default function Dashboard() {
             process.env.NODE_ENV === "development" &&
             typeof window !== "undefined"
           ) {
+            // Vérifier si un changement de plan vient d'avoir lieu
+            const planJustChanged = sessionStorage.getItem("planJustChanged");
+            if (planJustChanged === "true") {
+              console.log(
+                "[DEBUG-DASHBOARD] Détection d'un changement de plan récent"
+              );
+              const planId = sessionStorage.getItem("planId");
+              console.log(
+                "[DEBUG-DASHBOARD] Plan ID récemment changé:",
+                planId
+              );
+
+              // Réinitialiser le drapeau pour ne pas entrer dans cette condition à chaque fois
+              sessionStorage.removeItem("planJustChanged");
+
+              if (planId) {
+                // Construction du plan correspondant
+                let planName = "Gratuit";
+                let planColor = "gray";
+                let planIcon = <FiStar className="text-gray-400" />;
+
+                if (planId === "premium") {
+                  planName = "Premium";
+                  planColor = "blue";
+                  planIcon = <FiAward className="text-blue-400" />;
+                } else if (planId === "entreprise") {
+                  planName = "Entreprise";
+                  planColor = "purple";
+                  planIcon = <FiShield className="text-purple-400" />;
+                }
+
+                // Application immédiate du plan
+                setUserPlanInfo({
+                  planId: planId,
+                  planName,
+                  planColor,
+                  planIcon,
+                });
+
+                console.log(
+                  "[DEBUG-DASHBOARD] Plan appliqué suite au changement:",
+                  {
+                    planId,
+                    planName,
+                    planColor,
+                  }
+                );
+
+                return;
+              }
+            }
+
             // Vérifier en priorité le dernier plan utilisé (marqueur fiable introduit récemment)
             const lastUsedPlanId =
               localStorage.getItem("lastUsedPlanId") ||
@@ -153,8 +206,127 @@ export default function Dashboard() {
       };
 
       fetchUserPlan();
+
+      // Vérifier les changements de plan périodiquement
+      const planCheckInterval = setInterval(() => {
+        console.log("[DEBUG-DASHBOARD] Vérification périodique du plan...");
+
+        // Vérifier d'abord les marqueurs de changement de plan
+        if (typeof window !== "undefined") {
+          const planId =
+            localStorage.getItem("lastUsedPlanId") ||
+            sessionStorage.getItem("lastUsedPlanId") ||
+            sessionStorage.getItem("planId");
+
+          if (planId && planId !== userPlanInfo.planId) {
+            console.log(
+              "[DEBUG-DASHBOARD] Changement de plan détecté:",
+              planId
+            );
+
+            // Construction du plan correspondant
+            let planName = "Gratuit";
+            let planColor = "gray";
+            let planIcon = <FiStar className="text-gray-400" />;
+
+            if (planId === "premium") {
+              planName = "Premium";
+              planColor = "blue";
+              planIcon = <FiAward className="text-blue-400" />;
+            } else if (planId === "entreprise") {
+              planName = "Entreprise";
+              planColor = "purple";
+              planIcon = <FiShield className="text-purple-400" />;
+            }
+
+            // Application immédiate du plan
+            setUserPlanInfo({
+              planId: planId,
+              planName,
+              planColor,
+              planIcon,
+            });
+
+            console.log("[DEBUG-DASHBOARD] Plan mis à jour automatiquement:", {
+              planId,
+              planName,
+              planColor,
+            });
+          }
+        }
+      }, 2000); // Vérifier toutes les 2 secondes
+
+      return () => clearInterval(planCheckInterval);
     }
-  }, [user]);
+  }, [user, userPlanInfo.planId]);
+
+  // Forcer une vérification du plan lors du chargement initial et après chaque navigation
+  useEffect(() => {
+    if (user && typeof window !== "undefined") {
+      console.log(
+        "[DEBUG-DASHBOARD] Vérification forcée du plan au chargement"
+      );
+
+      // Vérifier si l'URL contient un paramètre forceUpdate
+      const hasForceUpdate = window.location.href.includes("forceUpdate");
+
+      if (hasForceUpdate) {
+        console.log(
+          "[DEBUG-DASHBOARD] Paramètre forceUpdate détecté, nettoyage du paramètre"
+        );
+        // Nettoyer l'URL des paramètres temporaires
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+
+      // Vérifier le plan dans les différents stockages
+      const storageKeys = ["lastUsedPlanId", "currentPlanId", "planId"];
+      let detectedPlanId = null;
+
+      // Chercher dans les différentes clés possibles
+      for (const key of storageKeys) {
+        const value = localStorage.getItem(key) || sessionStorage.getItem(key);
+        if (value) {
+          detectedPlanId = value;
+          console.log(`[DEBUG-DASHBOARD] Plan détecté via ${key}:`, value);
+          break;
+        }
+      }
+
+      if (detectedPlanId && detectedPlanId !== userPlanInfo.planId) {
+        // Mettre à jour immédiatement le plan affiché
+        let planName = "Gratuit";
+        let planColor = "gray";
+        let planIcon = <FiStar className="text-gray-400" />;
+
+        if (detectedPlanId === "premium") {
+          planName = "Premium";
+          planColor = "blue";
+          planIcon = <FiAward className="text-blue-400" />;
+        } else if (detectedPlanId === "entreprise") {
+          planName = "Entreprise";
+          planColor = "purple";
+          planIcon = <FiShield className="text-purple-400" />;
+        }
+
+        setUserPlanInfo({
+          planId: detectedPlanId,
+          planName,
+          planColor,
+          planIcon,
+        });
+
+        console.log(
+          "[DEBUG-DASHBOARD] Plan mis à jour lors du chargement forcé:",
+          {
+            planId: detectedPlanId,
+            planName,
+            planColor,
+          }
+        );
+      }
+    }
+  }, [user, window?.location?.href, userPlanInfo.planId]);
 
   const handleDateChange = (newDateRange: DateRange) => {
     setDateRange(newDateRange);
@@ -221,6 +393,12 @@ export default function Dashboard() {
             className="block py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700 flex items-center"
           >
             <FiCreditCard className="mr-2" /> Abonnement
+          </Link>
+          <Link
+            href="/dashboard/utilisateurs"
+            className="block py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700 flex items-center"
+          >
+            <FiUserPlus className="mr-2" /> Utilisateurs
           </Link>
           <Link
             href="/dashboard/parametres"
@@ -366,6 +544,27 @@ export default function Dashboard() {
                   </h3>
                   <p className="text-gray-500 dark:text-gray-400">
                     Gérer votre plan SaaS
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/utilisateurs"
+            className="transform hover:scale-105 transition-transform duration-300"
+          >
+            <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
+              <div className="flex items-center space-x-4">
+                <div className="bg-teal-100 dark:bg-teal-900 p-3 rounded-full">
+                  <FiUserPlus className="text-teal-500 dark:text-teal-400 text-xl" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-text-light dark:text-text-dark">
+                    Utilisateurs
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Gérer les accès
                   </p>
                 </div>
               </div>

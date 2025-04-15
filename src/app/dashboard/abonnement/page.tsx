@@ -38,6 +38,7 @@ function AbonnementContent() {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [stripeComponentLoaded, setStripeComponentLoaded] = useState(true);
   const [showContactForm, setShowContactForm] = useState(false);
+  const [showManagementOptions, setShowManagementOptions] = useState(false);
   const [contactFormData, setContactFormData] = useState({
     name: "",
     email: "",
@@ -50,6 +51,20 @@ function AbonnementContent() {
   const successParam = searchParams.get("success");
   const canceledParam = searchParams.get("canceled");
   const planParam = searchParams.get("plan");
+  const modeParam = searchParams.get("mode");
+
+  // Si le mode est "change", montrer les options de gestion d'abonnement
+  useEffect(() => {
+    if (modeParam === "change") {
+      setShowManagementOptions(true);
+
+      // Nettoyer l'URL
+      const cleanUrl = window.location.pathname;
+      if (typeof window !== "undefined") {
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    }
+  }, [modeParam]);
 
   // Plans disponibles
   const plans: Plan[] = [
@@ -263,6 +278,17 @@ function AbonnementContent() {
     try {
       console.log("Début du processus d'abonnement au plan:", planId);
 
+      // Mettre à jour immédiatement les marqueurs de plan
+      if (typeof window !== "undefined") {
+        // Définir le flag de changement de plan
+        sessionStorage.setItem("planJustChanged", "true");
+        sessionStorage.setItem("planId", planId);
+        localStorage.setItem("lastUsedPlanId", planId);
+        sessionStorage.setItem("lastUsedPlanId", planId);
+
+        console.log("Marqueurs de plan définis:", planId);
+      }
+
       // Obtenir le plan actuel de l'utilisateur
       const userPlanDetails = await getUserPlan(user.uid);
 
@@ -272,9 +298,9 @@ function AbonnementContent() {
         userPlanDetails.planId === planId &&
         userPlanDetails.isActive
       ) {
-        setError(`Vous êtes déjà abonné au plan ${planId}`);
-        setIsLoading(false);
-        return;
+        // Permettre quand même de réinitialiser le même plan (pour résoudre des problèmes de synchronisation)
+        console.log("Réinitialisation du plan actuel:", planId);
+        // Au lieu de bloquer, on continue avec la simulation d'abonnement
       }
 
       // Si nous sommes en développement local et que Stripe n'est pas configuré
@@ -351,6 +377,45 @@ function AbonnementContent() {
     );
 
     try {
+      // Enregistrer le changement de plan dans sessionStorage
+      sessionStorage.setItem("planJustChanged", "true");
+      sessionStorage.setItem("planId", planId);
+      localStorage.setItem("lastUsedPlanId", planId);
+      sessionStorage.setItem("lastUsedPlanId", planId);
+
+      // Créer le plan simulé
+      const dateStart = new Date();
+      const dateEnd = new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      const simulatedPlan = {
+        planId: planId,
+        isActive: true,
+        dateStart: dateStart,
+        dateEnd: dateEnd,
+        stripeSubscriptionId:
+          "sim_" + Math.random().toString(36).substring(2, 11),
+        stripeCustomerId:
+          "cus_sim_" + Math.random().toString(36).substring(2, 11),
+        limites: {
+          clients: planId === "premium" ? 50 : planId === "entreprise" ? -1 : 5,
+          factures:
+            planId === "premium" ? 500 : planId === "entreprise" ? -1 : 20,
+          modeles: planId === "premium" ? 5 : planId === "entreprise" ? -1 : 1,
+          utilisateurs:
+            planId === "premium" ? 2 : planId === "entreprise" ? 10 : 1,
+        },
+      };
+
+      // Enregistrer le plan dans localStorage et sessionStorage
+      const planJSON = JSON.stringify(simulatedPlan);
+      localStorage.setItem("devUserPlan", planJSON);
+      sessionStorage.setItem("devUserPlan", planJSON);
+
+      console.log(
+        "[DEBUG] Plan simulé enregistré dans le stockage:",
+        simulatedPlan
+      );
+
       // Afficher un message de succès
       setSuccess(
         `Plan ${planId} activé avec succès! Redirection vers le dashboard...`
@@ -362,22 +427,7 @@ function AbonnementContent() {
         window.location.href = `/bridge?plan=${planId}`;
       }, 1000);
 
-      return {
-        planId: planId,
-        isActive: true,
-        dateStart: new Date(),
-        dateEnd: new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000),
-        stripeSubscriptionId:
-          "sim_" + Math.random().toString(36).substring(2, 11),
-        limites: {
-          clients: planId === "premium" ? 50 : planId === "entreprise" ? -1 : 5,
-          factures:
-            planId === "premium" ? 500 : planId === "entreprise" ? -1 : 20,
-          modeles: planId === "premium" ? 5 : planId === "entreprise" ? -1 : 1,
-          utilisateurs:
-            planId === "premium" ? 2 : planId === "entreprise" ? 10 : 1,
-        },
-      };
+      return simulatedPlan;
     } catch (e) {
       console.error("[DEBUG] Erreur critique lors de la simulation:", e);
       setError(
@@ -443,6 +493,61 @@ function AbonnementContent() {
       {success && (
         <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6">
           <p>{success}</p>
+        </div>
+      )}
+
+      {/* Options de gestion d'abonnement */}
+      {showManagementOptions && userPlan && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">
+            Gestion de votre abonnement
+          </h2>
+
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-md mb-6">
+            <p className="text-gray-700 dark:text-gray-200 mb-4">
+              Votre abonnement actuel :{" "}
+              <span className="font-semibold">
+                {plans.find((p) => p.id === planActuel)?.nom}
+              </span>
+            </p>
+            <p className="text-gray-700 dark:text-gray-200 mb-4">
+              En mode développement, vous pouvez facilement changer de plan en
+              sélectionnant l'un des plans ci-dessous.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {plans.map((plan) => (
+              <button
+                key={plan.id}
+                onClick={() => handleSubscribe(plan.id)}
+                className={`p-4 rounded-lg text-center transition-all duration-300 ${
+                  plan.id === planActuel
+                    ? "bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600"
+                    : plan.id === "premium"
+                    ? "bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/50"
+                    : plan.id === "entreprise"
+                    ? "bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-800/50"
+                    : "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
+              >
+                <span className="font-medium text-lg">
+                  {plan.id === planActuel
+                    ? `Plan actuel (${plan.nom})`
+                    : `Passer au plan ${plan.nom}`}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={() => setShowManagementOptions(false)}
+              className="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors duration-300"
+            >
+              Fermer
+            </button>
+          </div>
         </div>
       )}
 
@@ -733,10 +838,13 @@ function AbonnementContent() {
               <div className="mt-8">
                 <button
                   onClick={() => handleSubscribe(plan.id)}
-                  disabled={plan.id === planActuel}
                   className={`w-full px-6 py-3 text-white rounded-full font-medium transition-all duration-300 ${
                     plan.id === planActuel
-                      ? "bg-gray-400 cursor-not-allowed opacity-60"
+                      ? plan.id === "premium"
+                        ? "bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-blue-500/20"
+                        : plan.id === "entreprise"
+                        ? "bg-purple-600 hover:bg-purple-700 shadow-md hover:shadow-purple-500/20"
+                        : "bg-gray-600 hover:bg-gray-700 shadow-md hover:shadow-gray-500/20"
                       : plan.id === "premium"
                       ? "bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-blue-500/20"
                       : plan.id === "entreprise"
@@ -745,7 +853,7 @@ function AbonnementContent() {
                   }`}
                 >
                   {plan.id === planActuel
-                    ? "Plan actuel"
+                    ? "Réactiver ce plan"
                     : `S'abonner au plan ${plan.nom}`}
                 </button>
               </div>
