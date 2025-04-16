@@ -13,106 +13,117 @@ export default function BridgePage() {
     if (planId) {
       console.log("[BRIDGE] Plan ID détecté:", planId);
 
-      try {
-        // Nettoyer complètement tous les stockages
-        console.log("[BRIDGE] Nettoyage complet des stockages...");
+      // Utilisation d'une fonction asynchrone à l'intérieur du useEffect
+      const setupPlan = async () => {
+        try {
+          // Nettoyer complètement tous les stockages
+          console.log("[BRIDGE] Nettoyage complet des stockages...");
 
-        // Liste des clés à supprimer spécifiquement
-        const keysToRemove = [
-          "devUserPlan",
-          "permanentUserPlan",
-          "lastUsedPlanId",
-          "planJustChanged",
-          "planId",
-          "currentPlanId",
-          "forcedPlanUpdate",
-          "planUpdateTimestamp",
-        ];
+          // Liste des clés à supprimer spécifiquement
+          const keysToRemove = [
+            "devUserPlan",
+            "permanentUserPlan",
+            "lastUsedPlanId",
+            "planJustChanged",
+            "planId",
+            "currentPlanId",
+            "forcedPlanUpdate",
+            "planUpdateTimestamp",
+          ];
 
-        // Suppression ciblée d'abord
-        keysToRemove.forEach((key) => {
-          try {
-            localStorage.removeItem(key);
-            sessionStorage.removeItem(key);
-          } catch (e) {
-            console.warn(
-              `[BRIDGE] Erreur lors de la suppression de ${key}:`,
-              e
-            );
-          }
-        });
+          // Suppression ciblée d'abord
+          keysToRemove.forEach((key) => {
+            try {
+              localStorage.removeItem(key);
+              sessionStorage.removeItem(key);
+            } catch (e) {
+              console.warn(
+                `[BRIDGE] Erreur lors de la suppression de ${key}:`,
+                e
+              );
+            }
+          });
 
-        // Puis nettoyage complet pour être sûr
-        localStorage.clear();
-        sessionStorage.clear();
+          // Puis nettoyage complet pour être sûr
+          localStorage.clear();
+          sessionStorage.clear();
 
-        console.log("[BRIDGE] Stockages nettoyés avec succès");
+          console.log("[BRIDGE] Stockages nettoyés avec succès");
 
-        // Pause pour s'assurer que le nettoyage est bien effectué
-        await new Promise((resolve) => setTimeout(resolve, 100));
+          // Pause pour s'assurer que le nettoyage est bien effectué
+          await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // Enregistrer directement le plan dans tous les stockages possibles
-        const dateStart = new Date();
-        const dateEnd = new Date(
-          dateStart.getTime() + 30 * 24 * 60 * 60 * 1000
-        );
+          // Enregistrer directement le plan dans tous les stockages possibles
+          const dateStart = new Date();
+          const dateEnd = new Date(
+            dateStart.getTime() + 30 * 24 * 60 * 60 * 1000
+          );
 
-        const simulatedPlan = {
-          planId: planId,
-          isActive: true,
-          dateStart: dateStart,
-          dateEnd: dateEnd,
-          stripeSubscriptionId:
-            "sim_" + Math.random().toString(36).substring(2, 11),
-          stripeCustomerId:
-            "cus_sim_" + Math.random().toString(36).substring(2, 11),
-          limites: {
-            clients:
-              planId === "premium" ? 50 : planId === "entreprise" ? -1 : 5,
-            factures:
-              planId === "premium" ? 500 : planId === "entreprise" ? -1 : 20,
-            modeles:
-              planId === "premium" ? 5 : planId === "entreprise" ? -1 : 1,
-            utilisateurs:
-              planId === "premium" ? 2 : planId === "entreprise" ? 10 : 1,
-          },
-        };
+          const simulatedPlan = {
+            planId: planId,
+            isActive: true,
+            dateStart: dateStart,
+            dateEnd: dateEnd,
+            stripeSubscriptionId:
+              "sim_" + Math.random().toString(36).substring(2, 11),
+            stripeCustomerId:
+              "cus_sim_" + Math.random().toString(36).substring(2, 11),
+            limites: {
+              clients:
+                planId === "premium" ? 50 : planId === "entreprise" ? -1 : 5,
+              factures:
+                planId === "premium" ? 500 : planId === "entreprise" ? -1 : 20,
+              modeles:
+                planId === "premium" ? 5 : planId === "entreprise" ? -1 : 1,
+              utilisateurs:
+                planId === "premium" ? 2 : planId === "entreprise" ? 10 : 1,
+            },
+          };
 
-        // Sauvegarder le plan dans tous les stockages possibles avec des clés différentes
-        // pour maximiser les chances de détection
-        const planJSON = JSON.stringify(simulatedPlan);
-        localStorage.setItem("devUserPlan", planJSON);
-        sessionStorage.setItem("devUserPlan", planJSON);
-        localStorage.setItem("permanentUserPlan", planJSON);
-        localStorage.setItem("lastUsedPlanId", planId);
-        sessionStorage.setItem("lastUsedPlanId", planId);
-        // Définir le flag de changement de plan pour s'assurer que toutes les pages le détectent
-        sessionStorage.setItem("planJustChanged", "true");
-        sessionStorage.setItem("planId", planId);
-        // Ajouter des clés supplémentaires pour garantir la détection
-        localStorage.setItem("currentPlanId", planId);
-        sessionStorage.setItem("currentPlanId", planId);
-        localStorage.setItem("forcedPlanUpdate", "true");
-        sessionStorage.setItem("forcedPlanUpdate", "true");
-        localStorage.setItem("planUpdateTimestamp", Date.now().toString());
-        sessionStorage.setItem("planUpdateTimestamp", Date.now().toString());
+          // Sauvegarder le plan dans tous les stockages possibles avec des clés différentes
+          // pour maximiser les chances de détection
+          const planJSON = JSON.stringify(simulatedPlan);
+          localStorage.setItem("devUserPlan", planJSON);
+          sessionStorage.setItem("devUserPlan", planJSON);
+          localStorage.setItem("permanentUserPlan", planJSON);
+          localStorage.setItem("lastUsedPlanId", planId);
+          sessionStorage.setItem("lastUsedPlanId", planId);
+          // Définir le flag de changement de plan pour s'assurer que toutes les pages le détectent
+          sessionStorage.setItem("planJustChanged", "true");
+          sessionStorage.setItem("planId", planId);
+          // Ajouter des clés supplémentaires pour garantir la détection
+          localStorage.setItem("currentPlanId", planId);
+          sessionStorage.setItem("currentPlanId", planId);
+          localStorage.setItem("forcedPlanUpdate", "true");
+          sessionStorage.setItem("forcedPlanUpdate", "true");
+          localStorage.setItem("planUpdateTimestamp", Date.now().toString());
+          sessionStorage.setItem("planUpdateTimestamp", Date.now().toString());
 
-        console.log(
-          "[BRIDGE] Plan enregistré dans tous les stockages:",
-          simulatedPlan
-        );
-      } catch (e) {
-        console.error("[BRIDGE] Erreur lors de l'enregistrement du plan:", e);
-      }
+          console.log(
+            "[BRIDGE] Plan enregistré dans tous les stockages:",
+            simulatedPlan
+          );
+        } catch (e) {
+          console.error("[BRIDGE] Erreur lors de l'enregistrement du plan:", e);
+        }
+
+        // Rediriger vers le dashboard après une courte pause
+        setTimeout(() => {
+          console.log("[BRIDGE] Redirection vers le dashboard...");
+
+          // Force une actualisation complète pour garantir que le plan est bien chargé
+          window.location.href = "/dashboard?forceUpdate=" + Date.now();
+        }, 1000);
+      };
+
+      // Exécution de la fonction asynchrone
+      setupPlan();
+    } else {
+      // Si pas de planId, redirection directe
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 1000);
     }
-
-    // Rediriger vers le dashboard après une courte pause
-    setTimeout(() => {
-      console.log("[BRIDGE] Redirection vers le dashboard...");
-
-      // Force une actualisation complète pour garantir que le plan est bien chargé
-      window.location.href = "/dashboard?forceUpdate=" + Date.now();
-    }, 1000);
   }, [router]);
 
   return (
