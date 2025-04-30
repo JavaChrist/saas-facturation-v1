@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Fonction pour vérifier si l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Fonction pour vérifier si l'utilisateur accède à ses propres données
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Règles pour la collection "clients"
+    match /clients/{clientId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Règles pour la collection "factures"
+    match /factures/{factureId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Règles pour la collection "modelesFacture"
+    match /modelesFacture/{modeleId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Règles pour la collection "facturesRecurrentes"
+    match /facturesRecurrentes/{factureId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Règles pour la collection "parametres"
+    match /parametres/{userId}/{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Nouvelles règles pour les notifications
+    match /notifications/{notificationId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Autoriser la création de nouvelles notifications
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Règles par défaut - refuser tout accès non explicitement autorisé
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 
