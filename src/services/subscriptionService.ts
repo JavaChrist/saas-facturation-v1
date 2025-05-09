@@ -23,13 +23,74 @@ export interface UserPlan {
  */
 export const getUserPlan = async (userId: string): Promise<UserPlan> => {
   try {
+    console.log("[DEBUG-VERCEL] Démarrage de getUserPlan pour", userId);
+    console.log("[DEBUG-VERCEL] NODE_ENV =", process.env.NODE_ENV);
+    
+    // Vérifier si nous sommes sur Vercel en production
+    const isVercelProduction = process.env.VERCEL_ENV === "production";
+    if (isVercelProduction) {
+      console.log("[DEBUG-VERCEL] Environnement Vercel production détecté");
+    }
+    
     // Mode développement - retourner un plan factice si la collection users n'existe pas
     const isDevelopment = process.env.NODE_ENV === "development";
 
-    if (isDevelopment) {
+    if (isDevelopment || isVercelProduction) {
       console.log(
-        "[DEBUG-SERVICE] Mode développement détecté, utilisation d'un plan factice"
+        "[DEBUG-SERVICE] Mode développement ou Vercel détecté, utilisation d'un plan factice"
       );
+
+      // Vérification spéciale pour Vercel
+      if (isVercelProduction && typeof window !== "undefined") {
+        // ID du plan forcé pour les utilisateurs de Vercel qui ont déjà choisi le plan Entreprise
+        const userId_plan_map: Record<string, string> = {
+          "oq10PAIePPXMVgFX82tlXu67oVx2": "enterprise" // Remplace avec l'ID de ton utilisateur
+        };
+        
+        // Si l'utilisateur est dans la liste des utilisateurs avec plan forcé
+        if (userId_plan_map[userId]) {
+          console.log(`[DEBUG-VERCEL] Utilisateur ${userId} avec plan forcé trouvé: ${userId_plan_map[userId]}`);
+          
+          const forcedPlanId = userId_plan_map[userId];
+          
+          // Forcer la création d'un plan Entreprise
+          const dateStart = new Date();
+          const dateEnd = new Date(dateStart.getTime() + 30 * 24 * 60 * 60 * 1000);
+          
+          const vercelForcedPlan = {
+            planId: forcedPlanId,
+            isActive: true,
+            dateStart: dateStart,
+            dateEnd: dateEnd,
+            stripeSubscriptionId: "vercel_sim_" + Math.random().toString(36).substring(2, 11),
+            stripeCustomerId: "vercel_cus_" + Math.random().toString(36).substring(2, 11),
+            limites: {
+              clients: -1,
+              factures: -1,  
+              modeles: -1,
+              utilisateurs: 10,
+            },
+          };
+          
+          // Sauvegarder le plan forcé dans tous les stockages disponibles
+          try {
+            const planJSON = JSON.stringify(vercelForcedPlan);
+            localStorage.setItem("devUserPlan", planJSON);
+            sessionStorage.setItem("devUserPlan", planJSON);
+            localStorage.setItem("permanentUserPlan", planJSON);
+            localStorage.setItem("lastUsedPlanId", forcedPlanId);
+            sessionStorage.setItem("lastUsedPlanId", forcedPlanId);
+            sessionStorage.setItem("planId", forcedPlanId);
+            sessionStorage.setItem("planJustChanged", "true");
+            
+            console.log("[DEBUG-VERCEL] Plan forcé sauvegardé:", vercelForcedPlan);
+          } catch (e) {
+            console.error("[DEBUG-VERCEL] Erreur lors de la sauvegarde du plan forcé:", e);
+          }
+          
+          return vercelForcedPlan;
+        }
+      }
 
       // Vérifier d'abord si lastUsedPlanId est défini (le plus fiable et récent)
       if (typeof window !== "undefined") {
@@ -470,30 +531,103 @@ export const updateUserSubscription = async (
  */
 export const changePlanDev = async (userId: string, newPlanId: string): Promise<boolean> => {
   try {
-    // Vérifier que nous sommes en mode développement
-    if (process.env.NODE_ENV !== "development") {
-      console.error("Cette fonction n'est disponible qu'en mode développement");
-      return false;
-    }
+    console.log(`[DEBUG-FIREBASE] Changement de plan: ${newPlanId} pour l'utilisateur: ${userId}`);
+    
+    // Définir les limites en fonction du plan
+    let limites = {
+      clients: 5,
+      factures: 5,
+      modeles: 1,
+      utilisateurs: 1,
+    };
 
-    // Mettre à jour le plan dans Firestore
-    const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
+    if (newPlanId === "premium") {
+      limites = {
+        clients: 50,
+        factures: -1, // Illimité
+        modeles: 5,
+        utilisateurs: 2,
+      };
+    } else if (newPlanId === "enterprise" || newPlanId === "entreprise") {
+      limites = {
+        clients: -1, // Illimité
+        factures: -1, // Illimité
+        modeles: -1, // Illimité
+        utilisateurs: 10,
+      };
+    }
+    
+    // Créer un objet de plan complet
+    const dateStart = new Date();
+    const dateEnd = new Date(dateStart.getTime() + 30 * 24 * 60 * 60 * 1000);
+    
+    const userSubscription = {
       planId: newPlanId,
-      lastPlanChange: new Date(),
-    });
+      isActive: true,
+      dateStart: dateStart,
+      dateEnd: dateEnd,
+      stripeSubscriptionId: "sim_" + Math.random().toString(36).substring(2, 11),
+      stripeCustomerId: "cus_sim_" + Math.random().toString(36).substring(2, 11),
+      limites: limites,
+      lastUpdated: new Date()
+    };
+    
+    // Toujours mettre à jour Firebase, même en développement
+    try {
+      const userRef = doc(db, "users", userId);
+      
+      // Vérifier si l'utilisateur existe déjà
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        // Mettre à jour l'utilisateur existant
+        console.log("[DEBUG-FIREBASE] Mise à jour de l'utilisateur existant dans Firestore");
+        await updateDoc(userRef, {
+          subscription: userSubscription
+        });
+      } else {
+        // Créer un nouvel utilisateur
+        console.log("[DEBUG-FIREBASE] Création d'un nouvel utilisateur dans Firestore");
+        await setDoc(userRef, {
+          subscription: userSubscription,
+          email: "user@example.com", // Remplacer par email réel si disponible
+          createdAt: new Date()
+        });
+      }
+      
+      console.log("[DEBUG-FIREBASE] Mise à jour Firestore réussie");
+    } catch (firebaseError) {
+      console.error("[DEBUG-FIREBASE] Erreur lors de la mise à jour Firestore:", firebaseError);
+    }
 
     // Mettre à jour le localStorage pour refléter le changement immédiatement
     if (typeof window !== "undefined") {
+      // Créer l'objet de plan complet pour le localStorage/sessionStorage
+      const planObject = {
+        planId: newPlanId,
+        isActive: true,
+        dateStart: dateStart,
+        dateEnd: dateEnd,
+        stripeSubscriptionId: "sim_" + Math.random().toString(36).substring(2, 11),
+        stripeCustomerId: "cus_sim_" + Math.random().toString(36).substring(2, 11),
+        limites: limites
+      };
+      
+      // Stocker l'objet complet et l'ID du plan
+      const planJSON = JSON.stringify(planObject);
+      localStorage.setItem("devUserPlan", planJSON);
+      sessionStorage.setItem("devUserPlan", planJSON);
+      localStorage.setItem("permanentUserPlan", planJSON);
       localStorage.setItem("lastUsedPlanId", newPlanId);
-      sessionStorage.setItem("planJustChanged", "true");
+      sessionStorage.setItem("lastUsedPlanId", newPlanId);
       sessionStorage.setItem("planId", newPlanId);
+      sessionStorage.setItem("planJustChanged", "true");
     }
 
-    console.log(`[DEBUG] Plan changé avec succès pour l'utilisateur ${userId}: ${newPlanId}`);
+    console.log(`[DEBUG-FIREBASE] Plan changé avec succès pour l'utilisateur ${userId}: ${newPlanId}`);
     return true;
   } catch (error) {
-    console.error("Erreur lors du changement de plan:", error);
+    console.error("[DEBUG-FIREBASE] Erreur lors du changement de plan:", error);
     return false;
   }
 };

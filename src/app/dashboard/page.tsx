@@ -215,6 +215,37 @@ export default function Dashboard() {
         "[DEBUG-DASHBOARD] Vérification forcée du plan au chargement"
       );
 
+      // Ajouter des logs pour le débogage en production
+      console.log('[DEBUG-PRODUCTION] ---- DÉBUT INFO PLANS ----');
+      console.log('[DEBUG-PRODUCTION] localStorage items:');
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          try {
+            const value = localStorage.getItem(key);
+            console.log(`[DEBUG-PRODUCTION] ${key}: ${value}`);
+          } catch (e) {
+            console.log(`[DEBUG-PRODUCTION] ${key}: <erreur de lecture>`);
+          }
+        }
+      }
+      
+      console.log('[DEBUG-PRODUCTION] sessionStorage items:');
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key) {
+          try {
+            const value = sessionStorage.getItem(key);
+            console.log(`[DEBUG-PRODUCTION] ${key}: ${value}`);
+          } catch (e) {
+            console.log(`[DEBUG-PRODUCTION] ${key}: <erreur de lecture>`);
+          }
+        }
+      }
+      
+      console.log('[DEBUG-PRODUCTION] Plan actuel: ', userPlanInfo);
+      console.log('[DEBUG-PRODUCTION] ---- FIN INFO PLANS ----');
+
       // Vérifier si l'URL contient un paramètre forceUpdate
       const hasForceUpdate = window.location.href.includes("forceUpdate");
 

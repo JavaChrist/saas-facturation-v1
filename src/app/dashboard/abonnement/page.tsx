@@ -7,6 +7,7 @@ import { getUserPlan, UserPlan } from "@/services/subscriptionService";
 import SubscriptionManagement from "@/components/SubscriptionManagement";
 import StripePaymentForm from "@/components/StripePaymentForm";
 import { MdOutlineContactSupport } from "react-icons/md";
+import { changePlanDev } from "@/services/subscriptionService";
 
 interface Plan {
   id: string;
@@ -240,19 +241,16 @@ function AbonnementContent() {
         console.log("Marqueurs de plan définis:", planId);
       }
 
-      // Obtenir le plan actuel de l'utilisateur
-      const userPlanDetails = await getUserPlan(user.uid);
-
-      // Si l'utilisateur a déjà un abonnement actif au même plan
-      if (
-        userPlanDetails &&
-        userPlanDetails.planId === planId &&
-        userPlanDetails.isActive
-      ) {
-        // Permettre quand même de réinitialiser le même plan (pour résoudre des problèmes de synchronisation)
-        console.log("Réinitialisation du plan actuel:", planId);
-        // Au lieu de bloquer, on continue avec la simulation d'abonnement
+      // Mettre à jour le plan dans Firebase en premier
+      console.log("[DEBUG-ABONNEMENT] Mise à jour du plan dans Firebase:", planId);
+      const planUpdateResult = await changePlanDev(user.uid, planId);
+      
+      if (!planUpdateResult) {
+        console.error("[DEBUG-ABONNEMENT] Échec de la mise à jour du plan dans Firebase");
+        throw new Error("La mise à jour du plan a échoué. Veuillez réessayer.");
       }
+      
+      console.log("[DEBUG-ABONNEMENT] Plan correctement mis à jour dans Firebase");
 
       // Si nous sommes en développement local et que Stripe n'est pas configuré
       if (

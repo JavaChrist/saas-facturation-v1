@@ -91,8 +91,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     console.log("AuthProvider: Tentative de restauration du plan permanent");
     try {
       if (typeof window !== "undefined") {
-        // Vérifier si nous avons un plan permanent stocké
+        console.log("[DEBUG-PRODUCTION-AUTH] Préservation du plan - Début");
+        
+        // Vérifier tous les plans stockés
         const permanentPlanData = localStorage.getItem("permanentUserPlan");
+        const lastUsedPlanId = localStorage.getItem("lastUsedPlanId");
+        const devUserPlan = localStorage.getItem("devUserPlan");
+        
+        console.log("[DEBUG-PRODUCTION-AUTH] Plans trouvés:");
+        console.log(`[DEBUG-PRODUCTION-AUTH] permanentUserPlan: ${permanentPlanData ? "présent" : "absent"}`);
+        console.log(`[DEBUG-PRODUCTION-AUTH] lastUsedPlanId: ${lastUsedPlanId}`);
+        console.log(`[DEBUG-PRODUCTION-AUTH] devUserPlan: ${devUserPlan ? "présent" : "absent"}`);
+        
+        // Si nous avons un plan permanent ou lastUsedPlanId
         if (permanentPlanData) {
           // Restaurer le plan dans les stockages normaux
           localStorage.setItem("devUserPlan", permanentPlanData);
@@ -108,15 +119,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               "AuthProvider: Plan restauré depuis le stockage permanent:",
               planObj
             );
+            console.log("[DEBUG-PRODUCTION-AUTH] Plan restauré avec succès: ", planObj.planId);
           } catch (e) {
             console.error(
               "AuthProvider: Erreur lors du parsing du plan permanent:",
               e
             );
           }
+        } else if (lastUsedPlanId) {
+          // Si nous avons juste l'ID du plan, l'utiliser comme secours
+          console.log("[DEBUG-PRODUCTION-AUTH] Pas de plan permanent mais lastUsedPlanId trouvé:", lastUsedPlanId);
+          
+          // Sauvegarder lastUsedPlanId dans sessionStorage
+          sessionStorage.setItem("planId", lastUsedPlanId);
+          sessionStorage.setItem("planJustChanged", "true");
+          localStorage.setItem("lastUsedPlanId", lastUsedPlanId);
+          sessionStorage.setItem("lastUsedPlanId", lastUsedPlanId);
+          
+          console.log("[DEBUG-PRODUCTION-AUTH] Plan forcé via lastUsedPlanId");
         } else {
-          console.log("AuthProvider: Aucun plan permanent trouvé à restaurer");
+          console.log("[DEBUG-PRODUCTION-AUTH] Aucun plan permanent trouvé à restaurer");
         }
+        
+        // S'assurer que enterprise et entreprise sont traités de la même façon
+        if (lastUsedPlanId === "enterprise" || lastUsedPlanId === "entreprise") {
+          console.log("[DEBUG-PRODUCTION-AUTH] Standardisation du plan Enterprise");
+          localStorage.setItem("lastUsedPlanId", "enterprise");
+          sessionStorage.setItem("lastUsedPlanId", "enterprise");
+          sessionStorage.setItem("planId", "enterprise");
+          sessionStorage.setItem("planJustChanged", "true");
+        }
+        
+        console.log("[DEBUG-PRODUCTION-AUTH] Préservation du plan - Fin");
       }
     } catch (e) {
       console.error("AuthProvider: Erreur lors de la restauration du plan:", e);
