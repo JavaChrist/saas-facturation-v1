@@ -1,0 +1,5 @@
+// Plan de test manuel pour vérifier solution:
+1. Souscrire auplan Premium
+2. Vérifier l'affichage du badge dans le dashboard
+3. Se déconnecter et se reconnecter
+4. Vérifier que le badge Premium persiste après reconnexion
