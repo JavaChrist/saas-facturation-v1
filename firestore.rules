@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Fonction pour vérifier si l'utilisateur est authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Fonction pour vérifier si l'utilisateur accède à ses propres données
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Fonction pour vérifier si l'utilisateur est propriétaire du document
+    function isDocumentOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    // Fonction pour vérifier si l'utilisateur sera propriétaire lors de la création
+    function willBeDocumentOwner() {
+      return isAuthenticated() && request.auth.uid == request.resource.data.userId;
+    }
+
+    // Règles pour la collection "invitations"
+    match /invitations/{invitationId} {
+      // Tout utilisateur authentifié peut créer des invitations
+      allow create: if isAuthenticated();
+      // Les utilisateurs peuvent lire les invitations qui leur sont destinées
+      allow read: if isAuthenticated() && (resource.data.email == request.auth.token.email || resource.data.createdBy == request.auth.uid);
+      // Seul le créateur peut modifier ou supprimer une invitation
+      allow update, delete: if isAuthenticated() && resource.data.createdBy == request.auth.uid;
+    }
+    
+    // Règles pour la collection "organisations"
+    match /organisations/{organisationId} {
+      // Tous les membres de l'organisation peuvent lire les informations
+      allow read: if isAuthenticated() && 
+                 exists(/databases/$(database)/documents/organisations/$(organisationId)/membres/$(request.auth.uid));
+      
+      // Seul le propriétaire peut modifier l'organisation
+      allow write: if isAuthenticated() && 
+                  get(/databases/$(database)/documents/organisations/$(organisationId)).data.proprietaireId == request.auth.uid;
+      
+      // Tout utilisateur authentifié peut créer une organisation
+      allow create: if isAuthenticated();
+      
+      // Règles pour la sous-collection membres
+      match /membres/{membreId} {
+        // Les membres peuvent voir les autres membres
+        allow read: if isAuthenticated() && 
+                   exists(/databases/$(database)/documents/organisations/$(organisationId)/membres/$(request.auth.uid));
+        
+        // Seuls les administrateurs peuvent ajouter/modifier/supprimer des membres
+        allow write: if isAuthenticated() && 
+                    exists(/databases/$(database)/documents/organisations/$(organisationId)/membres/$(request.auth.uid)) &&
+                    get(/databases/$(database)/documents/organisations/$(organisationId)/membres/$(request.auth.uid)).data.role == "admin";
+      }
+    }
+
+    // Règles pour la collection "utilisateursOrganisation"
+    match /utilisateursOrganisation/{utilisateurId} {
+      // Un utilisateur peut lire les informations des utilisateurs de sa propre organisation
+      allow read: if isAuthenticated() && 
+                 exists(/databases/$(database)/documents/organisations/$(resource.data.organisationId)/membres/$(request.auth.uid));
+      
+      // Seul un administrateur peut créer, modifier ou supprimer des utilisateurs
+      allow write: if isAuthenticated() && 
+                  exists(/databases/$(database)/documents/organisations/$(resource.data.organisationId)/membres/$(request.auth.uid)) &&
+                  get(/databases/$(database)/documents/organisations/$(resource.data.organisationId)/membres/$(request.auth.uid)).data.role == "admin";
+    }
+    
+    // Règles pour la collection "clients"
+    match /clients/{clientId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Règles pour la collection "factures"
+    match /factures/{factureId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Règles pour la collection "modelesFacture"
+    match /modelesFacture/{modeleId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Règles pour l'ancienne collection "modeles" (pour compatibilité)
+    match /modeles/{modeleId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Règles pour la collection "facturesRecurrentes"
+    match /facturesRecurrentes/{factureId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Règles pour la collection "parametres"
+    match /parametres/{userId}/{document=**} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Règles pour la collection "parametres" au niveau racine
+    match /parametres/{paramId} {
+      allow read, write: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Règles pour les notifications
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Règles pour la collection "users"
+    match /users/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Autorise la liste des collections pour l'exportation
+    match /{path=**}/parametres/{userId}/entreprise/{docId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Règles par défaut - refuser tout accès non explicitement autorisé
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 

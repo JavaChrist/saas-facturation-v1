@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: 79, 70, 229; /* Indigo-600 */
+    --color-secondary: 31, 41, 55; /* Gray-800 */
+    --color-background: 249, 250, 251; /* Gray-50 */
+    --color-card: 255, 255, 255; /* White */
+    --color-text: 31, 41, 55; /* Gray-800 */
+  }
+
+  .dark {
+    --color-primary: 99, 102, 241; /* Indigo-500 */
+    --color-secondary: 249, 250, 251; /* Gray-50 */
+    --color-background: 17, 24, 39; /* Gray-900 */
+    --color-card: 31, 41, 55; /* Gray-800 */
+    --color-text: 249, 250, 251; /* Gray-50 */
+  }
+}
+
+body {
+  @apply transition-colors duration-300;
+}
+
+/* Transitions douces pour les changements de thème */
+* {
+  transition-property: color, background-color, border-color,
+    text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+/* Correction des inputs de type date en mode sombre */
+.dark input[type="date"],
+.dark input[type="datetime-local"],
+.dark input[type="month"],
+.dark input[type="time"],
+.dark input[type="week"] {
+  color-scheme: dark;
+}
+
+@layer utilities {
+  /* Autres utilitaires existants */
+
+  /* Animation pour les notifications */
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
