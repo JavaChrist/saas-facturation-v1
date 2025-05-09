@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { FiArrowLeft, FiCheck, FiX, FiCreditCard } from "react-icons/fi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
-import { getUserPlan, UserPlan } from "@/services/subscriptionService";
+import { getUserPlan, UserPlan, hasUserPlan } from "@/services/subscriptionService";
 import SubscriptionManagement from "@/components/SubscriptionManagement";
 import StripePaymentForm from "@/components/StripePaymentForm";
 import { MdOutlineContactSupport } from "react-icons/md";
@@ -230,6 +230,14 @@ function AbonnementContent() {
     try {
       console.log("Début du processus d'abonnement au plan:", planId);
 
+      // Vérifier si l'utilisateur a déjà le plan demandé
+      const hasCurrentPlan = await hasUserPlan(user.uid, planId);
+      if (hasCurrentPlan) {
+        setError(`Vous êtes déjà abonné au plan ${planId}. Impossible de souscrire deux fois au même plan.`);
+        setIsLoading(false);
+        return;
+      }
+
       // Mettre à jour immédiatement les marqueurs de plan
       if (typeof window !== "undefined") {
         // Définir le flag de changement de plan
@@ -243,7 +251,7 @@ function AbonnementContent() {
 
       // Mettre à jour le plan dans Firebase en premier
       console.log("[DEBUG-ABONNEMENT] Mise à jour du plan dans Firebase:", planId);
-      const planUpdateResult = await changePlanDev(user.uid, planId);
+      const planUpdateResult = await changePlanDev(user.uid, planId, user.email || undefined);
       
       if (!planUpdateResult) {
         console.error("[DEBUG-ABONNEMENT] Échec de la mise à jour du plan dans Firebase");

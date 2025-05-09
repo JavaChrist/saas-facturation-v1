@@ -526,12 +526,58 @@ export const updateUserSubscription = async (
 };
 
 /**
+ * Vérifie si l'utilisateur a déjà le plan spécifié
+ * @param userId ID de l'utilisateur
+ * @param planId ID du plan à vérifier
+ * @returns true si l'utilisateur a déjà ce plan, false sinon
+ */
+export const hasUserPlan = async (userId: string, planId: string): Promise<boolean> => {
+  try {
+    console.log(`[DEBUG-FIREBASE] Vérification si l'utilisateur ${userId} a déjà le plan ${planId}`);
+    // Récupérer le plan actuel de l'utilisateur depuis Firebase
+    const userRef = doc(db, "users", userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (userDoc.exists() && userDoc.data().subscription) {
+      const subscription = userDoc.data().subscription;
+      console.log(`[DEBUG-FIREBASE] Plan actuel de l'utilisateur: ${subscription.planId}`);
+      
+      // Vérifier si le plan actuel correspond au plan demandé
+      if (subscription.planId === planId) {
+        console.log(`[DEBUG-FIREBASE] L'utilisateur a déjà le plan ${planId}`);
+        return true;
+      }
+      
+      // Standardiser les noms des plans enterprise/entreprise
+      if ((subscription.planId === "enterprise" || subscription.planId === "entreprise") && 
+          (planId === "enterprise" || planId === "entreprise")) {
+        console.log(`[DEBUG-FIREBASE] L'utilisateur a déjà un plan enterprise (sous forme ${subscription.planId})`);
+        return true;
+      }
+    }
+    
+    console.log(`[DEBUG-FIREBASE] L'utilisateur n'a pas encore le plan ${planId}`);
+    return false;
+  } catch (error) {
+    console.error("[DEBUG-FIREBASE] Erreur lors de la vérification du plan:", error);
+    return false;
+  }
+};
+
+/**
  * Change le plan de l'utilisateur (version développement)
  * Cette fonction ne doit être utilisée qu'en mode développement
  */
-export const changePlanDev = async (userId: string, newPlanId: string): Promise<boolean> => {
+export const changePlanDev = async (userId: string, newPlanId: string, userEmail?: string): Promise<boolean> => {
   try {
     console.log(`[DEBUG-FIREBASE] Changement de plan: ${newPlanId} pour l'utilisateur: ${userId}`);
+    
+    // Vérifier si l'utilisateur a déjà ce plan
+    const alreadyHasPlan = await hasUserPlan(userId, newPlanId);
+    if (alreadyHasPlan) {
+      console.log(`[DEBUG-FIREBASE] L'utilisateur a déjà le plan ${newPlanId}, aucun changement nécessaire`);
+      return false;
+    }
     
     // Définir les limites en fonction du plan
     let limites = {
@@ -555,6 +601,9 @@ export const changePlanDev = async (userId: string, newPlanId: string): Promise<
         modeles: -1, // Illimité
         utilisateurs: 10,
       };
+      
+      // Standardiser le nom du plan enterprise
+      newPlanId = "enterprise";
     }
     
     // Créer un objet de plan complet
@@ -583,21 +632,29 @@ export const changePlanDev = async (userId: string, newPlanId: string): Promise<
         // Mettre à jour l'utilisateur existant
         console.log("[DEBUG-FIREBASE] Mise à jour de l'utilisateur existant dans Firestore");
         await updateDoc(userRef, {
-          subscription: userSubscription
+          subscription: userSubscription,
+          lastUpdated: new Date()
         });
       } else {
         // Créer un nouvel utilisateur
         console.log("[DEBUG-FIREBASE] Création d'un nouvel utilisateur dans Firestore");
+        
+        // Utiliser l'email fourni ou une valeur par défaut
+        const email = userEmail || "user@example.com";
+        
         await setDoc(userRef, {
           subscription: userSubscription,
-          email: "user@example.com", // Remplacer par email réel si disponible
-          createdAt: new Date()
+          email: email,
+          uid: userId,
+          createdAt: new Date(),
+          lastUpdated: new Date()
         });
       }
       
       console.log("[DEBUG-FIREBASE] Mise à jour Firestore réussie");
     } catch (firebaseError) {
       console.error("[DEBUG-FIREBASE] Erreur lors de la mise à jour Firestore:", firebaseError);
+      // Ne pas arrêter l'exécution, continuer avec le localStorage
     }
 
     // Mettre à jour le localStorage pour refléter le changement immédiatement

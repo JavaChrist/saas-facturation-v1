@@ -11,6 +11,8 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
 } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "./firebase";
 
 interface AuthContextType {
   user: User | null;
@@ -93,7 +95,66 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (typeof window !== "undefined") {
         console.log("[DEBUG-PRODUCTION-AUTH] Préservation du plan - Début");
         
-        // Vérifier tous les plans stockés
+        // Vérifier d'abord si on est en train de se connecter
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          // Priorité #1: Vérifier dans Firebase
+          console.log("[DEBUG-PRODUCTION-AUTH] Utilisateur connecté, vérification du plan dans Firebase");
+          
+          // Asynchrone, mais nous ne pouvons pas faire autrement dans ce contexte
+          const fetchFirebasePlan = async () => {
+            try {
+              const userRef = doc(db, "users", currentUser.uid);
+              const userDoc = await getDoc(userRef);
+              
+              if (userDoc.exists() && userDoc.data().subscription) {
+                const subscription = userDoc.data().subscription;
+                console.log("[DEBUG-PRODUCTION-AUTH] Plan trouvé dans Firebase:", subscription.planId);
+                
+                // Mettre à jour tous les stockages locaux
+                sessionStorage.setItem("planId", subscription.planId);
+                sessionStorage.setItem("planJustChanged", "true");
+                localStorage.setItem("lastUsedPlanId", subscription.planId);
+                sessionStorage.setItem("lastUsedPlanId", subscription.planId);
+                
+                // Convertir en objet pour le stockage local
+                const planObject = {
+                  planId: subscription.planId,
+                  isActive: subscription.isActive,
+                  dateStart: subscription.dateStart,
+                  dateEnd: subscription.dateEnd,
+                  stripeSubscriptionId: subscription.stripeSubscriptionId || "",
+                  stripeCustomerId: subscription.stripeCustomerId || "",
+                  limites: subscription.limites
+                };
+                
+                const planJSON = JSON.stringify(planObject);
+                localStorage.setItem("devUserPlan", planJSON);
+                sessionStorage.setItem("devUserPlan", planJSON);
+                localStorage.setItem("permanentUserPlan", planJSON);
+                
+                console.log("[DEBUG-PRODUCTION-AUTH] Plan Firebase synchronisé avec le stockage local");
+                return true;
+              } else {
+                console.log("[DEBUG-PRODUCTION-AUTH] Aucun plan trouvé dans Firebase");
+                return false;
+              }
+            } catch (error) {
+              console.error("[DEBUG-PRODUCTION-AUTH] Erreur lors de la lecture du plan Firebase:", error);
+              return false;
+            }
+          };
+          
+          // Exécuter la vérification Firebase, mais ne pas attendre
+          // Nous reviendrons aux méthodes de secours si nécessaire
+          fetchFirebasePlan().then(found => {
+            if (!found) {
+              console.log("[DEBUG-PRODUCTION-AUTH] Plan Firebase non trouvé, utilisation des méthodes de secours");
+            }
+          });
+        }
+        
+        // Priorité #2: Vérifier tous les plans stockés localement
         const permanentPlanData = localStorage.getItem("permanentUserPlan");
         const lastUsedPlanId = localStorage.getItem("lastUsedPlanId");
         const devUserPlan = localStorage.getItem("devUserPlan");
