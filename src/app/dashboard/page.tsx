@@ -205,61 +205,10 @@ export default function Dashboard() {
       };
 
       fetchUserPlan();
-
-      // Vérifier les changements de plan périodiquement
-      const planCheckInterval = setInterval(() => {
-        console.log("[DEBUG-DASHBOARD] Vérification périodique du plan...");
-
-        // Vérifier d'abord les marqueurs de changement de plan
-        if (typeof window !== "undefined") {
-          const planId =
-            localStorage.getItem("lastUsedPlanId") ||
-            sessionStorage.getItem("lastUsedPlanId") ||
-            sessionStorage.getItem("planId");
-
-          if (planId && planId !== userPlanInfo.planId) {
-            console.log(
-              "[DEBUG-DASHBOARD] Changement de plan détecté:",
-              planId
-            );
-
-            // Construction du plan correspondant
-            let planName = "Gratuit";
-            let planColor = "gray";
-            let planIcon = <FiStar className="text-gray-400" />;
-
-            if (planId === "premium") {
-              planName = "Premium";
-              planColor = "blue";
-              planIcon = <FiAward className="text-blue-400" />;
-            } else if (planId === "enterprise") {
-              planName = "Entreprise";
-              planColor = "purple";
-              planIcon = <FiShield className="text-purple-400" />;
-            }
-
-            // Application immédiate du plan
-            setUserPlanInfo({
-              planId: planId,
-              planName,
-              planColor,
-              planIcon,
-            });
-
-            console.log("[DEBUG-DASHBOARD] Plan mis à jour automatiquement:", {
-              planId,
-              planName,
-              planColor,
-            });
-          }
-        }
-      }, 2000); // Vérifier toutes les 2 secondes
-
-      return () => clearInterval(planCheckInterval);
     }
-  }, [user, userPlanInfo.planId]);
+  }, [user]);
 
-  // Forcer une vérification du plan lors du chargement initial et après chaque navigation
+  // Optimiser la vérification forcée du plan pour qu'elle n'ait lieu qu'au montage initial
   useEffect(() => {
     if (user && typeof window !== "undefined") {
       console.log(
@@ -325,7 +274,7 @@ export default function Dashboard() {
         );
       }
     }
-  }, [user, window?.location?.href, userPlanInfo.planId]);
+  }, [user]);
 
   const handleDateChange = (newDateRange: DateRange) => {
     setDateRange(newDateRange);

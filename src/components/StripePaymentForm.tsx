@@ -4,14 +4,17 @@ import { FiCreditCard } from "react-icons/fi";
 // Interface pour les props du formulaire de paiement
 interface PaymentFormProps {
   planId: string;
+  planName: string;
   userId: string;
   userEmail: string;
   onSuccess: (subscriptionId: string) => void;
   onCancel: () => void;
+  amount?: number;
 }
 
 const PaymentForm: React.FC<PaymentFormProps> = ({
   planId,
+  planName,
   userId,
   userEmail,
   onSuccess,

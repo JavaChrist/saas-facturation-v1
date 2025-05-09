@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { FiArrowLeft, FiCheck, FiX, FiCreditCard } from "react-icons/fi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
-import { getUserPlan, UserPlan, changePlanDev } from "@/services/subscriptionService";
+import { getUserPlan, UserPlan } from "@/services/subscriptionService";
 import SubscriptionManagement from "@/components/SubscriptionManagement";
 import StripePaymentForm from "@/components/StripePaymentForm";
 import { MdOutlineContactSupport } from "react-icons/md";
