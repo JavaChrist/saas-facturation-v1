@@ -59,25 +59,25 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
               clients:
                 lastUsedPlanId === "premium"
                   ? 50
-                  : lastUsedPlanId === "entreprise"
+                  : lastUsedPlanId === "enterprise" || lastUsedPlanId === "entreprise"
                   ? -1
                   : 5,
               factures:
                 lastUsedPlanId === "premium"
                   ? -1
-                  : lastUsedPlanId === "entreprise"
+                  : lastUsedPlanId === "enterprise" || lastUsedPlanId === "entreprise"
                   ? -1
                   : 5,
               modeles:
                 lastUsedPlanId === "premium"
                   ? 5
-                  : lastUsedPlanId === "entreprise"
+                  : lastUsedPlanId === "enterprise" || lastUsedPlanId === "entreprise"
                   ? -1
                   : 1,
               utilisateurs:
                 lastUsedPlanId === "premium"
                   ? 2
-                  : lastUsedPlanId === "entreprise"
+                  : lastUsedPlanId === "enterprise" || lastUsedPlanId === "entreprise"
                   ? 10
                   : 1,
             },
@@ -123,6 +123,7 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
             // Forcer la création d'un nouveau plan en fonction du planId stocké
             if (
               planId === "premium" ||
+              planId === "enterprise" ||
               planId === "entreprise" ||
               planId === "gratuit"
             ) {
@@ -144,19 +145,27 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
                   clients:
                     planId === "premium"
                       ? 50
-                      : planId === "entreprise"
+                      : planId === "enterprise" || planId === "entreprise"
                       ? -1
                       : 5,
                   factures:
                     planId === "premium"
                       ? -1
-                      : planId === "entreprise"
+                      : planId === "enterprise" || planId === "entreprise"
                       ? -1
                       : 5,
                   modeles:
-                    planId === "premium" ? 5 : planId === "entreprise" ? -1 : 1,
+                    planId === "premium" 
+                      ? 5 
+                      : planId === "enterprise" || planId === "entreprise" 
+                      ? -1 
+                      : 1,
                   utilisateurs:
-                    planId === "premium" ? 2 : planId === "entreprise" ? 10 : 1,
+                    planId === "premium" 
+                      ? 2 
+                      : planId === "enterprise" || planId === "entreprise" 
+                      ? 10 
+                      : 1,
                 },
               };
 

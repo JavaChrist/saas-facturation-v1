@@ -52,13 +52,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             "cus_sim_" + Math.random().toString(36).substring(2, 11),
           limites: {
             clients:
-              planId === "premium" ? 50 : planId === "enterprise" ? -1 : 5,
+              planId === "premium" ? 50 : (planId === "enterprise" || planId === "entreprise") ? -1 : 5,
             factures:
-              planId === "premium" ? 500 : planId === "enterprise" ? -1 : 20,
+              planId === "premium" ? 500 : (planId === "enterprise" || planId === "entreprise") ? -1 : 20,
             modeles:
-              planId === "premium" ? 5 : planId === "enterprise" ? -1 : 1,
+              planId === "premium" ? 5 : (planId === "enterprise" || planId === "entreprise") ? -1 : 1,
             utilisateurs:
-              planId === "premium" ? 2 : planId === "enterprise" ? 10 : 1,
+              planId === "premium" ? 2 : (planId === "enterprise" || planId === "entreprise") ? 10 : 1,
           },
         };
 

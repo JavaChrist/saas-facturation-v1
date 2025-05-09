@@ -90,7 +90,7 @@ export default function Dashboard() {
                   planName = "Premium";
                   planColor = "blue";
                   planIcon = <FiAward className="text-blue-400" />;
-                } else if (planId === "enterprise") {
+                } else if (planId === "enterprise" || planId === "entreprise") {
                   planName = "Entreprise";
                   planColor = "purple";
                   planIcon = <FiShield className="text-purple-400" />;
@@ -140,7 +140,7 @@ export default function Dashboard() {
                 planName = "Premium";
                 planColor = "blue";
                 planIcon = <FiAward className="text-blue-400" />;
-              } else if (lastUsedPlanId === "enterprise") {
+              } else if (lastUsedPlanId === "enterprise" || lastUsedPlanId === "entreprise") {
                 console.log(
                   "[DEBUG-DASHBOARD] Utilisation forcée du plan Entreprise"
                 );
@@ -182,7 +182,7 @@ export default function Dashboard() {
             planName = "Premium";
             planColor = "blue";
             planIcon = <FiAward className="text-blue-400" />;
-          } else if (plan.planId === "enterprise") {
+          } else if (plan.planId === "enterprise" || plan.planId === "entreprise") {
             planName = "Entreprise";
             planColor = "purple";
             planIcon = <FiShield className="text-purple-400" />;
@@ -251,7 +251,7 @@ export default function Dashboard() {
           planName = "Premium";
           planColor = "blue";
           planIcon = <FiAward className="text-blue-400" />;
-        } else if (detectedPlanId === "enterprise") {
+        } else if (detectedPlanId === "enterprise" || detectedPlanId === "entreprise") {
           planName = "Entreprise";
           planColor = "purple";
           planIcon = <FiShield className="text-purple-400" />;
