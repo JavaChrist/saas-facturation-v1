@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { FiArrowLeft, FiCheck, FiX, FiCreditCard } from "react-icons/fi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
-import { getUserPlan, UserPlan, hasUserPlan } from "@/services/subscriptionService";
+import { getUserPlan, UserPlan, hasUserPlan, setAdminPlan, cancelSubscription, ADMIN_USERS } from "@/services/subscriptionService";
 import SubscriptionManagement from "@/components/SubscriptionManagement";
 import StripePaymentForm from "@/components/StripePaymentForm";
 import { MdOutlineContactSupport } from "react-icons/md";
@@ -47,6 +47,10 @@ function AbonnementContent() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [contactSuccess, setContactSuccess] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [showAdminButton, setShowAdminButton] = useState<boolean>(false);
+  const [showCancelButton, setShowCancelButton] = useState<boolean>(false);
+  const [confirmCancel, setConfirmCancel] = useState<boolean>(false);
 
   // Vérifier si nous venons d'une redirection après paiement
   const successParam = searchParams.get("success");
@@ -214,6 +218,21 @@ function AbonnementContent() {
       setStripeComponentLoaded(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      setShowAdminButton(process.env.NODE_ENV === "development");
+      setIsAdmin(ADMIN_USERS.includes(user.uid));
+      
+      // Vérifier si on doit afficher le bouton d'annulation
+      // (uniquement pour les utilisateurs non-admin avec un plan payant)
+      if (planActuel !== "gratuit" && !ADMIN_USERS.includes(user.uid)) {
+        setShowCancelButton(true);
+      } else {
+        setShowCancelButton(false);
+      }
+    }
+  }, [user, planActuel]);
 
   const handleSubscribe = async (planId: string) => {
     setIsLoading(true);
@@ -417,6 +436,61 @@ function AbonnementContent() {
         setShowContactForm(false);
       }, 3000);
     }, 1500);
+  };
+
+  // Fonction pour définir l'utilisateur courant comme administrateur
+  const handleSetAdminPlan = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    try {
+      const result = await setAdminPlan(user.uid, user.email || undefined);
+      if (result) {
+        setSuccess("Compte administrateur configuré avec succès!");
+        setPlanActuel("enterprise");
+        setIsAdmin(true);
+        
+        // Rafraîchir la page après 2 secondes
+        setTimeout(() => {
+          router.refresh();
+        }, 2000);
+      } else {
+        setError("Échec de la configuration du compte administrateur.");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la configuration admin:", error);
+      setError("Une erreur est survenue lors de la configuration admin.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Fonction pour annuler l'abonnement
+  const handleCancelSubscription = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    try {
+      const result = await cancelSubscription(user.uid);
+      if (result) {
+        setSuccess("Votre abonnement a été annulé avec succès. Vous êtes maintenant sur le plan Gratuit.");
+        setPlanActuel("gratuit");
+        setShowCancelButton(false);
+        setConfirmCancel(false);
+        
+        // Rafraîchir la page après 2 secondes
+        setTimeout(() => {
+          router.refresh();
+        }, 2000);
+      } else {
+        setError("Échec de l'annulation de l'abonnement.");
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'annulation:", error);
+      setError("Une erreur est survenue lors de l'annulation.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isLoading) {
@@ -627,6 +701,55 @@ function AbonnementContent() {
               userPlan={userPlan}
               planActuel={planActuel}
             />
+          )}
+        </div>
+        
+        {/* Boutons d'administration et d'annulation */}
+        <div className="mt-6">
+          {/* Bouton pour définir un administrateur (visible seulement en développement) */}
+          {showAdminButton && !isAdmin && (
+            <button
+              onClick={handleSetAdminPlan}
+              className="mr-4 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors duration-300"
+              disabled={isLoading}
+            >
+              {isLoading ? "Configuration..." : "Définir comme administrateur"}
+            </button>
+          )}
+          
+          {/* Bouton pour annuler l'abonnement (visible pour les plans payants non-admin) */}
+          {showCancelButton && (
+            <>
+              {confirmCancel ? (
+                <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/30 rounded-lg">
+                  <p className="text-red-700 dark:text-red-300 mb-3">
+                    Êtes-vous sûr de vouloir annuler votre abonnement ? Vous perdrez l'accès aux fonctionnalités premium.
+                  </p>
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={handleCancelSubscription}
+                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-300"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "Annulation..." : "Confirmer l'annulation"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmCancel(false)}
+                      className="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors duration-300"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmCancel(true)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-300"
+                >
+                  Annuler mon abonnement
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -1,6 +1,12 @@
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 
+// Liste des utilisateurs administrateurs ayant accès gratuitement au plan Enterprise
+export const ADMIN_USERS = [
+  "oq10PAIePPXMVgFX82tlXu67oVx2", // Remplacez par votre UID Firebase
+  // Ajoutez d'autres administrateurs si nécessaire
+];
+
 export interface UserPlan {
   planId: string;
   isActive: boolean;
@@ -533,6 +539,13 @@ export const updateUserSubscription = async (
  */
 export const hasUserPlan = async (userId: string, planId: string): Promise<boolean> => {
   try {
+    // Si c'est un administrateur demandant le plan Enterprise, toujours permettre l'accès
+    if (ADMIN_USERS.includes(userId) && 
+        (planId === "enterprise" || planId === "entreprise")) {
+      console.log("[DEBUG-FIREBASE] Admin détecté, accès Enterprise permanent accordé");
+      return false; // Retourne false pour permettre de "s'abonner" (même si c'est gratuit)
+    }
+    
     console.log(`[DEBUG-FIREBASE] Vérification si l'utilisateur ${userId} a déjà le plan ${planId}`);
     // Récupérer le plan actuel de l'utilisateur depuis Firebase
     const userRef = doc(db, "users", userId);
@@ -685,6 +698,203 @@ export const changePlanDev = async (userId: string, newPlanId: string, userEmail
     return true;
   } catch (error) {
     console.error("[DEBUG-FIREBASE] Erreur lors du changement de plan:", error);
+    return false;
+  }
+};
+
+/**
+ * Définir un plan administrateur (gratuit, permanent) pour un utilisateur
+ * @param userId ID de l'utilisateur
+ * @returns true si l'opération a réussi, false sinon
+ */
+export const setAdminPlan = async (userId: string, userEmail?: string): Promise<boolean> => {
+  try {
+    console.log(`[DEBUG-FIREBASE] Configuration du plan administrateur pour l'utilisateur: ${userId}`);
+    
+    // Création d'une date d'expiration lointaine (10 ans)
+    const today = new Date();
+    const farFuture = new Date(today.getFullYear() + 10, today.getMonth(), today.getDate());
+    
+    // Créer un objet de plan admin
+    const adminSubscription = {
+      planId: "enterprise",
+      isActive: true,
+      dateStart: today,
+      dateEnd: farFuture,
+      isAdmin: true,
+      stripeSubscriptionId: "admin_free_plan",
+      stripeCustomerId: "admin_user",
+      limites: {
+        clients: -1, // Illimité
+        factures: -1, // Illimité
+        modeles: -1, // Illimité
+        utilisateurs: -1, // Illimité
+      },
+      lastUpdated: today
+    };
+    
+    // Mettre à jour Firebase
+    try {
+      const userRef = doc(db, "users", userId);
+      
+      // Vérifier si l'utilisateur existe déjà
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        // Mettre à jour l'utilisateur existant
+        console.log("[DEBUG-FIREBASE] Mise à jour de l'utilisateur admin existant dans Firestore");
+        await updateDoc(userRef, {
+          subscription: adminSubscription,
+          isAdmin: true,
+          lastUpdated: new Date()
+        });
+      } else {
+        // Créer un nouvel utilisateur admin
+        console.log("[DEBUG-FIREBASE] Création d'un nouvel utilisateur admin dans Firestore");
+        
+        // Utiliser l'email fourni ou une valeur par défaut
+        const email = userEmail || "admin@example.com";
+        
+        await setDoc(userRef, {
+          subscription: adminSubscription,
+          email: email,
+          uid: userId,
+          isAdmin: true,
+          createdAt: new Date(),
+          lastUpdated: new Date()
+        });
+      }
+      
+      console.log("[DEBUG-FIREBASE] Mise à jour Firestore réussie pour l'admin");
+    } catch (firebaseError) {
+      console.error("[DEBUG-FIREBASE] Erreur lors de la mise à jour Firestore pour l'admin:", firebaseError);
+      return false;
+    }
+
+    // Mettre à jour le localStorage pour refléter le changement immédiatement
+    if (typeof window !== "undefined") {
+      // Créer l'objet de plan complet pour le localStorage/sessionStorage
+      const planObject = {
+        planId: "enterprise",
+        isActive: true,
+        isAdmin: true,
+        dateStart: today,
+        dateEnd: farFuture,
+        stripeSubscriptionId: "admin_free_plan",
+        stripeCustomerId: "admin_user",
+        limites: {
+          clients: -1,
+          factures: -1,
+          modeles: -1,
+          utilisateurs: -1,
+        }
+      };
+      
+      // Stocker l'objet complet et l'ID du plan
+      const planJSON = JSON.stringify(planObject);
+      localStorage.setItem("devUserPlan", planJSON);
+      sessionStorage.setItem("devUserPlan", planJSON);
+      localStorage.setItem("permanentUserPlan", planJSON);
+      localStorage.setItem("lastUsedPlanId", "enterprise");
+      sessionStorage.setItem("lastUsedPlanId", "enterprise");
+      sessionStorage.setItem("planId", "enterprise");
+      sessionStorage.setItem("planJustChanged", "true");
+      localStorage.setItem("isAdmin", "true");
+      sessionStorage.setItem("isAdmin", "true");
+    }
+
+    console.log(`[DEBUG-FIREBASE] Plan admin configuré avec succès pour l'utilisateur ${userId}`);
+    return true;
+  } catch (error) {
+    console.error("[DEBUG-FIREBASE] Erreur lors de la configuration du plan admin:", error);
+    return false;
+  }
+};
+
+/**
+ * Annuler l'abonnement d'un utilisateur
+ * @param userId ID de l'utilisateur
+ * @returns true si l'opération a réussi, false sinon
+ */
+export const cancelSubscription = async (userId: string): Promise<boolean> => {
+  try {
+    console.log(`[DEBUG-FIREBASE] Annulation de l'abonnement pour l'utilisateur: ${userId}`);
+    
+    // Si c'est un administrateur, ne pas permettre l'annulation
+    if (ADMIN_USERS.includes(userId)) {
+      console.log("[DEBUG-FIREBASE] Les administrateurs ne peuvent pas annuler leur abonnement");
+      return false;
+    }
+    
+    // Récupérer les informations actuelles de l'utilisateur
+    const userRef = doc(db, "users", userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (userDoc.exists() && userDoc.data().subscription) {
+      const subscription = userDoc.data().subscription;
+      
+      // Si l'utilisateur a un abonnement Stripe réel, il faudrait l'annuler via l'API Stripe
+      if (subscription.stripeSubscriptionId && 
+          !subscription.stripeSubscriptionId.startsWith("sim_") &&
+          subscription.stripeSubscriptionId !== "admin_free_plan") {
+        // En production, appeler l'API Stripe pour annuler l'abonnement
+        console.log(`[DEBUG-FIREBASE] Annulation de l'abonnement Stripe: ${subscription.stripeSubscriptionId}`);
+        
+        try {
+          // Cette partie devrait être implémentée avec l'API Stripe en production
+          // Pour le développement, nous simulons simplement l'annulation
+          console.log("[DEBUG-FIREBASE] Simulation de l'annulation Stripe réussie");
+        } catch (stripeError) {
+          console.error("[DEBUG-FIREBASE] Erreur lors de l'annulation Stripe:", stripeError);
+          // Continuer malgré l'erreur pour mettre à jour Firebase
+        }
+      }
+      
+      // Mettre à jour le plan de l'utilisateur à "gratuit" dans Firebase
+      const today = new Date();
+      const planGratuit = {
+        planId: "gratuit",
+        isActive: true,
+        dateStart: today,
+        dateEnd: today,
+        stripeSubscriptionId: null,
+        stripeCustomerId: null,
+        cancelled: true,
+        cancelledAt: today,
+        limites: {
+          clients: 5,
+          factures: 5,
+          modeles: 1,
+          utilisateurs: 1,
+        },
+        lastUpdated: today
+      };
+      
+      await updateDoc(userRef, {
+        subscription: planGratuit,
+        lastUpdated: today
+      });
+      
+      // Mettre à jour le localStorage
+      if (typeof window !== "undefined") {
+        const planJSON = JSON.stringify(planGratuit);
+        localStorage.setItem("devUserPlan", planJSON);
+        sessionStorage.setItem("devUserPlan", planJSON);
+        localStorage.setItem("permanentUserPlan", planJSON);
+        localStorage.setItem("lastUsedPlanId", "gratuit");
+        sessionStorage.setItem("lastUsedPlanId", "gratuit");
+        sessionStorage.setItem("planId", "gratuit");
+        sessionStorage.setItem("planJustChanged", "true");
+      }
+      
+      console.log("[DEBUG-FIREBASE] Abonnement annulé avec succès");
+      return true;
+    } else {
+      console.log("[DEBUG-FIREBASE] Aucun abonnement trouvé à annuler");
+      return false;
+    }
+  } catch (error) {
+    console.error("[DEBUG-FIREBASE] Erreur lors de l'annulation de l'abonnement:", error);
     return false;
   }
 };
