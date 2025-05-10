@@ -4,10 +4,10 @@ import { FiArrowLeft, FiCheck, FiX, FiCreditCard } from "react-icons/fi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import { getUserPlan, UserPlan, hasUserPlan, setAdminPlan, cancelSubscription, ADMIN_USERS } from "@/services/subscriptionService";
-import SubscriptionManagement from "@/components/SubscriptionManagement";
 import StripePaymentForm from "@/components/StripePaymentForm";
 import { MdOutlineContactSupport } from "react-icons/md";
 import { changePlanDev } from "@/services/subscriptionService";
+import { emailService } from "@/services/emailService";
 
 interface Plan {
   id: string;
@@ -224,6 +224,14 @@ function AbonnementContent() {
       setShowAdminButton(process.env.NODE_ENV === "development");
       setIsAdmin(ADMIN_USERS.includes(user.uid));
       
+      // Précharger l'email de l'utilisateur dans le formulaire de contact
+      if (user.email) {
+        setContactFormData(prev => ({
+          ...prev,
+          email: user.email || ""
+        }));
+      }
+      
       // Vérifier si on doit afficher le bouton d'annulation
       // (uniquement pour les utilisateurs non-admin avec un plan payant)
       if (planActuel !== "gratuit" && !ADMIN_USERS.includes(user.uid)) {
@@ -417,25 +425,40 @@ function AbonnementContent() {
   };
 
   // Gérer la soumission du formulaire de contact
-  const handleContactSubmit = (e: React.FormEvent) => {
+  const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
+    setContactSuccess(null);
 
-    // Simuler l'envoi du formulaire
-    setTimeout(() => {
-      console.log("Formulaire de contact soumis:", contactFormData);
-      setContactSuccess(
-        "Votre demande a été envoyée avec succès ! Notre équipe commerciale vous contactera sous peu."
+    try {
+      // Envoyer la demande via le service d'emails
+      const result = await emailService.sendContactRequest(
+        contactFormData.name,
+        contactFormData.email,
+        contactFormData.message
       );
-      setIsSubmitting(false);
 
-      // Réinitialiser le formulaire et fermer après 3 secondes
-      setTimeout(() => {
-        setContactSuccess(null);
-        setContactFormData({ name: "", email: "", message: "" });
-        setShowContactForm(false);
-      }, 3000);
-    }, 1500);
+      if (result.success) {
+        setContactSuccess(
+          "Votre demande a été envoyée avec succès ! Notre équipe commerciale vous contactera sous peu."
+        );
+        
+        // Réinitialiser le formulaire après 3 secondes
+        setTimeout(() => {
+          setContactFormData({ name: "", email: "", message: "" });
+          setShowContactForm(false);
+          setContactSuccess(null);
+        }, 3000);
+      } else {
+        setError(result.message || "Une erreur est survenue lors de l'envoi de votre demande.");
+      }
+    } catch (error: any) {
+      console.error("Erreur lors de l'envoi de la demande:", error);
+      setError(error.message || "Une erreur est survenue lors de l'envoi de votre demande.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Fonction pour définir l'utilisateur courant comme administrateur
@@ -632,7 +655,7 @@ function AbonnementContent() {
         <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">
           Votre plan actuel
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
             <div className="flex items-center">
               <div
@@ -647,20 +670,20 @@ function AbonnementContent() {
                     plans.find((p) => p.id === planActuel)?.couleur
                   }-500 dark:text-${
                     plans.find((p) => p.id === planActuel)?.couleur
-                  }-400 text-xl`}
+                  }-400 text-2xl`}
                 />
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-gray-800 dark:text-white">
+                <h3 className="text-2xl font-semibold text-gray-800 dark:text-white">
                   Plan {plans.find((p) => p.id === planActuel)?.nom}
                 </h3>
                 {userPlan && userPlan.dateEnd && planActuel !== "gratuit" ? (
-                  <p className="text-gray-500 dark:text-gray-400">
+                  <p className="text-lg text-gray-600 dark:text-gray-300">
                     Prochain renouvellement:{" "}
                     {new Date(userPlan.dateEnd).toLocaleDateString()}
                   </p>
                 ) : (
-                  <p className="text-gray-500 dark:text-gray-400">
+                  <p className="text-lg text-gray-600 dark:text-gray-300">
                     {planActuel === "gratuit"
                       ? "Plan sans renouvellement"
                       : "Aucune date de renouvellement"}
@@ -670,41 +693,88 @@ function AbonnementContent() {
             </div>
 
             {userPlan && (
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              <div className="mt-6 grid grid-cols-2 gap-6">
+                <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <p className="text-base font-medium text-gray-500 dark:text-gray-400 mb-1">
                     Clients
                   </p>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white">
                     {userPlan.limites.clients === -1
                       ? "Illimité"
                       : userPlan.limites.clients}
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <p className="text-base font-medium text-gray-500 dark:text-gray-400 mb-1">
                     Factures
                   </p>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white">
                     {userPlan.limites.factures === -1
                       ? "Illimité"
                       : userPlan.limites.factures}
                   </p>
                 </div>
+                <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <p className="text-base font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    Modèles
+                  </p>
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {userPlan.limites.modeles === -1
+                      ? "Illimité"
+                      : userPlan.limites.modeles}
+                  </p>
+                </div>
+                <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <p className="text-base font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    Utilisateurs
+                  </p>
+                  <p className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {userPlan.limites.utilisateurs === -1
+                      ? "Illimité"
+                      : userPlan.limites.utilisateurs}
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {/* Bouton de désabonnement intégré directement ici */}
+            {showCancelButton && (
+              <div className="mt-6">
+                {confirmCancel ? (
+                  <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/30 rounded-lg">
+                    <p className="text-red-700 dark:text-red-300 mb-3">
+                      Êtes-vous sûr de vouloir annuler votre abonnement ? Vous perdrez l'accès aux fonctionnalités premium.
+                    </p>
+                    <div className="flex space-x-3">
+                      <button
+                        onClick={handleCancelSubscription}
+                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-300"
+                        disabled={isLoading}
+                      >
+                        {isLoading ? "Annulation..." : "Confirmer l'annulation"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmCancel(false)}
+                        className="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors duration-300"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmCancel(true)}
+                    className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-300 flex items-center"
+                  >
+                    <FiX className="mr-2" /> Annuler mon abonnement
+                  </button>
+                )}
               </div>
             )}
           </div>
-
-          {/* Composant de gestion d'abonnement */}
-          {userPlan && (
-            <SubscriptionManagement
-              userPlan={userPlan}
-              planActuel={planActuel}
-            />
-          )}
         </div>
         
-        {/* Boutons d'administration et d'annulation */}
+        {/* Bouton d'administrateur (déplacé hors de la carte) */}
         <div className="mt-6">
           {/* Bouton pour définir un administrateur (visible seulement en développement) */}
           {showAdminButton && !isAdmin && (
@@ -715,41 +785,6 @@ function AbonnementContent() {
             >
               {isLoading ? "Configuration..." : "Définir comme administrateur"}
             </button>
-          )}
-          
-          {/* Bouton pour annuler l'abonnement (visible pour les plans payants non-admin) */}
-          {showCancelButton && (
-            <>
-              {confirmCancel ? (
-                <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/30 rounded-lg">
-                  <p className="text-red-700 dark:text-red-300 mb-3">
-                    Êtes-vous sûr de vouloir annuler votre abonnement ? Vous perdrez l'accès aux fonctionnalités premium.
-                  </p>
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={handleCancelSubscription}
-                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-300"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? "Annulation..." : "Confirmer l'annulation"}
-                    </button>
-                    <button
-                      onClick={() => setConfirmCancel(false)}
-                      className="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors duration-300"
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setConfirmCancel(true)}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-300"
-                >
-                  Annuler mon abonnement
-                </button>
-              )}
-            </>
           )}
         </div>
       </div>
@@ -984,9 +1019,19 @@ function AbonnementContent() {
               </div>
             ) : (
               <form onSubmit={handleContactSubmit} className="space-y-4">
+                {error && (
+                  <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
+                    {error}
+                  </div>
+                )}
+                
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Complétez ce formulaire pour recevoir une proposition commerciale personnalisée ou pour discuter de vos besoins spécifiques.
+                </p>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Nom
+                    Nom <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -999,12 +1044,13 @@ function AbonnementContent() {
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email
+                    Email <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="email"
@@ -1017,12 +1063,13 @@ function AbonnementContent() {
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Message
+                    Message <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     rows={4}
@@ -1033,18 +1080,35 @@ function AbonnementContent() {
                         message: e.target.value,
                       })
                     }
+                    placeholder="Décrivez vos besoins spécifiques pour que nous puissions vous proposer une solution adaptée..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     required
+                    disabled={isSubmitting}
                   ></textarea>
                 </div>
 
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 flex items-center justify-center transition-colors duration-300"
+                  className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 flex items-center justify-center transition-colors duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  {isSubmitting ? "Envoi en cours..." : "Envoyer ma demande"}
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Envoi en cours...
+                    </>
+                  ) : (
+                    "Envoyer ma demande"
+                  )}
                 </button>
+                
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-4">
+                  En soumettant ce formulaire, vous acceptez d'être contacté par notre équipe commerciale.
+                  <br />Nous ne partagerons jamais vos informations avec des tiers.
+                </p>
               </form>
             )}
           </div>

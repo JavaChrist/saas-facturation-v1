@@ -24,6 +24,7 @@ export default function FactureDetailsPage({
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [redirectAttempted, setRedirectAttempted] = useState(false);
 
   // Vérifier l'état d'authentification à chaque rendu
   useEffect(() => {
@@ -31,19 +32,25 @@ export default function FactureDetailsPage({
       userExists: !!user,
       authLoading,
       userChecked,
+      redirectAttempted
     });
 
     // Si l'authentification est terminée, on peut déterminer si l'utilisateur est connecté
     if (!authLoading) {
       setUserChecked(true);
-      if (!user) {
+      if (!user && !redirectAttempted) {
         console.log(
           "FactureDetailsPage - Authentification terminée, utilisateur non connecté, redirection"
         );
-        router.push(`/login?redirect=/dashboard/factures/${params.id}`);
+        setRedirectAttempted(true);
+        // Stocker l'URL actuelle pour rediriger l'utilisateur après connexion
+        const currentPath = `/dashboard/factures/${params.id}`;
+        // Sauvegarder dans le localStorage pour que la redirection persiste même après refresh
+        localStorage.setItem("authRedirectUrl", currentPath);
+        router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
       }
     }
-  }, [user, authLoading, router, params.id, userChecked]);
+  }, [user, authLoading, router, params.id, userChecked, redirectAttempted]);
 
   // Récupérer les détails de la facture
   useEffect(() => {
@@ -74,6 +81,13 @@ export default function FactureDetailsPage({
         if (!factureData) {
           console.log("FactureDetailsPage - Facture introuvable");
           setError("Facture introuvable");
+          return;
+        }
+
+        // Vérifier si la facture appartient à l'utilisateur actuel
+        if (factureData.userId !== user.uid) {
+          console.log("FactureDetailsPage - Facture n'appartient pas à l'utilisateur");
+          setError("Vous n'êtes pas autorisé à voir cette facture");
           return;
         }
 
@@ -119,44 +133,6 @@ export default function FactureDetailsPage({
     }
   };
 
-  // Fonction pour envoyer une facture par email
-  const handleSendInvoiceByEmail = async (
-    factureId: string,
-    clientEmail: string
-  ) => {
-    if (!factureId || !clientEmail) {
-      alert("Informations manquantes pour l'envoi de la facture");
-      return;
-    }
-
-    try {
-      // Afficher une boîte de dialogue pour confirmer ou modifier l'email
-      const email = window.prompt(
-        "Veuillez confirmer ou modifier l'adresse email",
-        clientEmail
-      );
-
-      if (!email) return; // L'utilisateur a annulé
-
-      // Afficher un indicateur de chargement
-      setSendingEmail(true);
-
-      // Appeler le service d'email pour envoyer la facture
-      const result = await emailService.sendInvoiceByEmail(factureId, email);
-
-      if (result.success) {
-        alert(`Facture envoyée avec succès à ${email}`);
-      } else {
-        alert(`Erreur lors de l'envoi : ${result.message}`);
-      }
-    } catch (error) {
-      console.error("Erreur lors de l'envoi de la facture par email:", error);
-      alert("Une erreur est survenue lors de l'envoi de la facture.");
-    } finally {
-      setSendingEmail(false);
-    }
-  };
-
   // Fonction pour envoyer la facture par email
   const handleSendEmail = async () => {
     if (!facture) return;
@@ -172,17 +148,19 @@ export default function FactureDetailsPage({
     setEmailError(null);
 
     try {
-      // Appeler la fonction handleSendInvoiceByEmail que nous avons créée précédemment
-      await handleSendInvoiceByEmail(facture.id, facture.client.email);
+      // Appeler le service pour envoyer l'email
+      const result = await emailService.sendInvoiceByEmail(facture.id, facture.client.email);
 
-      // Mise à jour du statut de facture comme avec l'ancienne fonction
-      if (facture.statut !== "Payée") {
-        // Mise à jour du statut (vous pouvez le faire via votre service factureService)
-        // Notez que cette partie n'est pas incluse dans handleSendInvoiceByEmail
-        // et doit être gérée séparément si nécessaire
+      if (result.success) {
+        // Vérifier si c'est une simulation ou un envoi réel
+        if (result.message.includes("SIMULATION")) {
+          setEmailSuccess(`${result.message} - En mode développement, l'email n'est pas réellement envoyé.`);
+        } else {
+          setEmailSuccess(`Facture envoyée avec succès à ${facture.client.email}`);
+        }
+      } else {
+        setEmailError(`Erreur lors de l'envoi: ${result.message}`);
       }
-
-      setEmailSuccess(`Facture envoyée avec succès à ${facture.client.email}`);
     } catch (error) {
       console.error("Erreur lors de l'envoi de la facture par email:", error);
       setEmailError(

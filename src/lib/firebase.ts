@@ -20,6 +20,18 @@ const app = initializeApp(firebaseConfig);
 // Initialisation de Firestore avec l'approche standard
 export const db = getFirestore(app);
 
+// Configuration spéciale pour contourner les erreurs de permission en production
+// SOLUTION TEMPORAIRE - Jusqu'à configuration correcte des règles Firestore
+if (typeof window !== "undefined") {
+  try {
+    // @ts-ignore - Cette propriété existe mais le typage ne la reconnaît pas
+    db._config.experimentalForceLongPolling = true;
+    console.log("✅ Configuration longPolling activée pour Firestore");
+  } catch (error) {
+    console.error("❌ Impossible d'activer le mode longPolling pour Firestore");
+  }
+}
+
 // Exportation des services Firebase
 export const auth = getAuth(app);
 export const storage = getStorage(app);

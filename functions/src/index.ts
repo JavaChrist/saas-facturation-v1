@@ -7,9 +7,10 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1"; // Utiliser v1 pour la compatibilité
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
+import * as sgMail from "@sendgrid/mail";
 
 // Type pour corriger les erreurs de compilation
 interface InvitationData {
@@ -23,13 +24,45 @@ interface InvoiceData {
   destinationEmail: string;
 }
 
+interface ContactRequestData {
+  name: string;
+  email: string;
+  message: string;
+}
+
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
 
 // Initialiser Firebase Admin
 admin.initializeApp();
 
-// Configuration du transporteur d'email
+// Récupérer la configuration des variables d'environnement Firebase
+let config: any;
+try {
+  config = functions.config();
+  console.log("Configuration chargée:", Object.keys(config));
+} catch (e) {
+  console.warn("Erreur lors du chargement de la configuration:", e);
+  config = { sendgrid: {}, email: {} };
+}
+
+// Configurer SendGrid avec la clé API
+// Pour configurer en production, utilisez:
+// firebase functions:config:set sendgrid.key="VOTRE_CLE_API" email.commercial="votre@email.com" email.from="no-reply@votredomaine.com"
+const SENDGRID_API_KEY = config.sendgrid?.key || process.env.SENDGRID_API_KEY || "";
+// L'email qui recevra les demandes commerciales (vous)
+const COMMERCIAL_EMAIL = config.email?.commercial || process.env.COMMERCIAL_EMAIL || "votre-email@domaine.com";
+// L'email d'expéditeur de vos messages
+const EMAIL_FROM = config.email?.from || process.env.EMAIL_FROM || "facturation@votredomaine.com";
+
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY);
+  console.log("SendGrid configuré avec succès");
+} else {
+  console.warn("ATTENTION: Clé API SendGrid non configurée. Utilisez firebase functions:config:set sendgrid.key='VOTRE_CLE_API'");
+}
+
+// Configuration du transporteur d'email de secours (utilisé si SendGrid n'est pas configuré)
 // Note: En production, utilisez un service comme SendGrid, Mailgun, etc.
 // Pour le développement, vous pouvez utiliser un compte Gmail ou un service SMTP test
 const transporter = nodemailer.createTransport({
@@ -40,6 +73,46 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Fonction utilitaire pour envoyer un email via SendGrid ou fallback vers Nodemailer
+async function sendEmail(mailOptions: any): Promise<void> {
+  console.log("Tentative d'envoi d'email à:", mailOptions.to, "depuis:", mailOptions.from);
+  
+  if (SENDGRID_API_KEY) {
+    try {
+      // Formater pour SendGrid
+      const msg = {
+        to: mailOptions.to,
+        from: mailOptions.from,
+        subject: mailOptions.subject,
+        text: mailOptions.text || "", // Texte brut facultatif
+        html: mailOptions.html,
+        attachments: mailOptions.attachments,
+      };
+
+      console.log("Envoi via SendGrid avec clé API:", SENDGRID_API_KEY.substring(0, 10) + "...[masqué]");
+      await sgMail.send(msg);
+      console.log("Email envoyé avec succès via SendGrid");
+      return;
+    } catch (sgError) {
+      console.error("Erreur avec SendGrid, détails:", sgError);
+      console.error("Fallback vers Nodemailer");
+      // Continuer avec Nodemailer en cas d'échec
+    }
+  } else {
+    console.log("Aucune clé API SendGrid trouvée, utilisation de Nodemailer");
+  }
+
+  try {
+    // Utiliser Nodemailer comme fallback
+    console.log("Tentative d'envoi via Nodemailer");
+    await transporter.sendMail(mailOptions);
+    console.log("Email envoyé avec succès via Nodemailer (fallback)");
+  } catch (error) {
+    console.error("Erreur lors de l'envoi d'email via Nodemailer:", error);
+    throw error;
+  }
+}
+
 // Template d'email pour les invitations utilisateurs
 const createUserInvitationEmail = (
   destinationEmail: string,
@@ -48,9 +121,7 @@ const createUserInvitationEmail = (
   invitationLink: string
 ) => {
   return {
-    from: `"${senderName} via FacturationSaaS" <${
-      process.env.EMAIL_USER || "votre-email@gmail.com"
-    }>`,
+    from: `"${senderName} via FacturationSaaS" <${EMAIL_FROM}>`,
     to: destinationEmail,
     subject: `Invitation à rejoindre ${organizationName} sur FacturationSaaS`,
     html: `
@@ -89,9 +160,7 @@ const createInvoiceEmail = (
   pdfUrl: string
 ) => {
   return {
-    from: `"${organizationName} via FacturationSaaS" <${
-      process.env.EMAIL_USER || "votre-email@gmail.com"
-    }>`,
+    from: `"${organizationName} via FacturationSaaS" <${EMAIL_FROM}>`,
     to: destinationEmail,
     subject: `Facture ${invoiceNumber} de ${organizationName}`,
     html: `
@@ -120,8 +189,55 @@ const createInvoiceEmail = (
   };
 };
 
+// Template d'email pour le service commercial (notification interne)
+const createCommercialEmail = (
+  name: string,
+  email: string,
+  message: string
+) => {
+  return {
+    from: `"Service Commercial FacturationSaaS" <${EMAIL_FROM}>`,
+    to: COMMERCIAL_EMAIL,
+    subject: `Nouvelle demande commerciale de ${name}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+        <h2 style="color: #333;">Nouvelle demande commerciale</h2>
+        <p><strong>De:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Message:</strong></p>
+        <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 15px 0;">
+          ${message.replace(/\n/g, '<br>')}
+        </div>
+        <p>Pour répondre, vous pouvez directement contacter cette personne à l'adresse: ${email}</p>
+      </div>
+    `,
+  };
+};
+
+// Template d'email pour la confirmation au client
+const createClientConfirmationEmail = (
+  name: string,
+  email: string
+) => {
+  return {
+    from: `"Service Commercial FacturationSaaS" <${EMAIL_FROM}>`,
+    to: email,
+    subject: `Confirmation de votre demande commerciale`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+        <h2 style="color: #333;">Votre demande a bien été reçue</h2>
+        <p>Bonjour ${name},</p>
+        <p>Nous confirmons avoir bien reçu votre demande commerciale.</p>
+        <p>Notre équipe commerciale vous contactera dans les plus brefs délais pour discuter de vos besoins.</p>
+        <p>Nous vous remercions de l'intérêt que vous portez à nos services.</p>
+        <p>Cordialement,<br>L'équipe FacturationSaaS</p>
+      </div>
+    `,
+  };
+};
+
 // Fonction pour envoyer une invitation à un utilisateur
-export const sendUserInvitation = functions.https.onCall(
+exports.sendUserInvitation = functions.https.onCall(
   async (data: InvitationData, context: functions.https.CallableContext) => {
     // Vérifier si l'utilisateur est authentifié
     if (!context.auth) {
@@ -184,7 +300,7 @@ export const sendUserInvitation = functions.https.onCall(
         invitationLink
       );
 
-      await transporter.sendMail(mailOptions);
+      await sendEmail(mailOptions);
 
       return { success: true, message: "Invitation envoyée avec succès" };
     } catch (error: any) {
@@ -198,7 +314,7 @@ export const sendUserInvitation = functions.https.onCall(
 );
 
 // Fonction pour envoyer une facture par email
-export const sendInvoiceByEmail = functions.https.onCall(
+exports.sendInvoiceByEmail = functions.https.onCall(
   async (data: InvoiceData, context: functions.https.CallableContext) => {
     // Vérifier si l'utilisateur est authentifié
     if (!context.auth) {
@@ -299,7 +415,7 @@ export const sendInvoiceByEmail = functions.https.onCall(
         pdfUrl
       );
 
-      await transporter.sendMail(mailOptions);
+      await sendEmail(mailOptions);
 
       // Enregistrer l'historique d'envoi d'email
       await admin
@@ -320,6 +436,54 @@ export const sendInvoiceByEmail = functions.https.onCall(
       throw new functions.https.HttpsError(
         "internal",
         "Erreur lors de l'envoi de la facture: " + error.message
+      );
+    }
+  }
+);
+
+// Fonction pour envoyer une demande commerciale
+exports.sendContactRequest = functions.https.onCall(
+  async (data: ContactRequestData, context: functions.https.CallableContext) => {
+    try {
+      const { name, email, message } = data;
+
+      if (!name || !email || !message) {
+        throw new functions.https.HttpsError(
+          "invalid-argument",
+          "Tous les champs sont requis."
+        );
+      }
+
+      // Enregistrer la demande dans Firestore
+      const requestRef = await admin.firestore().collection("contactRequests").add({
+        name,
+        email,
+        message,
+        date: admin.firestore.FieldValue.serverTimestamp(),
+        status: "pending",
+        source: "subscription_page",
+        // Ajouter l'ID de l'utilisateur s'il est connecté
+        userId: context.auth ? context.auth.uid : null,
+      });
+
+      // Envoyer un email au service commercial (vous)
+      const commercialMailOptions = createCommercialEmail(name, email, message);
+      await sendEmail(commercialMailOptions);
+
+      // Envoyer un email de confirmation au client
+      const clientMailOptions = createClientConfirmationEmail(name, email);
+      await sendEmail(clientMailOptions);
+
+      return { 
+        success: true, 
+        message: "Votre demande a été envoyée avec succès. Notre équipe commerciale vous contactera prochainement.",
+        requestId: requestRef.id
+      };
+    } catch (error: any) {
+      console.error("Erreur lors de l'envoi de la demande commerciale:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Erreur lors de l'envoi de la demande: " + error.message
       );
     }
   }

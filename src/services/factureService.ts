@@ -78,33 +78,68 @@ export const getFacture = async (
   factureId: string
 ): Promise<Facture | null> => {
   try {
-    console.log("[DEBUG] Récupération de la facture:", factureId);
+    console.log("[DEBUG-FACTURE] Début de récupération de la facture:", factureId);
+    
+    if (!factureId || factureId.trim() === '') {
+      console.error("[DEBUG-FACTURE] ID de facture vide ou invalide");
+      return null;
+    }
     
     const factureRef = doc(db, "factures", factureId);
+    console.log("[DEBUG-FACTURE] Tentative de lecture du document:", factureRef.path);
+    
     const factureSnap = await getDoc(factureRef);
 
     if (factureSnap.exists()) {
       const factureData = factureSnap.data();
-      console.log("[DEBUG] Données de la facture:", {
+      console.log("[DEBUG-FACTURE] Données de la facture:", {
         id: factureId,
         userId: factureData.userId,
-        data: factureData
+        numero: factureData.numero,
+        dateCreation: factureData.dateCreation,
+        totalTTC: factureData.totalTTC,
+        statut: factureData.statut
       });
+      
+      // Vérifier les données essentielles
+      if (!factureData.userId) {
+        console.error("[DEBUG-FACTURE] La facture n'a pas d'ID utilisateur!");
+      }
+      
+      if (!factureData.client) {
+        console.error("[DEBUG-FACTURE] La facture n'a pas de client!");
+      }
+      
+      if (!factureData.articles || !Array.isArray(factureData.articles)) {
+        console.error("[DEBUG-FACTURE] La facture n'a pas d'articles ou le format est incorrect!");
+      }
+      
+      // Convertir correctement la date de création
+      const dateConvertie = convertToDate(factureData.dateCreation);
+      console.log("[DEBUG-FACTURE] Date convertie:", dateConvertie);
       
       return {
         id: factureSnap.id,
         ...factureData,
-        dateCreation: convertToDate(factureData.dateCreation),
+        dateCreation: dateConvertie,
       } as Facture;
     }
 
-    console.log("[DEBUG] Facture non trouvée:", factureId);
+    console.log("[DEBUG-FACTURE] Facture non trouvée:", factureId);
     return null;
   } catch (error) {
     console.error(
-      `[DEBUG] Erreur lors de la récupération de la facture ${factureId}:`,
+      `[DEBUG-FACTURE] Erreur lors de la récupération de la facture ${factureId}:`,
       error
     );
+    // Ajouter plus de détails sur l'erreur
+    if (error instanceof Error) {
+      console.error("[DEBUG-FACTURE] Détails de l'erreur:", {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+    }
     return null;
   }
 };

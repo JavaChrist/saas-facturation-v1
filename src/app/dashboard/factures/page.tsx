@@ -510,10 +510,49 @@ export default function FacturesPage() {
   // Suppression d'une facture
   const deleteFacture = async (id: string) => {
     try {
+      console.log("[DEBUG] Tentative de suppression de la facture:", id);
+      
+      // Vérifier d'abord si la facture existe et appartient à l'utilisateur
+      const factureRef = doc(db, "factures", id);
+      const factureDoc = await getDoc(factureRef);
+      
+      if (!factureDoc.exists()) {
+        console.error("[DEBUG] Facture introuvable:", id);
+        alert("Erreur: Cette facture n'existe pas ou a déjà été supprimée.");
+        return;
+      }
+      
+      const factureData = factureDoc.data();
+      if (factureData.userId !== user?.uid) {
+        console.error("[DEBUG] Tentative non autorisée de suppression d'une facture:", {
+          factureId: id,
+          factureUserId: factureData.userId,
+          currentUserId: user?.uid
+        });
+        alert("Erreur: Vous n'êtes pas autorisé à supprimer cette facture.");
+        return;
+      }
+      
+      // Confirmer avant suppression
+      if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette facture ?")) {
+        return;
+      }
+      
       await deleteDoc(doc(db, "factures", id));
+      console.log("[DEBUG] Facture supprimée avec succès:", id);
     } catch (error) {
-      console.error("Erreur lors de la suppression de la facture:", error);
-      alert("Erreur lors de la suppression de la facture");
+      console.error("[DEBUG] Erreur lors de la suppression de la facture:", error);
+      
+      // Afficher un message d'erreur plus spécifique
+      if (error instanceof Error) {
+        if (error.message.includes("permission")) {
+          alert("Erreur de permission: Vous n'avez pas les droits nécessaires pour supprimer cette facture. Veuillez contacter l'administrateur.");
+        } else {
+          alert(`Erreur lors de la suppression de la facture: ${error.message}`);
+        }
+      } else {
+        alert("Erreur lors de la suppression de la facture. Veuillez réessayer.");
+      }
     }
   };
 

@@ -215,11 +215,26 @@ function LoginContent() {
     if (user && !loading) {
       console.log("LoginPage - Utilisateur connecté, redirection");
 
+      // Vérifier s'il y a une URL stockée dans localStorage
+      const storedRedirectUrl = localStorage.getItem("authRedirectUrl");
+      
       // Si un chemin de redirection est présent dans l'URL, l'utiliser
       if (redirectPath) {
-        console.log("LoginPage - Redirection vers:", redirectPath);
+        console.log("LoginPage - Redirection vers URL du paramètre:", redirectPath);
         router.push(redirectPath);
-      } else {
+        // Nettoyer le localStorage après utilisation
+        localStorage.removeItem("authRedirectUrl");
+      } 
+      // Sinon utiliser l'URL stockée dans localStorage si disponible
+      else if (storedRedirectUrl) {
+        console.log("LoginPage - Redirection vers URL stockée:", storedRedirectUrl);
+        router.push(storedRedirectUrl);
+        // Nettoyer le localStorage après utilisation
+        localStorage.removeItem("authRedirectUrl");
+      } 
+      // Redirection par défaut au dashboard
+      else {
+        console.log("LoginPage - Redirection vers dashboard (par défaut)");
         router.push("/dashboard");
       }
     }

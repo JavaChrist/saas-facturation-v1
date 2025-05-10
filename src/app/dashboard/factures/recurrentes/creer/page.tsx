@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { FiArrowLeft, FiSave } from "react-icons/fi";
+import { FiArrowLeft, FiSave, FiTrash2 } from "react-icons/fi";
 import { useAuth } from "@/lib/authContext";
 import {
   createFactureRecurrente,
@@ -134,24 +134,6 @@ export default function CreerFactureRecurrentePage() {
       // Limiter le jour entre 1 et 28
       const jour = Math.min(Math.max(1, parseInt(value)), 28);
       setFactureRecurrente({ ...factureRecurrente, [name]: jour });
-    } else if (name === "montantHT") {
-      // Calculer le montant TTC automatiquement (avec TVA à 20% par défaut)
-      const montantHT = value === "" ? 0 : parseFloat(value);
-      const montantTTC = montantHT * 1.2;
-      setFactureRecurrente({
-        ...factureRecurrente,
-        montantHT,
-        montantTTC,
-      });
-    } else if (name === "montantTTC") {
-      // Calcul inverse pour le montant HT
-      const montantTTC = value === "" ? 0 : parseFloat(value);
-      const montantHT = montantTTC / 1.2;
-      setFactureRecurrente({
-        ...factureRecurrente,
-        montantHT,
-        montantTTC,
-      });
     } else if (name === "actif") {
       setFactureRecurrente({
         ...factureRecurrente,
@@ -195,7 +177,7 @@ export default function CreerFactureRecurrentePage() {
     const newArticle: Article = {
       id: Date.now(),
       description: "",
-      quantite: 0,
+      quantite: 1,
       prixUnitaireHT: 0,
       tva: 20,
       totalTTC: 0,
@@ -214,16 +196,49 @@ export default function CreerFactureRecurrentePage() {
   // Mise à jour d'un article
   const handleArticleChange = (index: number, field: string, value: any) => {
     const updatedArticles = [...factureRecurrente.articles];
-    updatedArticles[index] = { ...updatedArticles[index], [field]: value };
-
-    // Calculer le total TTC pour cet article
-    if (!updatedArticles[index].isComment) {
-      const prixHT =
-        updatedArticles[index].prixUnitaireHT * updatedArticles[index].quantite;
-      const tvaAmount = (prixHT * updatedArticles[index].tva) / 100;
-      updatedArticles[index].totalTTC = prixHT + tvaAmount;
+    const article = { ...updatedArticles[index] };
+    
+    // Cas spécial pour le champ totalTTC personnalisé qui n'existe pas dans le modèle Article standard
+    if (field === "prixTTC") {
+      // Calcul inverse: du TTC vers le HT
+      const prixTTC = value === "" ? 0 : parseFloat(Number(value).toFixed(2));
+      const tva = article.tva || 20;
+      const prixHT = Number((prixTTC / (1 + (tva / 100))).toFixed(2));
+      
+      article.prixUnitaireHT = prixHT;
+      article.totalTTC = Number((prixTTC * article.quantite).toFixed(2));
+      
+      updatedArticles[index] = article;
+    } else if (field === "prixUnitaireHT") {
+      // Limiter à 2 décimales
+      const prixHT = value === "" ? 0 : parseFloat(Number(value).toFixed(2));
+      article.prixUnitaireHT = prixHT;
+      
+      // Ne pas calculer les totaux pour les lignes de commentaire
+      if (!article.isComment) {
+        const tva = article.tva || 20;
+        const totalHT = prixHT * article.quantite;
+        const tvaAmount = (totalHT * tva) / 100;
+        article.totalTTC = Number((totalHT + tvaAmount).toFixed(2));
+      }
+      
+      updatedArticles[index] = article;
+    } else {
+      // Traitement normal pour les autres champs
+      article[field] = value;
+      updatedArticles[index] = article;
+      
+      // Ne pas calculer les totaux pour les lignes de commentaire
+      if (!article.isComment) {
+        // Calcul standard du HT vers le TTC
+        if (field === "quantite" || field === "tva") {
+          const prixHT = article.prixUnitaireHT * article.quantite;
+          const tvaAmount = (prixHT * article.tva) / 100;
+          article.totalTTC = Number((prixHT + tvaAmount).toFixed(2));
+        }
+      }
     }
-
+    
     setFactureRecurrente({
       ...factureRecurrente,
       articles: updatedArticles,
@@ -234,10 +249,9 @@ export default function CreerFactureRecurrentePage() {
   };
 
   // Suppression d'un article
-  const removeArticle = (id: number) => {
-    const updatedArticles = factureRecurrente.articles.filter(
-      (article) => article.id !== id
-    );
+  const removeArticle = (index: number) => {
+    const updatedArticles = [...factureRecurrente.articles];
+    updatedArticles.splice(index, 1);
 
     setFactureRecurrente({
       ...factureRecurrente,
@@ -258,14 +272,17 @@ export default function CreerFactureRecurrentePage() {
       0
     );
 
-    const totalTTC = articlesValides.reduce(
-      (sum, article) => sum + article.totalTTC,
-      0
-    );
+    const totalTVA = articlesValides.reduce((sum, article) => {
+      const articleHT = article.prixUnitaireHT * article.quantite;
+      const articleTVA = (articleHT * article.tva) / 100;
+      return sum + articleTVA;
+    }, 0);
+
+    const totalTTC = Number((totalHT + totalTVA).toFixed(2));
 
     setFactureRecurrente((prev) => ({
       ...prev,
-      montantHT: totalHT,
+      montantHT: Number(totalHT.toFixed(2)),
       montantTTC: totalTTC,
     }));
   };
@@ -534,44 +551,6 @@ export default function CreerFactureRecurrentePage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Montant HT
-              </label>
-              <input
-                type="number"
-                name="montantHT"
-                value={
-                  factureRecurrente.montantHT === 0
-                    ? ""
-                    : factureRecurrente.montantHT
-                }
-                onChange={handleChange}
-                step="0.01"
-                className="w-full p-2 border rounded-md bg-white text-gray-800"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Montant TTC
-              </label>
-              <input
-                type="number"
-                name="montantTTC"
-                value={
-                  factureRecurrente.montantTTC === 0
-                    ? ""
-                    : factureRecurrente.montantTTC
-                }
-                onChange={handleChange}
-                step="0.01"
-                className="w-full p-2 border rounded-md bg-white text-gray-800"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Prochaine émission
               </label>
               <input
@@ -617,13 +596,43 @@ export default function CreerFactureRecurrentePage() {
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
               Articles
             </h2>
-            <button
-              type="button"
-              onClick={addArticle}
-              className="bg-green-600 text-white py-1 px-3 rounded-md hover:bg-green-700 text-sm"
-            >
-              + Ajouter un article
-            </button>
+            <div className="space-x-2">
+              <button
+                type="button"
+                onClick={addArticle}
+                className="bg-green-600 text-white py-1 px-3 rounded-md hover:bg-green-700 text-sm"
+              >
+                + Ajouter un article
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const newComment: Article = {
+                    id: Date.now(),
+                    description: "",
+                    quantite: 0,
+                    prixUnitaireHT: 0,
+                    tva: 0,
+                    totalTTC: 0,
+                    isComment: true,
+                  };
+                  
+                  setFactureRecurrente({
+                    ...factureRecurrente,
+                    articles: [...factureRecurrente.articles, newComment],
+                  });
+                }}
+                className="bg-blue-600 text-white py-1 px-3 rounded-md hover:bg-blue-700 text-sm"
+              >
+                + Ajouter un commentaire
+              </button>
+            </div>
+          </div>
+          
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 mb-4 rounded-md text-sm">
+            <p className="text-blue-700 dark:text-blue-300">
+              <strong>Astuce :</strong> Pour les abonnements, il est généralement plus simple de saisir directement le prix TTC puis de laisser l'application calculer le prix HT et la TVA.
+            </p>
           </div>
 
           {factureRecurrente.articles.length === 0 ? (
@@ -635,91 +644,162 @@ export default function CreerFactureRecurrentePage() {
               {factureRecurrente.articles.map((article, index) => (
                 <div
                   key={article.id}
-                  className="flex flex-wrap items-center gap-2 p-3 border rounded-md bg-gray-50 dark:bg-gray-700"
+                  className={`p-4 rounded-md ${
+                    article.isComment
+                      ? "bg-yellow-50 dark:bg-yellow-900/20"
+                      : "bg-gray-50 dark:bg-gray-700/30"
+                  }`}
                 >
-                  <div className="w-full md:w-5/12">
-                    <input
-                      type="text"
-                      value={article.description}
-                      onChange={(e) =>
-                        handleArticleChange(
-                          index,
-                          "description",
-                          e.target.value
-                        )
-                      }
-                      placeholder="Description"
-                      className="w-full p-2 border rounded-md bg-white text-gray-800"
-                    />
-                  </div>
-                  <div className="w-20">
-                    <input
-                      type="number"
-                      value={article.quantite === 0 ? "" : article.quantite}
-                      onChange={(e) =>
-                        handleArticleChange(
-                          index,
-                          "quantite",
-                          e.target.value === "" ? 0 : parseInt(e.target.value)
-                        )
-                      }
-                      placeholder="Qté"
-                      className="w-full p-2 border rounded-md bg-white text-gray-800"
-                    />
-                  </div>
-                  <div className="w-32">
-                    <input
-                      type="number"
-                      value={
-                        article.prixUnitaireHT === 0
-                          ? ""
-                          : article.prixUnitaireHT
-                      }
-                      onChange={(e) =>
-                        handleArticleChange(
-                          index,
-                          "prixUnitaireHT",
-                          e.target.value === "" ? 0 : parseFloat(e.target.value)
-                        )
-                      }
-                      placeholder="Prix HT"
-                      className="w-full p-2 border rounded-md bg-white text-gray-800"
-                    />
-                  </div>
-                  <div className="w-20">
-                    <input
-                      type="number"
-                      value={article.tva === 0 ? "" : article.tva}
-                      onChange={(e) =>
-                        handleArticleChange(
-                          index,
-                          "tva",
-                          e.target.value === "" ? 0 : parseFloat(e.target.value)
-                        )
-                      }
-                      placeholder="TVA %"
-                      className="w-full p-2 border rounded-md bg-white text-gray-800"
-                    />
-                  </div>
-                  <div className="w-32 font-medium">
-                    {article.totalTTC.toFixed(2)} €
-                  </div>
-                  <div>
+                  <div className="flex justify-between mb-2">
+                    <div className="font-medium">
+                      {article.isComment ? "Commentaire" : `Article ${index + 1}`}
+                    </div>
                     <button
                       type="button"
-                      onClick={() => removeArticle(article.id)}
-                      className="bg-red-600 text-white p-2 rounded-md hover:bg-red-700"
+                      onClick={() => removeArticle(index)}
+                      className="text-red-500 hover:text-red-700"
                     >
-                      ×
+                      <FiTrash2 size={18} />
                     </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {article.isComment ? "Commentaire" : "Description"}
+                      </label>
+                      <input
+                        type="text"
+                        value={article.description}
+                        onChange={(e) =>
+                          handleArticleChange(index, "description", e.target.value)
+                        }
+                        placeholder={
+                          article.isComment ? "Votre commentaire" : "Description"
+                        }
+                        className="w-full p-2 border rounded-md bg-white text-gray-800"
+                      />
+                    </div>
+
+                    {!article.isComment && (
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Quantité
+                          </label>
+                          <input
+                            type="number"
+                            value={article.quantite === 0 ? "" : article.quantite}
+                            onChange={(e) =>
+                              handleArticleChange(
+                                index,
+                                "quantite",
+                                e.target.value === ""
+                                  ? 0
+                                  : parseInt(e.target.value)
+                              )
+                            }
+                            placeholder="Quantité"
+                            min="1"
+                            className="w-full p-2 border rounded-md bg-white text-gray-800"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Prix unitaire HT
+                          </label>
+                          <input
+                            type="number"
+                            value={
+                              article.prixUnitaireHT === 0
+                                ? ""
+                                : article.prixUnitaireHT
+                            }
+                            onChange={(e) =>
+                              handleArticleChange(
+                                index,
+                                "prixUnitaireHT",
+                                e.target.value === "" ? 0 : parseFloat(e.target.value)
+                              )
+                            }
+                            placeholder="Prix HT"
+                            step="0.01"
+                            className="w-full p-2 border rounded-md bg-white text-gray-800"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Prix unitaire TTC
+                          </label>
+                          <input
+                            type="number"
+                            value={
+                              article.prixUnitaireHT === 0
+                                ? ""
+                                : Number((article.prixUnitaireHT * (1 + article.tva / 100)).toFixed(2))
+                            }
+                            onChange={(e) =>
+                              handleArticleChange(
+                                index,
+                                "prixTTC",
+                                e.target.value === "" ? 0 : parseFloat(e.target.value)
+                              )
+                            }
+                            placeholder="Prix TTC"
+                            step="0.01"
+                            className="w-full p-2 border rounded-md bg-blue-500 text-white dark:bg-blue-700 dark:text-white font-semibold"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            TVA (%)
+                          </label>
+                          <input
+                            type="number"
+                            value={article.tva === 0 ? "" : article.tva}
+                            onChange={(e) =>
+                              handleArticleChange(
+                                index,
+                                "tva",
+                                e.target.value === "" ? 0 : parseFloat(e.target.value)
+                              )
+                            }
+                            placeholder="TVA"
+                            step="0.1"
+                            className="w-full p-2 border rounded-md bg-white text-gray-800"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {!article.isComment && (
+                      <div className="mt-3 text-right text-sm font-semibold">
+                        <span className="text-gray-700 dark:text-gray-300">
+                          Total HT: {(article.prixUnitaireHT * article.quantite).toFixed(2)} € | 
+                          Total TTC: {article.totalTTC.toFixed(2)} €
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
 
-              <div className="flex justify-end p-3 font-medium">
-                <div className="text-right">
-                  <p>Total HT: {factureRecurrente.montantHT.toFixed(2)} €</p>
-                  <p>Total TTC: {factureRecurrente.montantTTC.toFixed(2)} €</p>
+              {/* Affichage des totaux */}
+              <div className="mt-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md">
+                <div className="flex justify-between border-b pb-2 mb-2">
+                  <span className="font-medium">Total HT</span>
+                  <span>{factureRecurrente.montantHT.toFixed(2)} €</span>
+                </div>
+                <div className="flex justify-between border-b pb-2 mb-2">
+                  <span className="font-medium">Total TVA</span>
+                  <span>{(factureRecurrente.montantTTC - factureRecurrente.montantHT).toFixed(2)} €</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold">
+                  <span>Total TTC</span>
+                  <span>{factureRecurrente.montantTTC.toFixed(2)} €</span>
                 </div>
               </div>
             </div>
