@@ -17,6 +17,7 @@ import {
   deactivateUser,
   canAddUser,
   OrganizationUser,
+  getOrganizationId
 } from "@/services/userService";
 import { getUserPlan } from "@/services/subscriptionService";
 import {
@@ -51,6 +52,7 @@ export default function UtilisateursPage() {
     email: "",
     displayName: "",
     role: "viewer" as OrganizationUser["role"],
+    isActive: true,
   });
 
   // Simuler l'ID de l'organisation
@@ -62,8 +64,8 @@ export default function UtilisateursPage() {
         console.log(
           "[DEBUG] Initialisation de l'ID d'organisation en mode développement"
         );
-        // Si vous avez créé manuellement un document avec l'ID 'organisations'
-        setOrganizationId("organisations");
+        // Si vous avez créé manuellement un document avec l'ID 'organizations'
+        setOrganizationId("organizations");
 
         // Vous pouvez aussi créer une organisation automatiquement pour le test
         // (commentez cette partie si vous préférez utiliser l'organisation créée manuellement)
@@ -75,20 +77,20 @@ export default function UtilisateursPage() {
             );
 
             // Vérifier si une organisation existe déjà
-            // D'abord, vérifier l'organisation avec l'ID spécifique "organisations"
+            // D'abord, vérifier l'organisation avec l'ID spécifique "organizations"
             const orgDoc = await getDoc(
-              doc(db, "organisations", "organisations")
+              doc(db, "organizations", "organizations")
             );
 
             if (orgDoc.exists()) {
-              console.log("[DEBUG] Document 'organisations' existant trouvé");
-              setOrganizationId("organisations");
+              console.log("[DEBUG] Document 'organizations' existant trouvé");
+              setOrganizationId("organizations");
 
               // Vérifier si l'utilisateur est déjà membre
               const memberRef = doc(
                 db,
-                "organisations",
-                "organisations",
+                "organizations",
+                "organizations",
                 "membres",
                 user.uid
               );
@@ -109,12 +111,12 @@ export default function UtilisateursPage() {
               }
             } else {
               console.log(
-                "[DEBUG] Document 'organisations' non trouvé, vérification des autres organisations"
+                "[DEBUG] Document 'organizations' non trouvé, vérification des autres organisations"
               );
 
               // Vérifier si une organisation existe déjà pour cet utilisateur
               const orgsQuery = query(
-                collection(db, "organisations"),
+                collection(db, "organizations"),
                 where("proprietaireId", "==", user.uid)
               );
 
@@ -123,7 +125,7 @@ export default function UtilisateursPage() {
               if (existingOrgs.empty) {
                 console.log("[DEBUG] Création d'une nouvelle organisation");
                 // Créer une nouvelle organisation avec l'ID spécifique
-                await setDoc(doc(db, "organisations", "organisations"), {
+                await setDoc(doc(db, "organizations", "organizations"), {
                   nom: "Mon Organisation",
                   proprietaireId: user.uid,
                   dateCreation: new Date(),
@@ -131,15 +133,15 @@ export default function UtilisateursPage() {
                 });
 
                 console.log(
-                  "[DEBUG] Organisation créée avec ID: organisations"
+                  "[DEBUG] Organisation créée avec ID: organizations"
                 );
 
                 // Ajouter l'utilisateur actuel comme admin
                 await setDoc(
                   doc(
                     db,
-                    "organisations",
-                    "organisations",
+                    "organizations",
+                    "organizations",
                     "membres",
                     user.uid
                   ),
@@ -155,7 +157,7 @@ export default function UtilisateursPage() {
                 console.log("[DEBUG] Utilisateur ajouté comme membre");
 
                 // Mettre à jour l'ID de l'organisation
-                setOrganizationId("organisations");
+                setOrganizationId("organizations");
               } else {
                 // Utiliser l'organisation existante
                 const orgId = existingOrgs.docs[0].id;
@@ -287,6 +289,7 @@ export default function UtilisateursPage() {
       email: "",
       displayName: "",
       role: "viewer",
+      isActive: true,
     });
     setIsModalOpen(true);
   };
@@ -315,6 +318,7 @@ export default function UtilisateursPage() {
         email: newUser.email,
         displayName: newUser.displayName,
         role: newUser.role,
+        isActive: true,
       });
 
       // Envoyer l'invitation par email

@@ -2,6 +2,16 @@ import "./globals.css";
 import { Providers } from "./providers";
 import type { Metadata } from "next";
 import Image from "next/image";
+import { AuthProvider } from "@/lib/authContext";
+import { ThemeProvider } from "@/lib/themeContext";
+
+// Si vous rencontrez des erreurs "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT",
+// c'est probablement à cause d'un bloqueur de publicités (comme uBlock Origin) qui bloque Firebase.
+// Solution: Désactivez temporairement votre bloqueur de publicités ou ajoutez une exception
+// pour les domaines suivants:
+// - firestore.googleapis.com
+// - firebase.googleapis.com
+// - identitytoolkit.googleapis.com
 
 export const metadata: Metadata = {
   title: "Facturation SaaS",

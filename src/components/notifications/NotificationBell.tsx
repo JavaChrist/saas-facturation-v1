@@ -98,8 +98,10 @@ const NotificationBell: React.FC = () => {
       // Marquer la notification comme lue
       await marquerCommeLue(notification.id);
 
-      // Mettre à jour l'état local
-      setNotifications(notifications.filter((n) => n.id !== notification.id));
+      // Mettre à jour l'état local en supprimant la notification marquée comme lue
+      setNotifications(prevNotifications => 
+        prevNotifications.filter(n => n.id !== notification.id)
+      );
     } catch (error) {
       console.error(
         "NotificationBell: Erreur lors du marquage de la notification comme lue:",
@@ -143,6 +145,8 @@ const NotificationBell: React.FC = () => {
         "NotificationBell: Récupération des notifications après vérification forcée"
       );
       const notifs = await getNotificationsNonLues(user.uid);
+      
+      // Mettre à jour les notifications avec les nouvelles notifications
       setNotifications(notifs);
 
       console.log(

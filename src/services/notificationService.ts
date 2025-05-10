@@ -43,7 +43,34 @@ export const verifierFacturesEnRetardDirectement = async (
 
     console.log("Vérification directe des factures en retard pour l'utilisateur:", userId);
 
-    // 1. Récupérer toutes les factures non payées
+    // Date du jour pour les comparaisons
+    const aujourdhui = new Date();
+    aujourdhui.setHours(0, 0, 0, 0); // On compare les dates sans tenir compte de l'heure
+    console.log("Date du jour (début journée):", aujourdhui.toISOString());
+
+    // Récupérer toutes les notifications existantes pour les factures en retard et échéances proches
+    const existingNotificationsQuery = query(
+      collection(db, "notifications"),
+      where("userId", "==", userId),
+      where("type", "in", ["paiement_retard", "paiement_proche"])
+    );
+    
+    const existingNotificationsSnapshot = await getDocs(existingNotificationsQuery);
+    console.log(`Nombre de notifications existantes: ${existingNotificationsSnapshot.size}`);
+    
+    // Créer un mapping des notifications par factureId pour faciliter la vérification
+    const notificationsByFactureId = new Map<string, any[]>();
+    existingNotificationsSnapshot.docs.forEach(doc => {
+      const notification = { id: doc.id, ...doc.data() };
+      if (!notificationsByFactureId.has(notification.factureId)) {
+        notificationsByFactureId.set(notification.factureId, []);
+      }
+      notificationsByFactureId.get(notification.factureId)?.push(notification);
+      console.log(`Notification existante trouvée pour facture ${notification.factureId}:`, notification);
+    });
+
+    // 1. Récupérer toutes les factures non payées ET les factures "À relancer"
+    // Il est important d'inclure explicitement les factures avec le statut "À relancer"
     const facturesQuery = query(
       collection(db, "factures"),
       where("userId", "==", userId),
@@ -61,7 +88,49 @@ export const verifierFacturesEnRetardDirectement = async (
 
       if (facturesSnapshot.empty) {
         console.log("Aucune facture à vérifier");
+        
+        // Supprimer toutes les notifications pour les factures qui n'existent plus
+        // ou qui ont été payées
+        if (existingNotificationsSnapshot.size > 0) {
+          console.log("Suppression des notifications pour les factures qui n'existent plus");
+          const batch = writeBatch(db);
+          existingNotificationsSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+          });
+          await batch.commit();
+          console.log(`${existingNotificationsSnapshot.size} notifications supprimées`);
+        }
+        
         return;
+      }
+
+      // Liste des factures à traiter
+      console.log("Factures trouvées:", facturesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        numero: doc.data().numero,
+        statut: doc.data().statut
+      })));
+
+      // Récupérer les IDs de toutes les factures actives
+      const activeFactureIds = new Set(facturesSnapshot.docs.map(doc => doc.id));
+      
+      // Supprimer les notifications pour les factures qui n'existent plus
+      const notificationsToDelete: any[] = [];
+      existingNotificationsSnapshot.docs.forEach(doc => {
+        const factureId = doc.data().factureId;
+        if (!activeFactureIds.has(factureId)) {
+          notificationsToDelete.push(doc.ref);
+          console.log(`Notification ${doc.id} marquée pour suppression (facture ${factureId} n'existe plus)`);
+        }
+      });
+      
+      if (notificationsToDelete.length > 0) {
+        const batch = writeBatch(db);
+        notificationsToDelete.forEach(ref => {
+          batch.delete(ref);
+        });
+        await batch.commit();
+        console.log(`${notificationsToDelete.length} notifications supprimées pour factures inexistantes`);
       }
 
       // Trier les factures par date de création (descendant)
@@ -109,19 +178,14 @@ export const verifierFacturesEnRetardDirectement = async (
         });
 
       console.log(`Nombre de factures valides après filtrage: ${factures.length}`);
-
-      const aujourdhui = new Date();
-      console.log("Date d'aujourd'hui:", aujourdhui.toISOString());
-
-      // 2. Pour chaque facture, vérifier si elle est en retard
+      
+      // Vérifier les factures qui ont déjà le statut "À relancer" mais pas de notification
+      const facturesARelancer = factures.filter(f => f.statut === "À relancer");
+      console.log(`Nombre de factures avec statut "À relancer": ${facturesARelancer.length}`);
+      
+      // Pour chaque facture, vérifier si elle est en retard ou si l'échéance est proche
       for (const facture of factures) {
-        console.log(`Vérification de la facture ${facture.numero} (ID: ${facture.id})`, {
-          dateCreation: facture.dateCreation,
-          statut: facture.statut,
-          totalTTC: facture.totalTTC,
-          client: facture.client.nom,
-          delaisPaiement: facture.client.delaisPaiement
-        });
+        console.log(`Traitement de la facture ${facture.id} (${facture.numero}) - Statut: ${facture.statut}`);
 
         // Convertir la date de création en objet Date
         let dateCreation: Date;
@@ -131,23 +195,25 @@ export const verifierFacturesEnRetardDirectement = async (
           dateCreation = new Date(facture.dateCreation);
         } else if (
           facture.dateCreation &&
-          typeof (facture.dateCreation as FirestoreTimestamp).toDate ===
-            "function"
+          facture.dateCreation.toDate &&
+          typeof facture.dateCreation.toDate === "function"
         ) {
-          dateCreation = (facture.dateCreation as FirestoreTimestamp).toDate();
+          dateCreation = facture.dateCreation.toDate();
         } else {
-          console.error("Format de date non reconnu pour la facture", facture.id);
-          continue;
+          console.error(`Format de date inconnu pour la facture ${facture.id}`);
+          continue; // Passer à la facture suivante
         }
+        
+        // Normaliser la date de création
+        dateCreation.setHours(0, 0, 0, 0);
+        console.log("Date de création (début journée):", dateCreation.toISOString());
 
-        console.log("Date de création:", dateCreation.toISOString());
-        console.log("Délai de paiement:", facture.client.delaisPaiement);
-
-        // Calculer la date d'échéance en fonction du délai de paiement
+        // Calculer la date d'échéance
         let dateEcheance = new Date(dateCreation);
+
         switch (facture.client.delaisPaiement) {
           case "À réception":
-            dateEcheance = dateCreation;
+            dateEcheance = dateCreation; // Même jour
             break;
           case "8 jours":
             dateEcheance.setDate(dateCreation.getDate() + 8);
@@ -162,31 +228,61 @@ export const verifierFacturesEnRetardDirectement = async (
             dateEcheance.setDate(dateCreation.getDate() + 30); // Par défaut 30 jours
         }
 
-        console.log("Date d'échéance:", dateEcheance.toISOString());
+        console.log("Date d'échéance (début journée):", dateEcheance.toISOString());
+        
+        // Récupérer les notifications existantes pour cette facture
+        const existingNotifications = notificationsByFactureId.get(facture.id) || [];
+        const existingRetardNotification = existingNotifications.find(n => n.type === "paiement_retard");
+        const existingProcheNotification = existingNotifications.find(n => n.type === "paiement_proche");
 
         // Vérifier si la facture est en retard
-        if (aujourdhui > dateEcheance) {
+        const estEnRetard = aujourdhui > dateEcheance;
+        
+        console.log(`Facture ${facture.id} en retard: ${estEnRetard}, statut: ${facture.statut}, notification existante: ${!!existingRetardNotification}`);
+
+        // Si la facture est marquée comme "À relancer", mais n'a pas de notification, créer une notification
+        if (facture.statut === "À relancer" && !existingRetardNotification) {
+          console.log(`Facture ${facture.id} marquée comme "À relancer" mais sans notification de retard`);
+          
+          try {
+            // Calculer le nombre de jours de retard
+            const nbJoursRetard = Math.floor(
+              (aujourdhui.getTime() - dateEcheance.getTime()) / (1000 * 3600 * 24)
+            );
+            
+            console.log("Création forcée d'une notification de retard pour facture à relancer");
+            await addDoc(collection(db, "notifications"), {
+              userId: userId,
+              factureId: facture.id,
+              factureNumero: facture.numero,
+              clientNom: facture.client.nom,
+              message: `La facture ${facture.numero} pour ${
+                facture.client.nom
+              } est en retard de ${Math.max(0, nbJoursRetard)} jour(s). Montant: ${facture.totalTTC.toFixed(
+                2
+              )} €`,
+              type: "paiement_retard",
+              dateCreation: new Date(),
+              lue: false,
+              montant: facture.totalTTC,
+            });
+            console.log("Notification de retard créée avec succès pour facture à relancer");
+          } catch (err) {
+            console.error("Erreur lors de la création de la notification pour facture à relancer:", err);
+          }
+        }
+        // Si la facture est en retard mais n'est pas encore marquée comme "À relancer"
+        else if (estEnRetard) {
           console.log("Facture en retard détectée");
-          // Vérifier si une notification existe déjà pour cette facture
-          const notifExisteQuery = query(
-            collection(db, "notifications"),
-            where("factureId", "==", facture.id),
-            where("type", "==", "paiement_retard"),
-            limit(1)
-          );
-
-          console.log("Vérification de l'existence d'une notification");
-          const notifExisteSnapshot = await getDocs(notifExisteQuery);
-          console.log("Notification existante:", !notifExisteSnapshot.empty);
-
-          // Si aucune notification n'existe, en créer une nouvelle
-          if (notifExisteSnapshot.empty) {
+          
+          // Si aucune notification de retard n'existe, en créer une nouvelle
+          if (!existingRetardNotification) {
             const nbJoursRetard = Math.floor(
               (aujourdhui.getTime() - dateEcheance.getTime()) / (1000 * 3600 * 24)
             );
 
             try {
-              console.log("Création d'une nouvelle notification");
+              console.log("Création d'une nouvelle notification de retard");
               // Créer la notification
               await addDoc(collection(db, "notifications"), {
                 userId: userId,
@@ -203,7 +299,7 @@ export const verifierFacturesEnRetardDirectement = async (
                 lue: false,
                 montant: facture.totalTTC,
               });
-              console.log("Notification créée avec succès");
+              console.log("Notification de retard créée avec succès");
 
               // Mettre à jour le statut de la facture si ce n'est pas déjà "À relancer"
               if (facture.statut !== "À relancer") {
@@ -219,29 +315,60 @@ export const verifierFacturesEnRetardDirectement = async (
                 err
               );
             }
+          } else {
+            console.log("Notification de retard existante, pas de création");
+          }
+          
+          // S'il y a une notification d'échéance proche, la supprimer car la facture est maintenant en retard
+          if (existingProcheNotification) {
+            try {
+              console.log(`Suppression de la notification d'échéance proche ${existingProcheNotification.id}`);
+              await deleteDoc(doc(db, "notifications", existingProcheNotification.id));
+              console.log("Notification d'échéance proche supprimée");
+            } catch (err) {
+              console.error("Erreur lors de la suppression de la notification d'échéance proche:", err);
+            }
           }
         } else {
-          // Si l'échéance est proche (à moins de 3 jours)
+          // La facture n'est pas en retard
+          
+          // Si la facture est marquée "À relancer" mais n'est pas en retard, mettre à jour son statut
+          if (facture.statut === "À relancer") {
+            try {
+              console.log(`Facture ${facture.id} marquée comme "À relancer" mais n'est pas en retard, mise à jour du statut`);
+              await updateDoc(doc(db, "factures", facture.id), {
+                statut: "Envoyée",
+              });
+              console.log("Statut de la facture mis à jour en 'Envoyée'");
+            } catch (err) {
+              console.error("Erreur lors de la mise à jour du statut de la facture:", err);
+            }
+          }
+          
+          // S'il y a une notification de retard, la supprimer car la facture n'est plus en retard
+          if (existingRetardNotification) {
+            try {
+              console.log(`Suppression de la notification de retard ${existingRetardNotification.id}`);
+              await deleteDoc(doc(db, "notifications", existingRetardNotification.id));
+              console.log("Notification de retard supprimée");
+            } catch (err) {
+              console.error("Erreur lors de la suppression de la notification de retard:", err);
+            }
+          }
+          
+          // Vérifier si l'échéance est proche (à moins de 3 jours)
           const diffJours = Math.floor(
             (dateEcheance.getTime() - aujourdhui.getTime()) / (1000 * 3600 * 24)
           );
 
-          if (diffJours <= 3 && diffJours >= 0) {
+          const echeanceProche = diffJours <= 3 && diffJours >= 0;
+          console.log(`Facture ${facture.id} échéance proche (${diffJours} jours): ${echeanceProche}`);
+
+          if (echeanceProche) {
             console.log("Échéance proche détectée:", diffJours, "jours");
-            // Vérifier si une notification existe déjà pour cette facture
-            const notifExisteQuery = query(
-              collection(db, "notifications"),
-              where("factureId", "==", facture.id),
-              where("type", "==", "paiement_proche"),
-              limit(1)
-            );
-
-            console.log("Vérification de l'existence d'une notification d'échéance proche");
-            const notifExisteSnapshot = await getDocs(notifExisteQuery);
-            console.log("Notification existante:", !notifExisteSnapshot.empty);
-
-            // Si aucune notification n'existe, en créer une nouvelle
-            if (notifExisteSnapshot.empty) {
+            
+            // Si aucune notification d'échéance proche n'existe, en créer une nouvelle
+            if (!existingProcheNotification) {
               try {
                 console.log("Création d'une nouvelle notification d'échéance proche");
                 await addDoc(collection(db, "notifications"), {
@@ -265,6 +392,21 @@ export const verifierFacturesEnRetardDirectement = async (
                   "Erreur lors de la création de la notification:",
                   err
                 );
+              }
+            } else {
+              console.log("Notification d'échéance proche existante, pas de création");
+            }
+          } else {
+            // L'échéance n'est pas proche
+            
+            // S'il y a une notification d'échéance proche, la supprimer car l'échéance n'est plus proche
+            if (existingProcheNotification) {
+              try {
+                console.log(`Suppression de la notification d'échéance proche ${existingProcheNotification.id}`);
+                await deleteDoc(doc(db, "notifications", existingProcheNotification.id));
+                console.log("Notification d'échéance proche supprimée");
+              } catch (err) {
+                console.error("Erreur lors de la suppression de la notification d'échéance proche:", err);
               }
             }
           }
@@ -290,9 +432,95 @@ export const verifierFacturesEnRetardDirectement = async (
 export const verifierFacturesEnRetard = async (userId: string): Promise<void> => {
   try {
     console.log("Vérification des factures en retard");
+    
+    // Avant de vérifier les factures, nettoyons les notifications en double
+    await supprimerNotificationsDupliquees(userId);
+    
+    // Vérifier les factures en retard
     await verifierFacturesEnRetardDirectement(userId);
   } catch (error) {
     console.error("Erreur lors de la vérification des factures en retard:", error);
+  }
+};
+
+// Fonction pour supprimer les notifications en double
+const supprimerNotificationsDupliquees = async (userId: string): Promise<void> => {
+  try {
+    console.log("Recherche de notifications dupliquées pour l'utilisateur:", userId);
+    
+    // Récupérer toutes les notifications existantes
+    const notificationsQuery = query(
+      collection(db, "notifications"),
+      where("userId", "==", userId)
+    );
+    
+    const notificationsSnapshot = await getDocs(notificationsQuery);
+    
+    if (notificationsSnapshot.empty) {
+      console.log("Aucune notification trouvée pour vérifier les doublons");
+      return;
+    }
+    
+    console.log(`${notificationsSnapshot.size} notifications trouvées, vérification des doublons...`);
+    
+    // Créer une map pour détecter les doublons (clé = factureId + type)
+    const notificationsMap = new Map<string, any[]>();
+    
+    // Regrouper les notifications par factureId et type
+    notificationsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      const key = `${data.factureId}_${data.type}`;
+      
+      if (!notificationsMap.has(key)) {
+        notificationsMap.set(key, []);
+      }
+      
+      notificationsMap.get(key)?.push({
+        id: doc.id,
+        ref: doc.ref,
+        ...data
+      });
+    });
+    
+    // Vérifier s'il y a des doublons et les supprimer
+    const batch = writeBatch(db);
+    let doublonsCount = 0;
+    
+    for (const [key, notifications] of notificationsMap.entries()) {
+      // S'il y a plus d'une notification pour la même facture et le même type
+      if (notifications.length > 1) {
+        console.log(`Doublons trouvés pour ${key}: ${notifications.length} notifications`);
+        
+        // Trier par date de création (plus récente en premier)
+        notifications.sort((a, b) => {
+          const dateA = a.dateCreation instanceof Date 
+            ? a.dateCreation 
+            : a.dateCreation?.toDate?.() || new Date(a.dateCreation || Date.now());
+          
+          const dateB = b.dateCreation instanceof Date 
+            ? b.dateCreation 
+            : b.dateCreation?.toDate?.() || new Date(b.dateCreation || Date.now());
+          
+          return dateB.getTime() - dateA.getTime();
+        });
+        
+        // Garder la plus récente et supprimer les autres
+        for (let i = 1; i < notifications.length; i++) {
+          batch.delete(notifications[i].ref);
+          doublonsCount++;
+        }
+      }
+    }
+    
+    // Exécuter le batch s'il y a des doublons à supprimer
+    if (doublonsCount > 0) {
+      await batch.commit();
+      console.log(`${doublonsCount} notifications dupliquées supprimées avec succès`);
+    } else {
+      console.log("Aucune notification dupliquée trouvée");
+    }
+  } catch (error) {
+    console.error("Erreur lors de la suppression des notifications dupliquées:", error);
   }
 };
 

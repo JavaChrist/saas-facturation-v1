@@ -41,7 +41,7 @@ export const getOrganizationUsers = async (
       );
       const membersCollection = collection(
         db,
-        "organisations",
+        "organizations",
         organizationId,
         "membres"
       );
@@ -176,7 +176,7 @@ export const addOrganizationUser = async (
     // Ajouter l'utilisateur comme membre de l'organisation
     const orgMemberRef = doc(
       db,
-      "organisations",
+      "organizations",
       organizationId,
       "membres",
       docRef.id
@@ -223,7 +223,7 @@ export const deactivateUser = async (userId: string): Promise<boolean> => {
     // Mettre à jour dans la sous-collection membres si l'utilisateur existe
     const memberRef = doc(
       db,
-      "organisations",
+      "organizations",
       organizationId,
       "membres",
       userId
@@ -289,7 +289,7 @@ export const getOrganizationId = async (
 
     // Vérifier d'abord si l'utilisateur est propriétaire d'une organisation
     const orgsQuery = query(
-      collection(db, "organisations"),
+      collection(db, "organizations"),
       where("proprietaireId", "==", userId)
     );
 
@@ -310,11 +310,11 @@ export const getOrganizationId = async (
 
     // Sinon, chercher dans les membres d'organisations
     // Parcourir toutes les organisations pour vérifier la sous-collection membres
-    const allOrgsSnapshot = await getDocs(collection(db, "organisations"));
+    const allOrgsSnapshot = await getDocs(collection(db, "organizations"));
     console.log("[DEBUG] Nombre total d'organisations:", allOrgsSnapshot.size);
 
     for (const orgDoc of allOrgsSnapshot.docs) {
-      const memberRef = doc(db, "organisations", orgDoc.id, "membres", userId);
+      const memberRef = doc(db, "organizations", orgDoc.id, "membres", userId);
       const memberSnap = await getDoc(memberRef);
       if (memberSnap.exists()) {
         console.log(
@@ -350,7 +350,7 @@ export const getOrganizationId = async (
     if (process.env.NODE_ENV === "development") {
       console.log("[DEBUG] Mode dev: retour de l'ID d'organisation par défaut");
       // Retourner l'ID exact de votre document d'organisation
-      return "organisations"; // Utilisez l'ID que vous avez choisi lors de la création
+      return "organizations"; // Utilisez l'ID que vous avez choisi lors de la création
     }
 
     console.log("[DEBUG] Aucune organisation trouvée pour cet utilisateur");
@@ -366,7 +366,7 @@ export const getOrganizationId = async (
       console.log(
         "[DEBUG] Mode dev après erreur: retour de l'ID d'organisation par défaut"
       );
-      return "organisations"; // Utilisez l'ID que vous avez choisi lors de la création
+      return "organizations"; // Utilisez l'ID que vous avez choisi lors de la création
     }
 
     return null;
