@@ -35,12 +35,13 @@ export default function FactureDetailPage() {
       redirectAttempted
     });
 
-    // Si l'authentification est terminée, on peut déterminer si l'utilisateur est connecté
+    // Attendre que l'authentification soit complètement chargée avant de prendre une décision
     if (!authLoading) {
       setUserChecked(true);
       
-      // Vérifier si l'utilisateur est connecté
-      if (!user && !redirectAttempted) {
+      // Vérifier si l'utilisateur est connecté - seulement si l'authentification est terminée
+      // ET qu'on est certain que l'utilisateur n'est pas connecté
+      if (!user && !redirectAttempted && userChecked) {
         console.log(
           "FactureDetailsPage - Authentification terminée, utilisateur non connecté, redirection"
         );
@@ -62,19 +63,39 @@ export default function FactureDetailPage() {
     }
   }, [user, authLoading, router, params.id, userChecked, redirectAttempted]);
 
-  // Charger les données de la facture
+  // Charger les données de la facture seulement si l'utilisateur est authentifié
   useEffect(() => {
+    // Ne pas essayer de charger la facture si l'authentification est en cours
+    if (authLoading || !user) {
+      console.log("FactureDetailsPage - Attente de l'authentification avant chargement");
+      return;
+    }
+    
     const loadFacture = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // S'assurer que l'utilisateur est authentifié
-        const currentUser = await waitForAuth() as User | null;
+        // S'assurer que l'utilisateur est authentifié avec un délai plus long
+        let retries = 0;
+        let currentUser = null;
+        
+        while (retries < 3 && !currentUser) {
+          currentUser = await waitForAuth() as User | null;
+          
+          if (!currentUser) {
+            console.log(`Tentative ${retries + 1} : Attente de l'authentification...`);
+            // Attendre un court instant avant de réessayer
+            await new Promise(resolve => setTimeout(resolve, 500));
+            retries++;
+          }
+        }
         
         if (!currentUser) {
-          console.warn("Utilisateur non connecté, redirection vers /login");
-          router.push("/login");
+          console.warn("Utilisateur non connecté après plusieurs tentatives");
+          // Ne pas rediriger immédiatement, laisser le useEffect d'authentification s'en charger
+          setLoading(false);
+          setError("Authentification requise. Veuillez vous connecter.");
           return;
         }
 
@@ -350,10 +371,13 @@ export default function FactureDetailPage() {
     setRetryCount(prev => prev + 1);
   };
 
-  if (loading) {
+  // Afficher le chargement tant que l'authentification n'est pas terminée
+  // ou que les données sont en cours de chargement
+  if (loading || authLoading) {
     return (
       <div className="p-6 flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
+        <p className="ml-3 text-gray-800 dark:text-gray-200">Chargement en cours...</p>
       </div>
     );
   }
