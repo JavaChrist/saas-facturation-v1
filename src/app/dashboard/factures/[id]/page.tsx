@@ -1,82 +1,107 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { FiArrowLeft, FiFileText, FiEdit, FiTrash2, FiRefreshCw } from "react-icons/fi";
 import { useAuth } from "@/lib/authContext";
-import { useFacture } from "@/lib/factureProvider";
 import { generateInvoicePDF } from "@/services/pdfGenerator";
-import { doc, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Facture } from "@/types/facture";
+import { Facture, Article } from "@/types/facture";
 
+// Composant qui enveloppe toute la page avec un Suspense pour éviter les problèmes de rendu
 export default function FactureDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-6 flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
+        <p className="ml-3 text-gray-800 dark:text-gray-200">Chargement...</p>
+      </div>
+    }>
+      <FactureDetail />
+    </Suspense>
+  );
+}
+
+// Composant principal de détail des factures
+function FactureDetail() {
   const router = useRouter();
   const params = useParams();
-  const { user, loading: authLoading } = useAuth();
-  const { loadFacture, factureData, loading: factureLoading, error: factureError } = useFacture();
+  const { user } = useAuth();
   const [facture, setFacture] = useState<Facture | null>(null);
-  const [localLoading, setLocalLoading] = useState<boolean>(true);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   
-  // Récupérer l'id de la facture depuis les paramètres de l'URL
+  // Récupérer l'ID de la facture
   const factureId = typeof params?.id === "string" ? params.id : Array.isArray(params?.id) ? params.id[0] : "";
   
-  // Charger la facture dès que possible
+  // Charger les données de la facture
   useEffect(() => {
-    // Fonction pour charger les données
-    const fetchData = async () => {
+    async function loadFacture() {
+      if (!factureId) {
+        setError("ID de facture manquant");
+        setLoading(false);
+        return;
+      }
+      
+      // Le middleware s'assure déjà que l'utilisateur est connecté, donc pas besoin de vérifier ici
+      
       try {
-        setLocalLoading(true);
+        setLoading(true);
         
-        // Si l'authentification est en cours, attendre
-        if (authLoading) {
+        // Récupérer la facture directement depuis Firestore
+        const factureRef = doc(db, "factures", factureId);
+        const factureDoc = await getDoc(factureRef);
+        
+        if (!factureDoc.exists()) {
+          setError("Facture introuvable");
+          setLoading(false);
           return;
         }
         
-        // Si aucun utilisateur n'est connecté, rediriger
-        if (!user) {
-          // Stocker l'URL actuelle pour redirection après login
-          const currentPath = `/dashboard/factures/${factureId}`;
-          if (typeof window !== 'undefined') {
-            localStorage.setItem("authRedirectUrl", currentPath);
-            sessionStorage.setItem("authRedirectUrl", currentPath);
-          }
-          
-          // Rediriger avec un délai pour éviter les flashs
-          setTimeout(() => {
-            router.push('/login');
-          }, 100);
+        const factureData = factureDoc.data();
+        
+        // Vérifier que l'utilisateur actuel est le propriétaire de la facture
+        if (user && factureData.userId !== user.uid) {
+          setError("Vous n'êtes pas autorisé à consulter cette facture");
+          setLoading(false);
           return;
         }
         
-        // Essayer de charger la facture depuis le cache du contexte
-        // ou depuis Firestore si pas en cache
-        const result = await loadFacture(factureId);
-        if (result) {
-          setFacture(result);
-          setLocalError(null);
-        } else {
-          setLocalError(factureError || "Impossible de charger la facture");
-        }
+        // Normaliser les données
+        const factureObj: Facture = {
+          id: factureDoc.id,
+          userId: factureData.userId,
+          numero: factureData.numero || "Facture sans numéro",
+          statut: factureData.statut || "En attente",
+          client: factureData.client || {
+            id: "",
+            nom: "Client non défini",
+            refClient: "",
+            rue: "",
+            codePostal: "",
+            ville: "",
+            email: "",
+            emails: [],
+            delaisPaiement: "30 jours"
+          },
+          articles: Array.isArray(factureData.articles) ? factureData.articles : [],
+          totalHT: factureData.totalHT || 0,
+          totalTTC: factureData.totalTTC || 0,
+          dateCreation: factureData.dateCreation || new Date()
+        };
+        
+        setFacture(factureObj);
+        setLoading(false);
       } catch (error) {
         console.error("Erreur lors du chargement de la facture:", error);
-        setLocalError("Une erreur est survenue. Veuillez réessayer.");
-      } finally {
-        setLocalLoading(false);
+        setError("Erreur lors du chargement de la facture. Veuillez réessayer.");
+        setLoading(false);
       }
-    };
-    
-    fetchData();
-  }, [factureId, user, authLoading, loadFacture, factureError, router]);
-  
-  // Mettre à jour la facture lorsque le cache est actualisé
-  useEffect(() => {
-    if (factureId && factureData[factureId]) {
-      setFacture(factureData[factureId]);
-      setLocalError(null);
     }
-  }, [factureId, factureData]);
+    
+    loadFacture();
+  }, [factureId, user]);
   
   // Format de date français
   const formatDate = (date: any): string => {
@@ -112,14 +137,14 @@ export default function FactureDetailPage() {
       await generateInvoicePDF(facture);
     } catch (error) {
       console.error("Erreur lors de la génération du PDF:", error);
-      setLocalError("Erreur lors de la génération du PDF. Veuillez réessayer.");
+      setError("Erreur lors de la génération du PDF. Veuillez réessayer.");
     }
   };
   
   // Gérer la suppression d'une facture
   const handleDelete = async () => {
-    if (!facture || !user) {
-      setLocalError("Impossible de supprimer cette facture");
+    if (!facture) {
+      setError("Impossible de supprimer cette facture");
       return;
     }
     
@@ -130,14 +155,7 @@ export default function FactureDetailPage() {
     
     try {
       setDeleting(true);
-      setLocalError(null);
-      
-      // Vérifier que l'utilisateur est propriétaire
-      if (facture.userId !== user.uid) {
-        setLocalError("Vous n'êtes pas autorisé à supprimer cette facture");
-        setDeleting(false);
-        return;
-      }
+      setError(null);
       
       // Supprimer la facture
       await deleteDoc(doc(db, "factures", facture.id));
@@ -146,7 +164,7 @@ export default function FactureDetailPage() {
       router.push("/dashboard/factures");
     } catch (error: any) {
       console.error("Erreur lors de la suppression:", error);
-      setLocalError(`Erreur lors de la suppression: ${error.message || "Veuillez réessayer"}`);
+      setError(`Erreur lors de la suppression: ${error.message || "Veuillez réessayer"}`);
       setDeleting(false);
     }
   };
@@ -157,25 +175,15 @@ export default function FactureDetailPage() {
   };
   
   // Gérer les tentatives de rechargement
-  const handleRetry = async () => {
-    setLocalLoading(true);
-    setLocalError(null);
-    try {
-      const result = await loadFacture(factureId);
-      if (result) {
-        setFacture(result);
-      } else {
-        setLocalError("Impossible de charger la facture");
-      }
-    } catch (error) {
-      setLocalError("Erreur lors du rechargement de la facture");
-    } finally {
-      setLocalLoading(false);
-    }
+  const handleRetry = () => {
+    setLoading(true);
+    setError(null);
+    // Force refresh
+    router.refresh();
   };
   
   // Afficher le chargement
-  if (localLoading || authLoading || factureLoading) {
+  if (loading) {
     return (
       <div className="p-6 flex items-center justify-center h-screen">
         <div className="flex flex-col items-center">
@@ -187,7 +195,7 @@ export default function FactureDetailPage() {
   }
   
   // Afficher les erreurs
-  if (localError || !facture) {
+  if (error || !facture) {
     return (
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
@@ -210,7 +218,7 @@ export default function FactureDetailPage() {
           </div>
         </div>
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">
-          <p>{localError || "Facture introuvable"}</p>
+          <p>{error || "Facture introuvable"}</p>
         </div>
       </div>
     );
