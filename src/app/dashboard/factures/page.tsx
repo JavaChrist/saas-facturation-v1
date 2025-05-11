@@ -160,23 +160,8 @@ export default function FacturesPage() {
       isAnonymous: user.isAnonymous
     });
 
-    // Test de connexion à Firestore
-    const testFirestoreConnection = async () => {
-      try {
-        // Utiliser une référence simple pour le test
-        console.log("[DEBUG] Test de connexion à Firestore...");
-        await fetch('https://firestore.googleapis.com');
-        console.log("[DEBUG] Connexion au domaine Firestore réussie");
-      } catch (error) {
-        console.error("[DEBUG] Erreur de connexion réseau à Firestore:", error);
-        setErrorMessage("Impossible de se connecter à Firestore. Vérifiez votre connexion Internet.");
-      }
-    };
-
-    testFirestoreConnection();
-
     // Approche progressive: d'abord charger l'utilisateur et sa configuration
-    const MAX_BATCH_SIZE = 5; // Charger les factures par groupes de 5
+    const MAX_BATCH_SIZE = 10; // Charger les factures par groupes de 10
     let totalFactures: Facture[] = [];
     let loadingError = false;
     
@@ -202,41 +187,23 @@ export default function FacturesPage() {
       }
     };
 
-    // Fonction pour charger les factures par lots
-    const loadFactureBatch = async (lastVisible: any = null, attempt = 1) => {
-      const MAX_RETRIES = 3;
-      if (attempt > MAX_RETRIES) {
-        console.error(`[DEBUG] Abandon après ${MAX_RETRIES} tentatives`);
-        loadingError = true;
-        setErrorMessage("Impossible de charger vos factures après plusieurs tentatives. Veuillez actualiser la page.");
-        setIsLoading(false);
-        return;
-      }
-
+    // Fonction pour charger les factures de manière simple, sans tri complexe
+    const loadFactures = async () => {
       try {
-        console.log(`[DEBUG] Chargement du lot de factures ${attempt}/${MAX_RETRIES}`);
+        console.log("[DEBUG] Chargement des factures");
         
-        // Construire la requête avec limitation
-        let facturesRef = collection(db, "factures");
-        let baseQuery = query(
-          facturesRef, 
+        // Requête simplifiée sans orderBy pour éviter les problèmes d'index
+        const facturesQuery = query(
+          collection(db, "factures"),
           where("userId", "==", user.uid),
-          orderBy("dateCreation", "desc")  // Trier par date de création décroissante
+          limit(100) // Limiter à 100 factures maximum pour la version actuelle
         );
         
-        // Créer la requête pour ce lot
-        let batchQuery = baseQuery;
-        if (lastVisible) {
-          batchQuery = query(baseQuery, startAfter(lastVisible));
-        }
-        batchQuery = query(batchQuery, limit(MAX_BATCH_SIZE));
-
-        // Exécuter la requête
-        console.log("[DEBUG] Exécution de la requête pour le lot");
-        const snapshot = await getDocs(batchQuery);
+        const snapshot = await getDocs(facturesQuery);
         
-        // Traiter le résultat
-        const newBatch = snapshot.docs.map((doc) => {
+        console.log(`[DEBUG] ${snapshot.docs.length} factures récupérées`);
+        
+        const facturesData = snapshot.docs.map((doc) => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -244,72 +211,60 @@ export default function FacturesPage() {
             dateCreation: data.dateCreation ? convertToDate(data.dateCreation) : new Date(),
           };
         }) as Facture[];
+
+        // Trier côté client pour éviter les problèmes d'index Firestore
+        facturesData.sort((a, b) => {
+          // S'assurer que les dates existent, sinon utiliser Date.now()
+          const dateA = a.dateCreation instanceof Date ? a.dateCreation : new Date();
+          const dateB = b.dateCreation instanceof Date ? b.dateCreation : new Date();
+          
+          // Comparer les dates (des plus récentes aux plus anciennes)
+          return dateB.getTime() - dateA.getTime();
+        });
         
-        console.log(`[DEBUG] ${newBatch.length} factures chargées dans ce lot`);
-        
-        // Ajouter au total
-        totalFactures = [...totalFactures, ...newBatch];
-        
-        // Mettre à jour l'état
-        setFactures(totalFactures);
+        setFactures(facturesData);
         setPlanInfo(prev => ({
           ...prev,
-          currentFactures: totalFactures.length
+          currentFactures: facturesData.length
         }));
         
-        // Vérifier si nous avons atteint la limite
+        // Vérifier si nous avons atteint la limite du plan
         const isLimitReached = await checkPlanLimit(
           user.uid,
           "factures",
-          totalFactures.length
+          facturesData.length
         );
         setLimitReached(isLimitReached);
         
-        // Si nous avons encore des factures à charger, continuer
-        if (snapshot.docs.length === MAX_BATCH_SIZE) {
-          const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-          // Délai court pour éviter de surcharger Firestore
-          setTimeout(() => {
-            loadFactureBatch(lastDoc, 1); // Réinitialiser le compteur de tentatives
-          }, 500);
-        } else {
-          console.log("[DEBUG] Toutes les factures ont été chargées, total:", totalFactures.length);
-          
-          // Générer un numéro de facture
-          setNewFacture(prev => {
-            if (!prev.numero || prev.numero.startsWith('FCT-')) {
-              return {
-                ...prev,
-                numero: generateNewInvoiceNumber(totalFactures)
-              };
-            }
-            return prev;
-          });
-          
-          setIsLoading(false);
-        }
+        // Générer un numéro de facture
+        setNewFacture(prev => {
+          if (!prev.numero || prev.numero.startsWith('FCT-')) {
+            return {
+              ...prev,
+              numero: generateNewInvoiceNumber(facturesData)
+            };
+          }
+          return prev;
+        });
+        
+        setIsLoading(false);
+        
       } catch (error) {
-        console.error(`[DEBUG] Erreur lors du chargement du lot ${attempt}:`, error);
-        
-        // Attendre un peu plus longtemps à chaque nouvelle tentative
-        const retryDelay = 1000 * attempt;
-        console.log(`[DEBUG] Nouvelle tentative dans ${retryDelay}ms...`);
-        
-        setTimeout(() => {
-          loadFactureBatch(lastVisible, attempt + 1);
-        }, retryDelay);
+        console.error("[DEBUG] Erreur lors du chargement des factures:", error);
+        setErrorMessage("Impossible de charger vos factures. Veuillez réessayer plus tard.");
+        setIsLoading(false);
       }
     };
 
     // Séquence de chargement
-    const loadAllData = async () => {
+    const loadData = async () => {
       const userInfoLoaded = await getUserInfo();
       if (userInfoLoaded) {
-        await loadFactureBatch();
+        await loadFactures();
       }
     };
 
-    loadAllData();
+    loadData();
 
     // Chargement des clients avec gestion d'erreur
     let clientsUnsubscribe = () => {};
