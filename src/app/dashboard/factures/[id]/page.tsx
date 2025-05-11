@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { FiArrowLeft, FiFileText, FiEdit, FiTrash2 } from "react-icons/fi";
+import { FiArrowLeft, FiFileText, FiEdit, FiTrash2, FiRefreshCw } from "react-icons/fi";
 import { useAuth } from "@/lib/authContext";
 import { getFacture } from "@/services/factureService";
 import { generateInvoicePDF } from "@/services/pdfGenerator";
-import { Facture } from "@/types/facture";
+import { Facture, Article } from "@/types/facture";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { db, waitForAuth } from "@/lib/firebase";
@@ -84,36 +84,174 @@ export default function FactureDetailPage() {
           return;
         }
 
-        // Récupérer la facture par son ID
-        const factureDoc = await getDoc(doc(db, "factures", factureId));
-        
-        if (!factureDoc.exists()) {
-          setError("Facture introuvable");
+        console.log("Chargement de la facture avec ID:", factureId);
+
+        try {
+          // Récupérer la facture par son ID
+          const factureRef = doc(db, "factures", factureId);
+          const factureDoc = await getDoc(factureRef);
+          
+          console.log("Facture existe:", factureDoc.exists());
+          
+          if (!factureDoc.exists()) {
+            setError("Facture introuvable");
+            setLoading(false);
+            return;
+          }
+          
+          const factureData = factureDoc.data();
+          console.log("Données de la facture récupérées:", {
+            id: factureId,
+            userId: factureData.userId,
+            statut: factureData.statut
+          });
+          
+          // Vérifier que la facture appartient à l'utilisateur
+          if (factureData.userId !== currentUser.uid) {
+            console.error("Accès non autorisé à la facture. ID utilisateur:", 
+              currentUser.uid, "ID propriétaire:", factureData.userId);
+            setError("Vous n'êtes pas autorisé à consulter cette facture");
+            setLoading(false);
+            return;
+          }
+          
+          // Vérification et conversion sécurisée des dates
+          let dateCreation = new Date();
+          try {
+            if (factureData.dateCreation) {
+              if (typeof factureData.dateCreation.toDate === 'function') {
+                // C'est un Timestamp Firestore
+                dateCreation = factureData.dateCreation.toDate();
+              } else if (factureData.dateCreation instanceof Date) {
+                // C'est déjà une Date
+                dateCreation = factureData.dateCreation;
+              } else if (typeof factureData.dateCreation === 'string') {
+                // C'est une chaîne de caractères
+                dateCreation = new Date(factureData.dateCreation);
+              }
+            }
+          } catch (dateError) {
+            console.error("Erreur lors de la conversion de la date:", dateError);
+            // Fallback à la date actuelle
+            dateCreation = new Date();
+          }
+          
+          // Vérifier que le client existe et a les bonnes propriétés
+          if (!factureData.client) {
+            console.error("La facture n'a pas de client défini");
+            factureData.client = {
+              id: "",
+              nom: "Client non défini",
+              refClient: "",
+              rue: "",
+              codePostal: "",
+              ville: "",
+              email: "",
+              emails: [],
+              delaisPaiement: "30 jours"
+            };
+          } else {
+            // S'assurer que toutes les propriétés du client existent
+            const defaultClient = {
+              id: "",
+              nom: "Client sans nom",
+              refClient: "",
+              rue: "",
+              codePostal: "",
+              ville: "",
+              email: "",
+              emails: [],
+              delaisPaiement: "30 jours"
+            };
+            
+            // Fusionner avec les valeurs par défaut pour les propriétés manquantes
+            factureData.client = {
+              ...defaultClient,
+              ...factureData.client,
+              // S'assurer que emails existe et est un tableau
+              emails: Array.isArray(factureData.client.emails) ? factureData.client.emails : []
+            };
+          }
+          
+          // Vérifier que les articles existent et sont correctement formatés
+          if (!factureData.articles || !Array.isArray(factureData.articles)) {
+            console.error("La facture n'a pas d'articles ou le format est incorrect");
+            factureData.articles = [];
+          } else {
+            // Vérifier chaque article et corriger les propriétés manquantes
+            factureData.articles = factureData.articles.map((article, index) => {
+              // Si l'article est un commentaire
+              if (article.isComment) {
+                return {
+                  id: article.id || Date.now() + index,
+                  description: article.description || "Commentaire",
+                  quantite: 0,
+                  prixUnitaireHT: 0,
+                  tva: 0,
+                  totalTTC: 0,
+                  isComment: true
+                };
+              }
+              
+              // Si l'article est normal
+              const prixUnitaireHT = typeof article.prixUnitaireHT === 'number' ? article.prixUnitaireHT : 0;
+              const quantite = typeof article.quantite === 'number' ? article.quantite : 0;
+              const tva = typeof article.tva === 'number' ? article.tva : 20;
+              
+              // Recalculer le totalTTC pour s'assurer qu'il est correct
+              const totalHT = prixUnitaireHT * quantite;
+              const totalTVA = (totalHT * tva) / 100;
+              const totalTTC = totalHT + totalTVA;
+              
+              return {
+                id: article.id || Date.now() + index,
+                description: article.description || `Article ${index + 1}`,
+                quantite: quantite,
+                prixUnitaireHT: prixUnitaireHT,
+                tva: tva,
+                totalTTC: totalTTC,
+                isComment: false
+              };
+            });
+          }
+          
+          // Recalculer les totaux pour s'assurer qu'ils sont corrects
+          const totalHT = factureData.articles
+            .filter((a: Article) => !a.isComment)
+            .reduce((sum: number, article: Article) => sum + (article.prixUnitaireHT * article.quantite), 0);
+          
+          const totalTTC = factureData.articles
+            .filter((a: Article) => !a.isComment)
+            .reduce((sum: number, article: Article) => sum + article.totalTTC, 0);
+          
+          // Convertir les données en objet Facture complet avec vérifications
+          const factureObj: Facture = {
+            id: factureDoc.id,
+            userId: factureData.userId || currentUser.uid,
+            numero: factureData.numero || "Facture sans numéro",
+            statut: factureData.statut || "En attente",
+            client: factureData.client,
+            articles: factureData.articles,
+            totalHT: factureData.totalHT || totalHT,
+            totalTTC: factureData.totalTTC || totalTTC,
+            dateCreation: dateCreation
+          };
+          
+          console.log("Facture convertie avec succès");
+          setFacture(factureObj);
           setLoading(false);
-          return;
-        }
-        
-        const factureData = factureDoc.data();
-        
-        // Vérifier que la facture appartient à l'utilisateur
-        if (factureData.userId !== currentUser.uid) {
-          setError("Vous n'êtes pas autorisé à consulter cette facture");
+        } catch (fetchError) {
+          console.error("Erreur spécifique lors de la récupération de la facture:", fetchError);
+          if (fetchError instanceof Error) {
+            setError(`Erreur lors du chargement: ${fetchError.message}`);
+          } else {
+            setError("Impossible de charger les détails de la facture");
+          }
           setLoading(false);
-          return;
         }
-        
-        // Convertir les données en objet Facture
-        const factureObj: Facture = {
-          id: factureDoc.id,
-          ...factureData,
-          dateCreation: factureData.dateCreation ? new Date(factureData.dateCreation.toDate()) : new Date()
-        } as Facture;
-        
-        setFacture(factureObj);
-        setLoading(false);
       } catch (error) {
-        console.error("Erreur lors du chargement de la facture:", error);
-        setError("Impossible de charger les détails de la facture. Veuillez réessayer.");
+        console.error("Erreur globale lors du chargement de la facture:", error);
+        setError("Une erreur est survenue. Veuillez réessayer ou contacter le support.");
         setLoading(false);
       }
     };
@@ -151,7 +289,10 @@ export default function FactureDetailPage() {
 
   // Gérer la suppression d'une facture
   const handleDelete = async () => {
-    if (!facture) return;
+    if (!facture) {
+      setError("Impossible de supprimer une facture non chargée");
+      return;
+    }
 
     // Confirmer la suppression
     if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette facture ?")) {
@@ -160,12 +301,41 @@ export default function FactureDetailPage() {
     
     try {
       setDeleting(true);
+      setError(null);
+
+      console.log("Suppression de la facture:", facture.id);
+      
+      // Vérifier l'authentification avant la suppression
+      const currentUser = await waitForAuth() as User | null;
+      
+      if (!currentUser) {
+        setError("Vous devez être connecté pour supprimer cette facture");
+        setDeleting(false);
+        return;
+      }
+      
+      // Vérifier que l'utilisateur est bien le propriétaire
+      if (facture.userId !== currentUser.uid) {
+        setError("Vous n'êtes pas autorisé à supprimer cette facture");
+        setDeleting(false);
+        return;
+      }
+
       // Supprimer directement avec Firestore
       await deleteDoc(doc(db, "factures", facture.id));
+      console.log("Facture supprimée avec succès");
+      
+      // Rediriger vers la liste de factures
       router.push("/dashboard/factures");
     } catch (error) {
       console.error("Erreur lors de la suppression de la facture:", error);
-      setError("Erreur lors de la suppression. Veuillez réessayer.");
+      let errorMessage = "Erreur lors de la suppression de la facture";
+      
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      
+      setError(errorMessage);
       setDeleting(false);
     }
   };
@@ -195,12 +365,20 @@ export default function FactureDetailPage() {
           <h1 className="text-4xl font-semibold text-gray-800 dark:text-white">
             Détails de la facture
           </h1>
-          <button
-            onClick={() => router.push("/dashboard/factures")}
-            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
-          >
-            <FiArrowLeft size={18} className="mr-2" /> Retour
-          </button>
+          <div className="flex space-x-3">
+            <button
+              onClick={handleRetry}
+              className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center"
+            >
+              <FiRefreshCw size={18} className="mr-2" /> Réessayer
+            </button>
+            <button
+              onClick={() => router.push("/dashboard/factures")}
+              className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center"
+            >
+              <FiArrowLeft size={18} className="mr-2" /> Retour
+            </button>
+          </div>
         </div>
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">
           <p>{error || "Facture introuvable"}</p>
