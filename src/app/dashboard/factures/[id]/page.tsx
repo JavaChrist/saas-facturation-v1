@@ -1,26 +1,30 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { FiArrowLeft, FiFileText, FiDownload } from "react-icons/fi";
+import { useRouter, useParams } from "next/navigation";
+import { FiArrowLeft, FiFileText, FiEdit, FiTrash2 } from "react-icons/fi";
 import { useAuth } from "@/lib/authContext";
 import { getFacture } from "@/services/factureService";
 import { generateInvoicePDF } from "@/services/pdfGenerator";
 import { Facture } from "@/types/facture";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { db, waitForAuth } from "@/lib/firebase";
+import { doc, getDoc, deleteDoc } from "firebase/firestore";
+import { User } from "firebase/auth";
 
-export default function FactureDetailsPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function FactureDetailPage() {
   const router = useRouter();
+  const params = useParams();
   const { user, loading: authLoading } = useAuth();
   const [facture, setFacture] = useState<Facture | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [userChecked, setUserChecked] = useState(false);
   const [redirectAttempted, setRedirectAttempted] = useState(false);
+
+  const factureId = params?.id as string;
 
   // Vérifier l'état d'authentification à chaque rendu
   useEffect(() => {
@@ -58,85 +62,122 @@ export default function FactureDetailsPage({
     }
   }, [user, authLoading, router, params.id, userChecked, redirectAttempted]);
 
-  // Récupérer les détails de la facture
+  // Charger les données de la facture
   useEffect(() => {
-    console.log("FactureDetailsPage - État de l'authentification:", {
-      userExists: !!user,
-      authLoading,
-      factureId: params.id,
-      userChecked,
-    });
-
-    // Ne rien faire si l'authentification est en cours ou si l'utilisateur n'est pas connecté
-    if (authLoading || !user || !userChecked) {
-      return;
-    }
-
-    const fetchFacture = async () => {
+    const loadFacture = async () => {
       try {
         setLoading(true);
         setError(null);
-        console.log(
-          "FactureDetailsPage - Chargement de la facture:",
-          params.id
-        );
 
-        // Récupérer la facture avec l'ID fourni
-        const factureData = await getFacture(params.id);
+        // S'assurer que l'utilisateur est authentifié
+        const currentUser = await waitForAuth() as User | null;
+        
+        if (!currentUser) {
+          console.warn("Utilisateur non connecté, redirection vers /login");
+          router.push("/login");
+          return;
+        }
 
-        if (!factureData) {
-          console.log("FactureDetailsPage - Facture introuvable");
+        if (!factureId) {
+          setError("ID de facture manquant");
+          setLoading(false);
+          return;
+        }
+
+        // Récupérer la facture par son ID
+        const factureDoc = await getDoc(doc(db, "factures", factureId));
+        
+        if (!factureDoc.exists()) {
           setError("Facture introuvable");
+          setLoading(false);
           return;
         }
-
-        // Vérifier si la facture appartient à l'utilisateur actuel
-        if (factureData.userId !== user.uid) {
-          console.log("FactureDetailsPage - Facture n'appartient pas à l'utilisateur");
-          setError("Vous n'êtes pas autorisé à voir cette facture");
+        
+        const factureData = factureDoc.data();
+        
+        // Vérifier que la facture appartient à l'utilisateur
+        if (factureData.userId !== currentUser.uid) {
+          setError("Vous n'êtes pas autorisé à consulter cette facture");
+          setLoading(false);
           return;
         }
-
-        console.log(
-          "FactureDetailsPage - Facture chargée avec succès:",
-          factureData.numero
-        );
-        setFacture(factureData);
-      } catch (err) {
-        console.error(
-          "FactureDetailsPage - Erreur lors du chargement de la facture:",
-          err
-        );
-        setError("Erreur lors du chargement de la facture");
-      } finally {
+        
+        // Convertir les données en objet Facture
+        const factureObj: Facture = {
+          id: factureDoc.id,
+          ...factureData,
+          dateCreation: factureData.dateCreation ? new Date(factureData.dateCreation.toDate()) : new Date()
+        } as Facture;
+        
+        setFacture(factureObj);
+        setLoading(false);
+      } catch (error) {
+        console.error("Erreur lors du chargement de la facture:", error);
+        setError("Impossible de charger les détails de la facture. Veuillez réessayer.");
         setLoading(false);
       }
     };
 
-    fetchFacture();
-  }, [params.id, user, authLoading, userChecked]);
+    loadFacture();
+  }, [factureId, router, retryCount]);
 
-  // Formater une date pour l'affichage
-  const formatDate = (date: Date | any) => {
-    if (!date) return "-";
+  // Format de date français
+  const formatDate = (date: any): string => {
     try {
+      if (!date) return "-";
       const dateObj = date instanceof Date ? date : new Date(date);
-      return format(dateObj, "d MMMM yyyy", { locale: fr });
+      return dateObj.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      });
     } catch (e) {
+      console.error("Erreur de formatage de date:", e);
       return "-";
     }
   };
 
-  // Générer un PDF de la facture
+  // Gérer la génération du PDF
   const handleGeneratePDF = async () => {
     if (!facture) return;
-
+    
     try {
       await generateInvoicePDF(facture);
     } catch (error) {
       console.error("Erreur lors de la génération du PDF:", error);
-      alert("Erreur lors de la génération du PDF");
+      setError("Erreur lors de la génération du PDF. Veuillez réessayer.");
     }
+  };
+
+  // Gérer la suppression d'une facture
+  const handleDelete = async () => {
+    if (!facture) return;
+
+    // Confirmer la suppression
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette facture ?")) {
+      return;
+    }
+    
+    try {
+      setDeleting(true);
+      // Supprimer directement avec Firestore
+      await deleteDoc(doc(db, "factures", facture.id));
+      router.push("/dashboard/factures");
+    } catch (error) {
+      console.error("Erreur lors de la suppression de la facture:", error);
+      setError("Erreur lors de la suppression. Veuillez réessayer.");
+      setDeleting(false);
+    }
+  };
+
+  // Gérer l'édition d'une facture
+  const handleEdit = () => {
+    router.push(`/dashboard/factures?id=${factureId}`);
+  };
+
+  // Bouton pour recharger les données en cas d'erreur
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
   };
 
   if (loading) {
@@ -180,6 +221,19 @@ export default function FactureDetailsPage({
             className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center transform hover:scale-105 transition-transform duration-300"
           >
             <FiFileText size={18} className="mr-2" /> Télécharger PDF
+          </button>
+          <button
+            onClick={handleEdit}
+            className="bg-yellow-500 text-white py-2 px-4 rounded-md hover:bg-yellow-600 flex items-center transform hover:scale-105 transition-transform duration-300"
+          >
+            <FiEdit size={18} className="mr-2" /> Modifier
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 flex items-center transform hover:scale-105 transition-transform duration-300"
+          >
+            <FiTrash2 size={18} className="mr-2" /> {deleting ? "Suppression..." : "Supprimer"}
           </button>
           <button
             onClick={() => router.push("/dashboard/factures")}
@@ -351,7 +405,20 @@ export default function FactureDetailsPage({
                 onClick={handleGeneratePDF}
                 className="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 flex items-center justify-center"
               >
-                <FiDownload className="mr-2" /> Télécharger PDF
+                <FiFileText className="mr-2" /> Télécharger PDF
+              </button>
+              <button
+                onClick={handleEdit}
+                className="w-full bg-yellow-500 text-white py-2 px-4 rounded-md hover:bg-yellow-600 flex items-center justify-center"
+              >
+                <FiEdit className="mr-2" /> Modifier
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 flex items-center justify-center"
+              >
+                <FiTrash2 className="mr-2" /> {deleting ? "Suppression..." : "Supprimer"}
               </button>
               <button
                 onClick={() => router.push(`/dashboard/factures`)}
