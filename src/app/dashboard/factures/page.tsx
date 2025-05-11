@@ -732,9 +732,27 @@ export default function FacturesPage() {
   // Fonction pour ouvrir la page de détails d'une facture
   const handleViewDetails = (factureId: string) => {
     console.log("Redirection vers les détails de la facture:", factureId);
-    // Utiliser window.location.href au lieu de router.push pour éviter les problèmes de redirection
-    if (typeof window !== 'undefined') {
-      window.location.href = `/dashboard/factures/${factureId}`;
+    
+    if (!user) {
+      // Si l'utilisateur n'est pas connecté, stocker l'URL pour redirection après login
+      if (typeof window !== 'undefined') {
+        const redirectUrl = `/dashboard/factures/${factureId}`;
+        localStorage.setItem("authRedirectUrl", redirectUrl);
+        sessionStorage.setItem("authRedirectUrl", redirectUrl);
+        router.push("/login");
+      }
+      return;
+    }
+    
+    // Précharger la facture dans le provider si possible
+    try {
+      // Redirection directe, plus simple et plus fiable
+      if (typeof window !== 'undefined') {
+        window.location.href = `/dashboard/factures/${factureId}`;
+      }
+    } catch (error) {
+      console.error("Erreur lors de la redirection:", error);
+      router.push(`/dashboard/factures/${factureId}`);
     }
   };
 
@@ -861,6 +879,13 @@ export default function FacturesPage() {
                       <a
                         href={`/dashboard/factures/${facture.id}`}
                         className="hover:text-blue-500 hover:underline cursor-pointer font-medium"
+                        onClick={(e) => {
+                          // Pour permettre le lien natif de fonctionner si le JS échoue
+                          if (!user) {
+                            e.preventDefault();
+                            handleViewDetails(facture.id);
+                          }
+                        }}
                       >
                         {facture.numero}
                       </a>
