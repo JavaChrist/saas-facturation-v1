@@ -1,12 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
-import { FiEdit, FiTrash2, FiArrowLeft, FiPlusCircle } from "react-icons/fi";
+import { FiEdit, FiTrash2, FiArrowLeft, FiPlusCircle, FiPlus, FiX, FiCheck } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { onSnapshot, collection, query, where } from "firebase/firestore";
 import { addDoc, getDocs, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { useAuth } from "@/lib/authContext";
 import { getUserPlan, checkPlanLimit } from "@/services/subscriptionService";
+import { EmailContact } from "@/types/facture";
 
 interface Client {
   id: string;
@@ -16,6 +17,7 @@ interface Client {
   codePostal: string;
   ville: string;
   email: string;
+  emails: EmailContact[];
   delaisPaiement: "À réception" | "8 jours" | "30 jours" | "60 jours";
 }
 
@@ -44,6 +46,36 @@ export default function ClientsPage() {
     setClients(clientsData);
   };
 
+  // Fonction pour migrer les clients existants
+  const migrateClientsEmailField = async (clientsData: Client[]) => {
+    if (!user) return;
+    
+    try {
+      // Filtrer les clients qui n'ont pas le champ emails correctement configuré
+      const clientsToMigrate = clientsData.filter(
+        client => !client.emails || !Array.isArray(client.emails) || client.emails.length === 0
+      );
+      
+      console.log(`Migration des emails pour ${clientsToMigrate.length} clients`);
+      
+      // Mettre à jour chaque client dans Firestore
+      for (const client of clientsToMigrate) {
+        const clientRef = doc(db, "clients", client.id);
+        
+        // Créer un tableau emails avec l'email existant
+        const emails = client.email ? [{ email: client.email, isDefault: true }] : [];
+        
+        // Mettre à jour uniquement le champ emails
+        await updateDoc(clientRef, { emails });
+        console.log(`Client ${client.id} migré avec succès`);
+      }
+      
+      console.log("Migration des emails terminée");
+    } catch (error) {
+      console.error("Erreur lors de la migration des emails:", error);
+    }
+  };
+
   // Charger les clients depuis Firestore
   useEffect(() => {
     if (!user) return;
@@ -54,11 +86,28 @@ export default function ClientsPage() {
     );
 
     const unsubscribe = onSnapshot(clientsQuery, async (snapshot) => {
-      const clientsData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Client[];
+      const clientsData = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        
+        // Migration pour les clients qui n'ont pas encore le champ emails
+        if (!data.emails || !Array.isArray(data.emails)) {
+          return {
+            id: doc.id,
+            ...data,
+            emails: data.email ? [{ email: data.email, isDefault: true }] : []
+          } as Client;
+        }
+        
+        return {
+          id: doc.id,
+          ...data,
+        } as Client;
+      });
+      
       setClients(clientsData);
+
+      // Lancer la migration des clients en arrière-plan
+      migrateClientsEmailField(clientsData);
 
       // Vérifier les limites du plan
       try {
@@ -104,6 +153,7 @@ export default function ClientsPage() {
       codePostal: "",
       ville: "",
       email: "",
+      emails: [],
       delaisPaiement: "30 jours",
     });
     setIsModalOpen(true);
@@ -121,6 +171,75 @@ export default function ClientsPage() {
     setSelectedClient(null);
   };
 
+  // Ajouter un nouvel email
+  const addEmail = () => {
+    if (!selectedClient) return;
+    
+    // Par défaut, si c'est le premier email, il devient l'email par défaut
+    const isDefault = selectedClient.emails.length === 0;
+    
+    setSelectedClient({
+      ...selectedClient,
+      emails: [
+        ...selectedClient.emails,
+        { email: "", isDefault }
+      ]
+    });
+  };
+
+  // Supprimer un email
+  const removeEmail = (index: number) => {
+    if (!selectedClient) return;
+    
+    const newEmails = [...selectedClient.emails];
+    const removedEmail = newEmails[index];
+    newEmails.splice(index, 1);
+    
+    // Si l'email supprimé était l'email par défaut et qu'il reste des emails, 
+    // définir le premier comme étant par défaut
+    if (removedEmail.isDefault && newEmails.length > 0) {
+      newEmails[0].isDefault = true;
+    }
+    
+    setSelectedClient({
+      ...selectedClient,
+      emails: newEmails
+    });
+  };
+
+  // Mettre à jour un email
+  const updateEmail = (index: number, value: string) => {
+    if (!selectedClient) return;
+    
+    const newEmails = [...selectedClient.emails];
+    newEmails[index] = { ...newEmails[index], email: value };
+    
+    setSelectedClient({
+      ...selectedClient,
+      emails: newEmails
+    });
+  };
+
+  // Définir un email comme étant par défaut
+  const setDefaultEmail = (index: number) => {
+    if (!selectedClient) return;
+    
+    const newEmails = [...selectedClient.emails];
+    
+    // Désactiver l'email par défaut actuel
+    newEmails.forEach(email => email.isDefault = false);
+    
+    // Définir le nouvel email par défaut
+    newEmails[index].isDefault = true;
+    
+    setSelectedClient({
+      ...selectedClient,
+      emails: newEmails,
+      // Mettre également à jour l'email principal pour la rétrocompatibilité
+      email: newEmails[index].email
+    });
+  };
+
   // ✅ Ajouter ou modifier un client
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -131,19 +250,31 @@ export default function ClientsPage() {
     }
 
     try {
-      if (selectedClient && selectedClient.id) {
-        // Modification d'un client existant
-        const clientData = {
-          refClient: selectedClient.refClient,
-          nom: selectedClient.nom,
-          rue: selectedClient.rue,
-          codePostal: selectedClient.codePostal,
-          ville: selectedClient.ville,
-          email: selectedClient.email,
-          delaisPaiement: selectedClient.delaisPaiement,
-          userId: user.uid, // Ajout de l'ID utilisateur
-        };
+      if (!selectedClient) return;
+      
+      // S'assurer qu'il y a au moins un email par défaut si des emails existent
+      if (selectedClient.emails.length > 0 && !selectedClient.emails.some(e => e.isDefault)) {
+        selectedClient.emails[0].isDefault = true;
+      }
+      
+      // Mettre à jour l'email principal pour la rétrocompatibilité
+      const defaultEmail = selectedClient.emails.find(e => e.isDefault);
+      const emailForBackwardCompatibility = defaultEmail ? defaultEmail.email : (selectedClient.emails[0]?.email || "");
+      
+      const clientData = {
+        refClient: selectedClient.refClient,
+        nom: selectedClient.nom,
+        rue: selectedClient.rue,
+        codePostal: selectedClient.codePostal,
+        ville: selectedClient.ville,
+        email: emailForBackwardCompatibility, // Pour rétrocompatibilité
+        emails: selectedClient.emails,
+        delaisPaiement: selectedClient.delaisPaiement,
+        userId: user.uid, // Ajout de l'ID utilisateur
+      };
 
+      if (selectedClient.id) {
+        // Modification d'un client existant
         await updateDoc(doc(db, "clients", selectedClient.id), clientData);
       } else {
         // Vérifier à nouveau les limites avant la création
@@ -161,20 +292,7 @@ export default function ClientsPage() {
         }
 
         // Création d'un nouveau client
-        const newClient: Omit<Client, "id"> = {
-          refClient: selectedClient?.refClient || "C00" + (clients.length + 1),
-          nom: selectedClient?.nom || "",
-          rue: selectedClient?.rue || "",
-          codePostal: selectedClient?.codePostal || "",
-          ville: selectedClient?.ville || "",
-          email: selectedClient?.email || "",
-          delaisPaiement: selectedClient?.delaisPaiement || "30 jours",
-        };
-
-        await addDoc(collection(db, "clients"), {
-          ...newClient,
-          userId: user.uid, // Ajout de l'ID utilisateur
-        });
+        await addDoc(collection(db, "clients"), clientData);
       }
       closeModal();
     } catch (error) {
@@ -255,7 +373,7 @@ export default function ClientsPage() {
               <th className="py-3 px-4 text-left">Rue</th>
               <th className="py-3 px-4 text-left">Code Postal</th>
               <th className="py-3 px-4 text-left">Ville</th>
-              <th className="py-3 px-4 text-left">Email</th>
+              <th className="py-3 px-4 text-left">Emails</th>
               <th className="py-3 px-4 text-left">Délai de Paiement</th>
               <th className="py-3 px-4 text-center">Actions</th>
             </tr>
@@ -281,7 +399,13 @@ export default function ClientsPage() {
                     {client.ville}
                   </td>
                   <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
-                    {client.email}
+                    {client.emails && client.emails.length > 0 
+                      ? client.emails.map((e, i) => (
+                          <div key={i} className={e.isDefault ? "font-bold" : ""}>
+                            {e.email} {e.isDefault && "(Défaut)"}
+                          </div>
+                        ))
+                      : client.email}
                   </td>
                   <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
                     {client.delaisPaiement}
@@ -407,20 +531,44 @@ export default function ClientsPage() {
 
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Email
+                  Emails
                 </label>
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={selectedClient.email}
-                  onChange={(e) =>
-                    setSelectedClient({
-                      ...selectedClient,
-                      email: e.target.value,
-                    })
-                  }
-                  className="w-full p-2 border rounded-md bg-white text-black"
-                />
+                {selectedClient.emails.map((emailObj, index) => (
+                  <div key={index} className="flex items-center mb-2">
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      value={emailObj.email}
+                      onChange={(e) => updateEmail(index, e.target.value)}
+                      className="flex-1 p-2 border rounded-md bg-white text-black"
+                    />
+                    <div className="flex items-center ml-2">
+                      <label className="flex items-center cursor-pointer mr-2">
+                        <input
+                          type="checkbox"
+                          checked={emailObj.isDefault}
+                          onChange={() => setDefaultEmail(index)}
+                          className="mr-1"
+                        />
+                        <span className="text-sm">Par défaut</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => removeEmail(index)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <FiX size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addEmail}
+                  className="mt-2 text-sm flex items-center text-blue-500 hover:text-blue-700"
+                >
+                  <FiPlus size={16} className="mr-1" /> Ajouter un email
+                </button>
               </div>
 
               <div className="mb-4">

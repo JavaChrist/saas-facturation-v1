@@ -376,6 +376,13 @@ export default function CreerModelePage() {
                 <option value="helvetica">Helvetica</option>
                 <option value="times">Times</option>
                 <option value="courier">Courier</option>
+                <option value="arial">Arial</option>
+                <option value="georgia">Georgia</option>
+                <option value="verdana">Verdana</option>
+                <option value="roboto">Roboto</option>
+                <option value="montserrat">Montserrat</option>
+                <option value="lato">Lato</option>
+                <option value="openSans">Open Sans</option>
               </select>
             </div>
             <div>

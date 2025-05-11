@@ -34,16 +34,26 @@ export default function FactureDetailsPage({
     // Si l'authentification est terminée, on peut déterminer si l'utilisateur est connecté
     if (!authLoading) {
       setUserChecked(true);
+      
+      // Vérifier si l'utilisateur est connecté
       if (!user && !redirectAttempted) {
         console.log(
           "FactureDetailsPage - Authentification terminée, utilisateur non connecté, redirection"
         );
         setRedirectAttempted(true);
+        
         // Stocker l'URL actuelle pour rediriger l'utilisateur après connexion
         const currentPath = `/dashboard/factures/${params.id}`;
+        
         // Sauvegarder dans le localStorage pour que la redirection persiste même après refresh
-        localStorage.setItem("authRedirectUrl", currentPath);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem("authRedirectUrl", currentPath);
+          sessionStorage.setItem("authRedirectUrl", currentPath);
+        }
+        
+        // Rediriger vers la page de login avec le paramètre de redirection
         router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
+        return;
       }
     }
   }, [user, authLoading, router, params.id, userChecked, redirectAttempted]);

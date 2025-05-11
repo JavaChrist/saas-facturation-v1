@@ -1,3 +1,8 @@
+export interface EmailContact {
+  email: string;
+  isDefault: boolean;
+}
+
 export interface Client {
   id: string;
   refClient: string;
@@ -5,6 +10,7 @@ export interface Client {
   rue: string;
   codePostal: string;
   ville: string;
+  emails: EmailContact[];
   email: string;
   delaisPaiement: "À réception" | "8 jours" | "30 jours" | "60 jours";
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { STRIPE_SECRET_KEY } from "@/config/stripe";
+import { STRIPE_SECRET_KEY, SITE_URL } from "@/config/stripe";
 import { STRIPE_PRICE_IDS } from "@/config/prices";
 
 // Log détaillé des variables d'environnement
@@ -16,7 +16,9 @@ console.log("Toutes les variables d'environnement:", {
 console.log("Configuration des prix Stripe:", STRIPE_PRICE_IDS);
 console.log("=============================================");
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || STRIPE_SECRET_KEY, {
+// Initialiser Stripe avec la clé secrète (en gérant le cas où elle est undefined)
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || STRIPE_SECRET_KEY || "";
+const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2025-03-31.basil",
 });
 
@@ -50,9 +52,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Prix Stripe non configuré pour ce plan" }, { status: 500 });
     }
 
-    // Définir l'URL de base
-    const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
-
     try {
       console.log("Tentative de création de session Stripe avec:", {
         priceId,
@@ -76,8 +75,8 @@ export async function POST(request: NextRequest) {
           userId,
           planId: normalizedPlanId,
         },
-        success_url: `${baseUrl}/dashboard/abonnement?success=true&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${baseUrl}/dashboard/abonnement?canceled=true`,
+        success_url: `${SITE_URL}/dashboard/abonnement?success=true&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${SITE_URL}/dashboard/abonnement?canceled=true`,
       });
 
       console.log("Session créée avec succès:", session.id);

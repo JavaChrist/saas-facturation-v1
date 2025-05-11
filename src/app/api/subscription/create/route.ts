@@ -1,41 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import { initAdmin } from "@/lib/firebase-admin";
 import Stripe from "stripe";
+import { initAdmin } from "@/lib/firebase-admin";
+import { SITE_URL } from "@/config/stripe";
 
-// Initialiser l'app Firebase Admin
-let app;
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+
+// Initialiser Firebase Admin si ce n'est pas déjà fait
+// Cela nous permet d'accéder à Firestore avec des privilèges admin
 try {
-  console.log(
-    "API subscription/create - Tentative d'initialisation de Firebase Admin"
-  );
-  app = initAdmin();
-  console.log(
-    "API subscription/create - Firebase Admin initialisé avec succès"
-  );
+  const app = initAdmin();
 } catch (error) {
-  console.error(
-    "API subscription/create - Erreur lors de l'initialisation de Firebase Admin:",
-    error
-  );
+  console.error("Erreur lors de l'initialisation de Firebase Admin:", error);
 }
 
-const db = app ? getFirestore(app) : null;
-
-// Récupération de la clé secrète Stripe
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-const frontendUrl =
-  process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000";
-
-console.log("API subscription/create - Variables d'environnement:");
-console.log("- STRIPE_SECRET_KEY présente:", !!stripeSecretKey);
-console.log("- STRIPE_PRICE_PREMIUM:", process.env.STRIPE_PREMIUM_PRICE_ID);
-console.log(
-  "- STRIPE_PRICE_ENTREPRISE:",
-  process.env.STRIPE_ENTREPRISE_PRICE_ID
-);
-console.log("- NEXT_PUBLIC_FRONTEND_URL:", frontendUrl);
+// Initialisation de Firestore
+let db;
+try {
+  db = getFirestore();
+} catch (error) {
+  console.error("Erreur lors de l'initialisation de Firestore:", error);
+}
 
 // Initialisation de l'instance Stripe
 const stripe = stripeSecretKey
@@ -73,7 +58,7 @@ export async function POST(request: NextRequest) {
 
       // Retourner une URL simulée avec protocole http:// explicite pour éviter la redirection relative
       return NextResponse.json({
-        url: `/dashboard/abonnement?success=true&plan=${planId}&simulated=true`,
+        url: `${SITE_URL}/dashboard/abonnement?success=true&plan=${planId}&simulated=true`,
       });
     } catch (error) {
       console.error("API subscription/create - Erreur en mode dev:", error);
@@ -96,89 +81,63 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Vérification de l'authentification
-    const authHeader = request.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      console.error(
-        "API subscription/create - Pas de token d'authentification"
-      );
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const { planId, userId } = await request.json();
 
-    const token = authHeader.split("Bearer ")[1];
-    let userId;
-
-    try {
-      console.log("API subscription/create - Vérification du token Firebase");
-      const auth = getAuth();
-      const decodedToken = await auth.verifyIdToken(token);
-      userId = decodedToken.uid;
-      console.log(
-        "API subscription/create - Token valide pour l'utilisateur:",
-        userId
-      );
-    } catch (error) {
-      console.error(
-        "API subscription/create - Erreur de vérification du token:",
-        error
-      );
-      return NextResponse.json({ error: "Token invalide" }, { status: 401 });
-    }
-
-    // Récupération des données de la requête
-    const requestData = await request.json();
-    const { planId } = requestData;
-    console.log("API subscription/create - Plan demandé:", planId);
+    console.log("API subscription/create - Données reçues:", {
+      planId,
+      userId,
+    });
 
     // Vérification du planId
-    if (!planId || (planId !== "premium" && planId !== "entreprise")) {
+    if (!planId || !["premium", "entreprise"].includes(planId)) {
       console.error("API subscription/create - Plan invalide:", planId);
       return NextResponse.json({ error: "Plan invalide" }, { status: 400 });
     }
 
-    // Récupération de l'ID de prix Stripe correspondant au plan
+    // Récupérer l'ID du prix Stripe correspondant au plan
     const priceId = STRIPE_PRICE_IDS[planId as keyof typeof STRIPE_PRICE_IDS];
+
     if (!priceId) {
       console.error(
-        "API subscription/create - Prix non configuré pour le plan:",
+        "API subscription/create - Prix non trouvé pour le plan:",
         planId
       );
       return NextResponse.json(
-        { error: "Prix non configuré pour ce plan" },
+        { error: "Prix Stripe non configuré pour ce plan" },
         { status: 500 }
       );
     }
-    console.log("API subscription/create - Prix Stripe:", priceId);
 
-    // Création de la session de paiement
-    console.log("API subscription/create - Création de la session Stripe");
+    console.log("API subscription/create - Prix Stripe trouvé:", priceId);
+
+    // Créer une session de paiement Stripe Checkout
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
-      mode: "subscription",
       line_items: [
         {
           price: priceId,
           quantity: 1,
         },
       ],
-      // Passage des informations sur l'utilisateur et le plan dans les métadonnées
+      mode: "subscription",
+      success_url: `${SITE_URL}/dashboard/abonnement?success=true&plan=${planId}`,
+      cancel_url: `${SITE_URL}/dashboard/abonnement?canceled=true`,
       metadata: {
         userId,
         planId,
       },
-      customer_email: requestData.email,
-      // Utiliser une URL absolue complète pour éviter les problèmes de redirection
-      success_url: `/dashboard/abonnement?success=true&plan=${planId}`,
-      cancel_url: `/dashboard/abonnement?canceled=true`,
     });
 
-    console.log("API subscription/create - Session créée, URL:", session.url);
-    // Retour de l'URL de paiement
-    return NextResponse.json({ url: session.url });
+    console.log("API subscription/create - Session créée:", session.id);
+
+    return NextResponse.json({
+      sessionId: session.id,
+      url: session.url,
+    });
   } catch (error) {
-    console.error("API subscription/create - Erreur détaillée:", error);
+    console.error("API subscription/create - Erreur:", error);
     return NextResponse.json(
-      { error: "Erreur lors de la création de la session de paiement" },
+      { error: "Erreur lors de la création de la session Stripe" },
       { status: 500 }
     );
   }

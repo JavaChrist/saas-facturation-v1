@@ -14,10 +14,6 @@ export interface Entreprise {
   siret: string;
   tvaIntracommunautaire?: string;
   logo?: string;
-  rib: {
-    iban: string;
-    bic: string;
-    banque: string;
-  };
+  rib?: RIB;
   mentionsLegales?: string[];
 }

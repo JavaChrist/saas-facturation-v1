@@ -48,13 +48,85 @@ export default function ParametresPage() {
       setError(null);
 
       try {
+        console.log("Tentative de récupération des données d'entreprise pour l'utilisateur:", user.uid);
+        // Vérifier si la collection/document existe
         const docRef = doc(db, "parametres", user.uid, "entreprise", "default");
-        const docSnap = await getDoc(docRef);
+        
+        try {
+          const docSnap = await getDoc(docRef);
+          console.log("Données récupérées:", docSnap.exists() ? "Document trouvé" : "Document non trouvé");
 
-        if (docSnap.exists()) {
-          setEntreprise(docSnap.data() as Entreprise);
-        } else {
-          // Créer le document s'il n'existe pas avec les valeurs par défaut
+          if (docSnap.exists()) {
+            console.log("Données du document:", docSnap.data());
+            // Valider que les données sont au bon format
+            const data = docSnap.data();
+            if (!data.rib) {
+              console.warn("Données RIB manquantes, ajout de valeurs par défaut");
+              data.rib = { iban: "", bic: "", banque: "" };
+            }
+            if (!data.mentionsLegales || !Array.isArray(data.mentionsLegales)) {
+              console.warn("Mentions légales manquantes, ajout de valeurs par défaut");
+              data.mentionsLegales = [
+                "En cas de retard de paiement, une pénalité de 3 fois le taux d'intérêt légal sera appliquée.",
+                "Une indemnité forfaitaire de 40€ pour frais de recouvrement sera due.",
+              ];
+            }
+            setEntreprise(data as Entreprise);
+          } else {
+            console.log("Aucun document trouvé, création d'un nouveau document par défaut");
+            // Créer le document s'il n'existe pas avec les valeurs par défaut
+            const defaultEntreprise: Entreprise = {
+              nom: "",
+              rue: "",
+              codePostal: "",
+              ville: "",
+              telephone: "",
+              email: "",
+              siret: "",
+              tvaIntracommunautaire: "",
+              logo: "",
+              rib: {
+                iban: "",
+                bic: "",
+                banque: "",
+              },
+              mentionsLegales: [
+                "En cas de retard de paiement, une pénalité de 3 fois le taux d'intérêt légal sera appliquée.",
+                "Une indemnité forfaitaire de 40€ pour frais de recouvrement sera due.",
+              ],
+            };
+            // Essai de création du document avec gestion d'erreur séparée
+            try {
+              await setDoc(docRef, defaultEntreprise);
+              console.log("Document créé avec succès");
+              setEntreprise(defaultEntreprise);
+            } catch (createError) {
+              console.error("Erreur lors de la création du document:", createError);
+              // En cas d'erreur de création, utiliser quand même les valeurs par défaut
+              setEntreprise(defaultEntreprise);
+              setError(`Erreur lors de la création des données: ${createError instanceof Error ? createError.message : "Erreur inconnue"}. Les modifications ne seront pas sauvegardées.`);
+            }
+          }
+        } catch (fetchError) {
+          console.error("Erreur détaillée lors de la récupération:", fetchError);
+          
+          // Vérifier les codes d'erreur spécifiques
+          if (fetchError instanceof Error) {
+            const errorMessage = fetchError.message;
+            if (errorMessage.includes("permission-denied")) {
+              setError("Erreur de permissions: vous n'avez pas les droits nécessaires pour accéder à ces données.");
+            } else if (errorMessage.includes("not-found")) {
+              setError("La collection ou le document demandé n'existe pas.");
+            } else if (errorMessage.includes("unavailable")) {
+              setError("Service Firestore indisponible. Vérifiez votre connexion Internet.");
+            } else {
+              setError(`Erreur lors de la récupération des données: ${errorMessage}`);
+            }
+          } else {
+            setError("Erreur lors de la récupération des données. Veuillez réessayer.");
+          }
+          
+          // Utiliser des valeurs par défaut malgré l'erreur
           const defaultEntreprise: Entreprise = {
             nom: "",
             rue: "",
@@ -75,14 +147,12 @@ export default function ParametresPage() {
               "Une indemnité forfaitaire de 40€ pour frais de recouvrement sera due.",
             ],
           };
-          await setDoc(docRef, defaultEntreprise);
           setEntreprise(defaultEntreprise);
         }
       } catch (error) {
-        console.error("Erreur lors de la récupération des données:", error);
-        setError(
-          "Erreur lors de la récupération des données. Veuillez réessayer."
-        );
+        console.error("Erreur générale:", error);
+        const errorMessage = error instanceof Error ? error.message : "Erreur inconnue";
+        setError(`Erreur lors de la récupération des données: ${errorMessage}`);
       } finally {
         setIsLoading(false);
       }

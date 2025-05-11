@@ -313,10 +313,21 @@ export default function CreerFactureRecurrentePage() {
         throw new Error("Veuillez ajouter au moins un article");
       }
 
-      // S'assurer que l'ID utilisateur est défini
+      // S'assurer que la date prochaine émission correspond bien au jour d'émission
+      let prochaineEmission = new Date(factureRecurrente.prochaineEmission);
+      prochaineEmission.setDate(factureRecurrente.jourEmission);
+      // Si le jour dépasse la fin du mois, utiliser le dernier jour du mois
+      if (prochaineEmission.getDate() !== factureRecurrente.jourEmission) {
+        // Cela signifie que le jour a été ajusté automatiquement (ex: 31 février -> 3 mars)
+        // On recule au dernier jour du mois actuel
+        prochaineEmission = new Date(prochaineEmission.getFullYear(), prochaineEmission.getMonth() + 1, 0);
+      }
+
+      // S'assurer que l'ID utilisateur est défini et que la date est correcte
       const factureAvecUserId = {
         ...factureRecurrente,
         userId: user.uid,
+        prochaineEmission
       };
 
       await createFactureRecurrente(factureAvecUserId);
@@ -557,16 +568,34 @@ export default function CreerFactureRecurrentePage() {
                 type="date"
                 name="prochaineEmission"
                 value={
-                  factureRecurrente.prochaineEmission
-                    .toISOString()
-                    .split("T")[0]
+                  factureRecurrente.prochaineEmission instanceof Date
+                    ? factureRecurrente.prochaineEmission.toISOString().split("T")[0]
+                    : new Date().toISOString().split("T")[0]
                 }
-                onChange={(e) =>
-                  setFactureRecurrente({
-                    ...factureRecurrente,
-                    prochaineEmission: new Date(e.target.value),
-                  })
-                }
+                onChange={(e) => {
+                  try {
+                    // Créer une nouvelle date à midi pour éviter les problèmes de timezone
+                    const dateValue = e.target.value;
+                    const [year, month, day] = dateValue.split('-').map(Number);
+                    const newDate = new Date(year, month - 1, day, 12, 0, 0);
+                    
+                    if (isNaN(newDate.getTime())) {
+                      throw new Error("Date invalide");
+                    }
+                    
+                    setFactureRecurrente({
+                      ...factureRecurrente,
+                      prochaineEmission: newDate
+                    });
+                  } catch (error) {
+                    console.error("Erreur lors de la conversion de date:", error);
+                    // En cas d'erreur, utiliser la date actuelle
+                    setFactureRecurrente({
+                      ...factureRecurrente,
+                      prochaineEmission: new Date()
+                    });
+                  }
+                }}
                 className="w-full p-2 border rounded-md bg-white text-gray-800"
                 required
               />

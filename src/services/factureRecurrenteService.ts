@@ -134,12 +134,17 @@ export const createFactureRecurrente = async (
       );
     }
 
-    const docRef = await addDoc(collection(db, "facturesRecurrentes"), {
+    // Préparer les données pour Firestore
+    // Firestore n'accepte pas les valeurs undefined
+    const firebaseData = {
       ...factureRecurrente,
+      nombreRepetitions: factureRecurrente.nombreRepetitions === undefined ? null : factureRecurrente.nombreRepetitions,
+      repetitionsEffectuees: factureRecurrente.repetitionsEffectuees || 0,
       dateCreation: new Date(),
-      derniereDemande: null,
-      prochaineDemande: factureRecurrente.prochaineDemande || null,
-    });
+      derniereEmission: factureRecurrente.derniereEmission || null
+    };
+
+    const docRef = await addDoc(collection(db, "facturesRecurrentes"), firebaseData);
     return docRef.id;
   } catch (error) {
     console.error(
@@ -156,7 +161,16 @@ export const updateFactureRecurrente = async (
   updates: Partial<FactureRecurrente>
 ): Promise<void> => {
   try {
-    await updateDoc(doc(db, "facturesRecurrentes", factureId), updates);
+    // Préparer les données pour Firestore (convertir undefined en null)
+    // On doit utiliser une approche qui évite les conflits de types
+    const firebaseUpdates: Record<string, any> = {};
+    
+    // Copier toutes les propriétés en convertissant undefined en null si nécessaire
+    Object.entries(updates).forEach(([key, value]) => {
+      firebaseUpdates[key] = value === undefined ? null : value;
+    });
+    
+    await updateDoc(doc(db, "facturesRecurrentes", factureId), firebaseUpdates);
   } catch (error) {
     console.error(
       `Erreur lors de la mise à jour de la facture récurrente ${factureId}:`,

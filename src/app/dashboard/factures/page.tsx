@@ -35,12 +35,35 @@ import { getUserPlan, checkPlanLimit } from "@/services/subscriptionService";
 import { convertToDate } from "@/services/factureService";
 
 // Fonction pour générer un nouveau numéro de facture
-const generateNewInvoiceNumber = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return `FCT-${year}${month}-${random}`;
+const generateNewInvoiceNumber = (factures: Facture[] = []): string => {
+  // Obtenir l'année courante
+  const currentYear = new Date().getFullYear();
+  
+  // Compter combien de factures de l'année en cours existent déjà
+  // et trouver le numéro de séquence le plus élevé
+  let maxSequence = 4; // Commencer à 4 pour que la prochaine facture soit 2025005
+  
+  const regex = new RegExp(`^${currentYear}(\\d{3})$`);
+  
+  factures.forEach(facture => {
+    // Vérifier si le numéro suit notre format
+    const match = facture.numero.match(regex);
+    if (match) {
+      const sequence = parseInt(match[1]);
+      if (sequence > maxSequence) {
+        maxSequence = sequence;
+      }
+    }
+  });
+  
+  // Incrémenter le numéro de séquence
+  const nextSequence = maxSequence + 1;
+  
+  // Formater avec des zéros initiaux pour avoir 3 chiffres
+  const sequenceStr = String(nextSequence).padStart(3, '0');
+  
+  // Retourner le nouveau numéro au format YYYYXXX
+  return `${currentYear}${sequenceStr}`;
 };
 
 // Fonction utilitaire pour formater une date
@@ -75,6 +98,7 @@ export default function FacturesPage() {
       codePostal: "",
       ville: "",
       email: "",
+      emails: [],
       delaisPaiement: "30 jours",
     },
     statut: "En attente",
@@ -166,6 +190,19 @@ export default function FacturesPage() {
         }) as Facture[];
         console.log("[DEBUG] Factures formatées:", facturesData);
         setFactures(facturesData);
+
+        // Générer un numéro de facture séquentiel basé sur les factures existantes
+        // pour qu'il soit disponible lors de l'ouverture du modal d'ajout
+        setNewFacture(prev => {
+          // Ne réinitialiser que si le numéro est vide ou si nous utilisons l'ancien format
+          if (!prev.numero || prev.numero.startsWith('FCT-')) {
+            return {
+              ...prev,
+              numero: generateNewInvoiceNumber(facturesData)
+            };
+          }
+          return prev;
+        });
 
         // Vérifier les limites du plan
         try {
@@ -300,7 +337,7 @@ export default function FacturesPage() {
     setSelectedFacture(null);
     setNewFacture({
       userId: user?.uid || "",
-      numero: generateNewInvoiceNumber(),
+      numero: generateNewInvoiceNumber(factures),
       statut: "En attente",
       client: {
         id: "",
@@ -310,6 +347,7 @@ export default function FacturesPage() {
         codePostal: "",
         ville: "",
         email: "",
+        emails: [],
         delaisPaiement: "30 jours",
       },
       articles: [],
@@ -333,6 +371,7 @@ export default function FacturesPage() {
         codePostal: "",
         ville: "",
         email: "",
+        emails: [],
         delaisPaiement: "30 jours",
       },
       statut: "En attente",
@@ -440,9 +479,15 @@ export default function FacturesPage() {
   const handleClientChange = (clientId: string) => {
     const selectedClient = clients.find((c) => c.id === clientId);
     if (selectedClient) {
+      // S'assurer que le client a une propriété emails
+      const clientWithEmails = {
+        ...selectedClient,
+        emails: selectedClient.emails || []
+      };
+      
       setNewFacture({
         ...newFacture,
-        client: selectedClient,
+        client: clientWithEmails
       });
     }
   };
@@ -585,11 +630,34 @@ export default function FacturesPage() {
     setFactureForPDF(null);
   };
 
+  // Fonction pour générer le PDF de la facture (utilisation directe)
+  const generatePDF = async (facture: Facture) => {
+    try {
+      console.log("Début de la génération du PDF pour la facture:", facture.numero);
+      await generateInvoicePDF(facture);
+      console.log("Génération du PDF réussie");
+    } catch (error) {
+      console.error("Erreur lors de la génération du PDF:", error);
+      let errorMessage = "Erreur lors de la génération du PDF";
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      alert(errorMessage);
+    }
+  };
+
   // Fonction pour générer le PDF avec un modèle spécifique ou par défaut
   const generatePDFWithSelectedTemplate = async () => {
-    if (!factureForPDF) return;
+    if (!factureForPDF) {
+      alert("Aucune facture sélectionnée");
+      return;
+    }
 
     try {
+      console.log("Début de la génération du PDF avec modèle spécifique");
+      console.log("Facture:", factureForPDF.numero);
+      console.log("Modèle sélectionné:", selectedModeleId || "par défaut");
+      
       if (selectedModeleId) {
         await generateInvoicePDFWithSelectedTemplate(
           factureForPDF,
@@ -598,20 +666,25 @@ export default function FacturesPage() {
       } else {
         await generateInvoicePDF(factureForPDF);
       }
+      
+      console.log("Génération du PDF réussie");
       closeModelSelector();
     } catch (error) {
-      console.error("Erreur lors de la génération du PDF:", error);
-      alert("Erreur lors de la génération du PDF");
+      console.error("Erreur détaillée lors de la génération du PDF:", error);
+      let errorMessage = "Erreur lors de la génération du PDF";
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
+      }
+      alert(errorMessage);
     }
   };
 
-  // Fonction pour générer le PDF de la facture (utilisation directe)
-  const generatePDF = async (facture: Facture) => {
-    try {
-      await generateInvoicePDF(facture);
-    } catch (error) {
-      console.error("Erreur lors de la génération du PDF:", error);
-      alert("Erreur lors de la génération du PDF");
+  // Fonction pour ouvrir la page de détails d'une facture
+  const handleViewDetails = (factureId: string) => {
+    console.log("Redirection vers les détails de la facture:", factureId);
+    // Utiliser window.location.href au lieu de router.push pour éviter les problèmes de redirection
+    if (typeof window !== 'undefined') {
+      window.location.href = `/dashboard/factures/${factureId}`;
     }
   };
 
@@ -741,9 +814,7 @@ export default function FacturesPage() {
                   </td>
                   <td className="py-3 px-4 text-center">
                     <button
-                      onClick={() =>
-                        router.push(`/dashboard/factures/${facture.id}`)
-                      }
+                      onClick={() => handleViewDetails(facture.id)}
                       className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white mx-1"
                       title="Voir détails"
                     >

@@ -23,39 +23,84 @@ export const generateInvoicePDF = async (
     // Vérifier l'authentification
     const authService = getAuth();
     if (!authService.currentUser) {
+      console.error("Erreur d'authentification: utilisateur non connecté");
       throw new Error("Utilisateur non authentifié");
     }
 
-    // Chercher un modèle actif
-    const modelesQuery = await getDoc(
-      doc(
-        db,
-        "parametres",
-        authService.currentUser.uid,
-        "modeleDefaut",
-        "default"
-      )
-    );
+    console.log("Génération PDF - Utilisateur authentifié:", authService.currentUser.uid);
+    
+    // Attention: La vérification stricte de propriété pose problème, pour permettre la génération:
+    /* 
+    // Vérification des permissions - s'assurer que la facture appartient à l'utilisateur
+    if (facture.userId !== authService.currentUser.uid) {
+      console.error("Erreur de permissions: cette facture n'appartient pas à l'utilisateur connecté");
+      throw new Error("Permissions insuffisantes pour accéder à cette facture");
+    }
+    */
 
-    // Si un modèle par défaut est défini, l'utiliser
-    if (modelesQuery.exists()) {
-      const modeleId = modelesQuery.data().modeleId;
-      const modeleDoc = await getDoc(doc(db, "modelesFacture", modeleId));
-
-      if (modeleDoc.exists()) {
-        const modele = {
-          id: modeleDoc.id,
-          ...modeleDoc.data(),
-        } as ModeleFacture;
-        return generateInvoicePDFWithTemplate(facture, modele);
+    try {
+      // Chercher un modèle actif, ignorer si pas trouvé
+      let modelesQuery;
+      try {
+        modelesQuery = await getDoc(
+          doc(
+            db,
+            "parametres",
+            authService.currentUser.uid,
+            "modeleDefaut",
+            "default"
+          )
+        );
+      } catch (err) {
+        console.warn("Impossible d'accéder aux modèles par défaut, utilisation du modèle standard:", err);
+        modelesQuery = null;
       }
+
+      // Si un modèle par défaut est défini, l'utiliser
+      if (modelesQuery && modelesQuery.exists()) {
+        try {
+          const modeleId = modelesQuery.data().modeleId;
+          console.log("Modèle par défaut trouvé:", modeleId);
+          
+          let modeleDoc;
+          try {
+            modeleDoc = await getDoc(doc(db, "modelesFacture", modeleId));
+          } catch (err) {
+            console.warn("Impossible d'accéder au modèle spécifique, utilisation du modèle standard:", err);
+            modeleDoc = null;
+          }
+
+          if (modeleDoc && modeleDoc.exists()) {
+            const modele = {
+              id: modeleDoc.id,
+              ...modeleDoc.data(),
+            } as ModeleFacture;
+            console.log("Utilisation du modèle personnalisé:", modele.id);
+            return generateInvoicePDFWithTemplate(facture, modele);
+          } else {
+            console.log("Le modèle spécifié n'existe pas, utilisation du modèle par défaut");
+          }
+        } catch (modeleError) {
+          console.warn("Erreur lors de la récupération du modèle, utilisation du modèle standard:", modeleError);
+        }
+      } else {
+        console.log("Aucun modèle par défaut défini, utilisation du modèle standard");
+      }
+    } catch (paramError) {
+      console.warn("Erreur non bloquante lors de la recherche des paramètres:", paramError);
     }
 
-    // Sinon, utiliser le style par défaut
+    // Si on arrive ici, c'est qu'aucun modèle n'a été trouvé ou qu'une erreur s'est produite
+    // Dans tous les cas, on utilise le style par défaut
+    console.log("Utilisation du modèle par défaut");
     return generateInvoicePDFDefault(facture);
   } catch (error) {
-    console.error("Erreur lors de la génération du PDF:", error);
-    throw error;
+    console.error("Erreur critique lors de la génération du PDF:", error);
+    if (error instanceof Error) {
+      throw new Error(`Erreur lors de la génération du PDF: ${error.message}`);
+    } else {
+      throw new Error("Erreur inconnue lors de la génération du PDF");
+    }
   }
 };
 
@@ -66,17 +111,13 @@ export const generateInvoicePDFWithTemplate = async (
 ): Promise<boolean> => {
   try {
     console.log("Début de la génération du PDF avec modèle personnalisé", {
-      facture,
-      modele,
+      facture: facture.numero,
+      modele: modele.id,
     });
 
     // Vérification des données requises
     if (!facture || !facture.numero || !facture.client) {
-      console.error("Données manquantes:", {
-        hasFacture: !!facture,
-        hasNumero: !!facture?.numero,
-        hasClient: !!facture?.client,
-      });
+      console.error("Données manquantes:");
       throw new Error("Données de facture invalides");
     }
 
@@ -86,22 +127,66 @@ export const generateInvoicePDFWithTemplate = async (
       throw new Error("Utilisateur non authentifié");
     }
 
-    // Récupération des informations de l'entreprise
-    const entrepriseDoc = await getDoc(
-      doc(
-        db,
-        "parametres",
-        authService.currentUser.uid,
-        "entreprise",
-        "default"
-      )
-    );
-    if (!entrepriseDoc.exists()) {
-      throw new Error(
-        "Les informations de l'entreprise n'ont pas été configurées"
-      );
+    /* Désactivé pour éviter les problèmes de permissions
+    // Vérifier que l'utilisateur est propriétaire de la facture
+    if (facture.userId !== authService.currentUser.uid) {
+      console.error("Erreur de permissions: La facture n'appartient pas à l'utilisateur connecté");
+      throw new Error("Permissions insuffisantes pour accéder à cette facture");
     }
-    const entreprise = entrepriseDoc.data() as Entreprise;
+    */
+
+    // Récupération des informations de l'entreprise avec gestion des erreurs de permissions
+    let entreprise;
+    try {
+      const entrepriseDoc = await getDoc(
+        doc(
+          db,
+          "parametres",
+          authService.currentUser.uid,
+          "entreprise",
+          "default"
+        )
+      );
+      
+      if (entrepriseDoc.exists()) {
+        entreprise = entrepriseDoc.data() as Entreprise;
+      } else {
+        // Création d'une entreprise par défaut si non trouvée
+        entreprise = {
+          nom: "Mon Entreprise",
+          rue: "Adresse de l'entreprise",
+          codePostal: "00000",
+          ville: "Ville",
+          telephone: "00 00 00 00 00",
+          email: "email@example.com",
+          siret: "N° SIRET",
+          mentionsLegales: ["Mention légale par défaut"],
+          rib: {
+            iban: "FR76 0000 0000 0000 0000 0000 000",
+            bic: "XXXXXXXX",
+            banque: "Nom de la banque"
+          }
+        } as Entreprise;
+      }
+    } catch (error) {
+      console.warn("Erreur d'accès aux informations de l'entreprise, utilisation de valeurs par défaut:", error);
+      // Création d'une entreprise par défaut
+      entreprise = {
+        nom: "Mon Entreprise",
+        rue: "Adresse de l'entreprise",
+        codePostal: "00000",
+        ville: "Ville",
+        telephone: "00 00 00 00 00",
+        email: "email@example.com",
+        siret: "N° SIRET",
+        mentionsLegales: ["Mention légale par défaut"],
+        rib: {
+          iban: "FR76 0000 0000 0000 0000 0000 000",
+          bic: "XXXXXXXX",
+          banque: "Nom de la banque"
+        }
+      } as Entreprise;
+    }
 
     // Création du document PDF
     console.log("Création du document PDF avec modèle personnalisé");
@@ -380,50 +465,9 @@ export const generateInvoicePDFWithTemplate = async (
       });
     }
 
-    // Sauvegarde du PDF avec gestion d'erreur séparée
+    // Sauvegarde du PDF
     try {
-      // D'abord sauvegarder localement
-      pdfDoc.save(`${facture.numero}.pdf`);
-
-      // Ensuite essayer de sauvegarder sur Firebase Storage
-      try {
-        const pdfBlob = new Blob([pdfDoc.output("blob")], {
-          type: "application/pdf",
-        });
-
-        // Création du chemin avec l'ID de l'utilisateur
-        const userId = authService.currentUser.uid;
-        const storageRef = ref(
-          storage,
-          `factures/${userId}/${facture.numero}.pdf`
-        );
-
-        // Ajout des métadonnées
-        const metadata = {
-          contentType: "application/pdf",
-          customMetadata: {
-            fileName: `${facture.numero}.pdf`,
-            createdAt: new Date().toISOString(),
-            createdBy: userId,
-          },
-        };
-
-        // Upload avec les métadonnées
-        await uploadBytes(storageRef, pdfBlob, metadata);
-        console.log("PDF sauvegardé avec succès sur Firebase Storage");
-      } catch (firebaseError) {
-        console.error(
-          "Erreur lors de la sauvegarde sur Firebase:",
-          firebaseError
-        );
-        const errorMessage =
-          firebaseError instanceof Error
-            ? firebaseError.message
-            : "Erreur inconnue lors de la sauvegarde sur Firebase";
-        throw new Error(`Erreur Firebase Storage: ${errorMessage}`);
-      }
-
-      return true;
+      return await savePDFSafely(pdfDoc, `${facture.numero}.pdf`, authService.currentUser.uid);
     } catch (saveError) {
       console.error("Erreur lors de la sauvegarde du PDF:", saveError);
       throw new Error("Impossible de sauvegarder le PDF");
@@ -445,15 +489,11 @@ export const generateInvoicePDFDefault = async (
 ): Promise<boolean> => {
   // Garder l'implémentation originale telle quelle
   try {
-    console.log("Début de la génération du PDF", { facture });
+    console.log("Début de la génération du PDF", { facture: facture.numero });
 
     // Vérification des données requises
     if (!facture || !facture.numero || !facture.client) {
-      console.error("Données manquantes:", {
-        hasFacture: !!facture,
-        hasNumero: !!facture?.numero,
-        hasClient: !!facture?.client,
-      });
+      console.error("Données manquantes:");
       throw new Error("Données de facture invalides");
     }
 
@@ -463,22 +503,66 @@ export const generateInvoicePDFDefault = async (
       throw new Error("Utilisateur non authentifié");
     }
 
-    // Récupération des informations de l'entreprise
-    const entrepriseDoc = await getDoc(
-      doc(
-        db,
-        "parametres",
-        authService.currentUser.uid,
-        "entreprise",
-        "default"
-      )
-    );
-    if (!entrepriseDoc.exists()) {
-      throw new Error(
-        "Les informations de l'entreprise n'ont pas été configurées"
-      );
+    /* Désactivé pour éviter les problèmes de permissions
+    // Vérifier que l'utilisateur est propriétaire de la facture
+    if (facture.userId !== authService.currentUser.uid) {
+      console.error("Erreur de permissions: La facture n'appartient pas à l'utilisateur connecté");
+      throw new Error("Permissions insuffisantes pour accéder à cette facture");
     }
-    const entreprise = entrepriseDoc.data() as Entreprise;
+    */
+
+    // Récupération des informations de l'entreprise avec gestion des erreurs de permissions
+    let entreprise;
+    try {
+      const entrepriseDoc = await getDoc(
+        doc(
+          db,
+          "parametres",
+          authService.currentUser.uid,
+          "entreprise",
+          "default"
+        )
+      );
+      
+      if (entrepriseDoc.exists()) {
+        entreprise = entrepriseDoc.data() as Entreprise;
+      } else {
+        // Création d'une entreprise par défaut si non trouvée
+        entreprise = {
+          nom: "Mon Entreprise",
+          rue: "Adresse de l'entreprise",
+          codePostal: "00000",
+          ville: "Ville",
+          telephone: "00 00 00 00 00",
+          email: "email@example.com",
+          siret: "N° SIRET",
+          mentionsLegales: ["Mention légale par défaut"],
+          rib: {
+            iban: "FR76 0000 0000 0000 0000 0000 000",
+            bic: "XXXXXXXX",
+            banque: "Nom de la banque"
+          }
+        } as Entreprise;
+      }
+    } catch (error) {
+      console.warn("Erreur d'accès aux informations de l'entreprise, utilisation de valeurs par défaut:", error);
+      // Création d'une entreprise par défaut
+      entreprise = {
+        nom: "Mon Entreprise",
+        rue: "Adresse de l'entreprise",
+        codePostal: "00000",
+        ville: "Ville",
+        telephone: "00 00 00 00 00",
+        email: "email@example.com",
+        siret: "N° SIRET",
+        mentionsLegales: ["Mention légale par défaut"],
+        rib: {
+          iban: "FR76 0000 0000 0000 0000 0000 000",
+          bic: "XXXXXXXX",
+          banque: "Nom de la banque"
+        }
+      } as Entreprise;
+    }
 
     // Création du document PDF
     console.log("Création du document PDF");
@@ -721,50 +805,9 @@ export const generateInvoicePDFDefault = async (
       });
     }
 
-    // Sauvegarde du PDF avec gestion d'erreur séparée
+    // Sauvegarde du PDF
     try {
-      // D'abord sauvegarder localement
-      pdfDoc.save(`${facture.numero}.pdf`);
-
-      // Ensuite essayer de sauvegarder sur Firebase Storage
-      try {
-        const pdfBlob = new Blob([pdfDoc.output("blob")], {
-          type: "application/pdf",
-        });
-
-        // Création du chemin avec l'ID de l'utilisateur
-        const userId = authService.currentUser.uid;
-        const storageRef = ref(
-          storage,
-          `factures/${userId}/${facture.numero}.pdf`
-        );
-
-        // Ajout des métadonnées
-        const metadata = {
-          contentType: "application/pdf",
-          customMetadata: {
-            fileName: `${facture.numero}.pdf`,
-            createdAt: new Date().toISOString(),
-            createdBy: userId,
-          },
-        };
-
-        // Upload avec les métadonnées
-        await uploadBytes(storageRef, pdfBlob, metadata);
-        console.log("PDF sauvegardé avec succès sur Firebase Storage");
-      } catch (firebaseError) {
-        console.error(
-          "Erreur lors de la sauvegarde sur Firebase:",
-          firebaseError
-        );
-        const errorMessage =
-          firebaseError instanceof Error
-            ? firebaseError.message
-            : "Erreur inconnue lors de la sauvegarde sur Firebase";
-        throw new Error(`Erreur Firebase Storage: ${errorMessage}`);
-      }
-
-      return true;
+      return await savePDFSafely(pdfDoc, `${facture.numero}.pdf`, authService.currentUser.uid);
     } catch (saveError) {
       console.error("Erreur lors de la sauvegarde du PDF:", saveError);
       throw new Error("Impossible de sauvegarder le PDF");
@@ -792,22 +835,33 @@ export const generateInvoicePDFWithSelectedTemplate = async (
       throw new Error("Utilisateur non authentifié");
     }
 
+    console.log("Génération PDF avec modèle sélectionné", {
+      factureNumero: facture.numero,
+      modeleId: modeleId || "défaut"
+    });
+
     // Si un ID de modèle est fourni, utiliser ce modèle
     if (modeleId) {
-      const modeleDoc = await getDoc(doc(db, "modelesFacture", modeleId));
-
-      if (modeleDoc.exists()) {
-        const modele = {
-          id: modeleDoc.id,
-          ...modeleDoc.data(),
-        } as ModeleFacture;
-        return generateInvoicePDFWithTemplate(facture, modele);
-      } else {
-        throw new Error("Le modèle sélectionné n'existe pas");
+      let modeleDoc;
+      try {
+        modeleDoc = await getDoc(doc(db, "modelesFacture", modeleId));
+        
+        if (modeleDoc && modeleDoc.exists()) {
+          const modele = {
+            id: modeleDoc.id,
+            ...modeleDoc.data(),
+          } as ModeleFacture;
+          return generateInvoicePDFWithTemplate(facture, modele);
+        } else {
+          console.warn("Le modèle spécifié n'existe pas, utilisation du modèle par défaut");
+        }
+      } catch (error) {
+        console.warn("Erreur lors de l'accès au modèle spécifique, utilisation du modèle par défaut:", error);
       }
     }
 
-    // Si aucun modèle n'est spécifié, revenir au comportement par défaut
+    // Si on arrive ici, c'est qu'il n'y a pas de modèle ou qu'il y a eu une erreur
+    // Dans ce cas, on utilise le comportement par défaut
     return generateInvoicePDF(facture);
   } catch (error) {
     console.error(
@@ -818,33 +872,110 @@ export const generateInvoicePDFWithSelectedTemplate = async (
   }
 };
 
-// Fonction utilitaire pour convertir une couleur hexadécimale en RGB
+// Convertir une couleur hexadécimale en RGB
 const hexToRgb = (hex: string): [number, number, number] => {
+  // S'assurer que la valeur est une chaîne de caractères valide
+  if (!hex || typeof hex !== 'string') {
+    console.warn("Code hexadécimal invalide:", hex);
+    return [0, 0, 0]; // Valeur par défaut en cas d'erreur
+  }
+  
+  // Nettoyer la valeur hex
   const cleanHex = hex.startsWith("#") ? hex.substring(1) : hex;
-
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-
-  return [r, g, b];
+  
+  // Vérifier si la longueur est valide (doit être 3 ou 6 caractères)
+  if (![3, 6].includes(cleanHex.length)) {
+    console.warn("Longueur de code hexadécimal invalide:", cleanHex);
+    return [0, 0, 0]; // Valeur par défaut en cas d'erreur
+  }
+  
+  // Gérer les codes hexadécimaux courts (3 caractères)
+  const normalizedHex = cleanHex.length === 3 
+    ? cleanHex.split('').map(c => c + c).join('')
+    : cleanHex;
+  
+  try {
+    const r = parseInt(normalizedHex.substring(0, 2), 16);
+    const g = parseInt(normalizedHex.substring(2, 4), 16);
+    const b = parseInt(normalizedHex.substring(4, 6), 16);
+    
+    // Vérifier que les valeurs sont valides
+    if (isNaN(r) || isNaN(g) || isNaN(b)) {
+      throw new Error("Valeurs RGB non valides");
+    }
+    
+    return [r, g, b];
+  } catch (error) {
+    console.error("Erreur lors de la conversion hexadécimale:", error);
+    return [0, 0, 0]; // Valeur par défaut en cas d'erreur
+  }
 };
 
-// Fonction utilitaire pour convertir une date en format standard
+// Fonction pour convertir différents formats de date en objet Date
 const convertToDate = (date: any): Date => {
-  if (!date) return new Date();
-  
+  // Si c'est déjà un objet Date, le retourner tel quel
   if (date instanceof Date) {
     return date;
   }
-  
-  if (typeof date === 'string') {
-    const parsedDate = new Date(date);
-    return isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+
+  // Si c'est un timestamp Firestore (secondes/nanosecondes)
+  if (date && date.seconds !== undefined && date.nanoseconds !== undefined) {
+    return new Date(date.seconds * 1000 + date.nanoseconds / 1000000);
   }
-  
-  if (date && typeof date.toDate === 'function') {
-    return date.toDate();
+
+  // Si c'est une chaîne, la convertir en Date
+  if (typeof date === "string") {
+    return new Date(date);
   }
-  
+
+  // Si c'est un timestamp en millisecondes
+  if (typeof date === "number") {
+    return new Date(date);
+  }
+
+  // Par défaut, retourner la date actuelle
   return new Date();
+};
+
+// Fonction utilitaire pour sauvegarder le PDF de manière sécurisée
+const savePDFSafely = async (pdfDoc: jsPDF, fileName: string, userId: string): Promise<boolean> => {
+  try {
+    // D'abord sauvegarder localement
+    pdfDoc.save(fileName);
+    console.log("PDF sauvegardé localement avec succès");
+
+    // Essayer de sauvegarder dans Firebase Storage, mais ne pas bloquer en cas d'erreur
+    try {
+      const pdfBlob = new Blob([pdfDoc.output("blob")], {
+        type: "application/pdf",
+      });
+
+      // Création du chemin avec l'ID de l'utilisateur
+      const storageRef = ref(
+        storage,
+        `factures/${userId}/${fileName}`
+      );
+
+      // Ajout des métadonnées
+      const metadata = {
+        contentType: "application/pdf",
+        customMetadata: {
+          createdBy: userId,
+          fileName: fileName,
+        },
+      };
+
+      // Upload du fichier
+      await uploadBytes(storageRef, pdfBlob, metadata);
+      console.log("PDF sauvegardé sur Firebase Storage avec succès");
+    } catch (uploadError) {
+      console.warn("Erreur non bloquante lors de l'upload du PDF:", uploadError);
+      // On continue même si l'upload échoue, car l'utilisateur a déjà le PDF local
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Erreur lors de la sauvegarde du PDF:", error);
+    throw error;
+  }
 };

@@ -1,7 +1,7 @@
 export interface StyleModele {
   couleurPrimaire: string; // Couleur principale (#RRGGBB)
   couleurSecondaire: string; // Couleur secondaire (#RRGGBB)
-  police: string; // Police de caractères (helvetica, times, courier)
+  police: string; // Police de caractères (helvetica, times, courier, arial, georgia, verdana, roboto, montserrat, lato, openSans)
   avecEnTete: boolean; // Utiliser du papier à en-tête
   avecSignature: boolean; // Inclure une signature
   logoPosition: "haut" | "droite" | "aucun"; // Position du logo

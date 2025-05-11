@@ -10,12 +10,11 @@ export const STRIPE_CURRENCY = "eur";
 // URL de webhook (pour recevoir les événements de Stripe)
 export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
+// URL du site en production
+export const SITE_URL = process.env.NEXT_PUBLIC_URL || "https://facturation.javachrist.eu";
+
 // URL de redirection après paiement
-export const SUCCESS_URL = process.env.NEXT_PUBLIC_URL
-  ? `${process.env.NEXT_PUBLIC_URL}/dashboard/abonnement?success=true`
-  : "http://localhost:3000/dashboard/abonnement?success=true";
+export const SUCCESS_URL = `${SITE_URL}/dashboard/abonnement?success=true`;
 
 // URL de redirection après annulation
-export const CANCEL_URL = process.env.NEXT_PUBLIC_URL
-  ? `${process.env.NEXT_PUBLIC_URL}/dashboard/abonnement?canceled=true`
-  : "http://localhost:3000/dashboard/abonnement?canceled=true";
+export const CANCEL_URL = `${SITE_URL}/dashboard/abonnement?canceled=true`;
