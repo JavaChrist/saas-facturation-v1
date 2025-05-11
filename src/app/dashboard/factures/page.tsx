@@ -12,6 +12,7 @@ import {
   where,
   getDoc,
   Timestamp,
+  getDocs,
 } from "firebase/firestore";
 import {
   FiArrowLeft,
@@ -162,37 +163,41 @@ export default function FacturesPage() {
 
     testFirestoreConnection();
 
-    const facturesQuery = query(
-      collection(db, "factures"),
-      where("userId", "==", user.uid)
-    );
-
-    console.log("[DEBUG] Requête Firestore:", {
-      collection: "factures",
-      userId: user.uid
-    });
-
-    const unsubscribe = onSnapshot(facturesQuery, async (snapshot) => {
+    // Approche plus sécurisée: activer un délai et un rattrapage d'erreur robuste
+    let retryCount = 0;
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 seconde
+    
+    // Fonction de récupération avec gestion des erreurs
+    const fetchFactures = async () => {
       try {
-        console.log("[DEBUG] Récupération des factures...");
+        const facturesQuery = query(
+          collection(db, "factures"),
+          where("userId", "==", user.uid)
+        );
+
+        console.log("[DEBUG] Exécution de la requête Firestore:", {
+          collection: "factures",
+          userId: user.uid,
+          retry: retryCount
+        });
+
+        const snapshot = await getDocs(facturesQuery);
+        
+        console.log("[DEBUG] Factures récupérées:", snapshot.docs.length);
+        
         const facturesData = snapshot.docs.map((doc) => {
           const data = doc.data();
-          console.log("[DEBUG] Facture brute:", {
-            id: doc.id,
-            userId: data.userId,
-            data: data
-          });
           return {
             id: doc.id,
             ...data,
             dateCreation: data.dateCreation ? convertToDate(data.dateCreation) : new Date(),
           };
         }) as Facture[];
-        console.log("[DEBUG] Factures formatées:", facturesData);
+        
         setFactures(facturesData);
 
         // Générer un numéro de facture séquentiel basé sur les factures existantes
-        // pour qu'il soit disponible lors de l'ouverture du modal d'ajout
         setNewFacture(prev => {
           // Ne réinitialiser que si le numéro est vide ou si nous utilisons l'ancien format
           if (!prev.numero || prev.numero.startsWith('FCT-')) {
@@ -228,10 +233,26 @@ export default function FacturesPage() {
         }
       } catch (error) {
         console.error("[DEBUG] Erreur lors de la récupération des factures:", error);
+        
+        // Si nous sommes dans les limites de retry, on réessaie
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`[DEBUG] Tentative ${retryCount}/${maxRetries} dans ${retryDelay}ms...`);
+          
+          // Attendre avant de réessayer
+          setTimeout(() => {
+            fetchFactures();
+          }, retryDelay * retryCount);
+        } else {
+          console.error("[DEBUG] Nombre maximum de tentatives atteint. Abandonnement.");
+          // Montrer un message d'erreur à l'utilisateur si nécessaire
+          // setErrorMessage("Impossible de charger vos factures. Veuillez réessayer plus tard.");
+        }
       }
-    }, (error) => {
-      console.error("[DEBUG] Erreur de souscription aux factures:", error);
-    });
+    };
+
+    // Démarrer la récupération des factures
+    fetchFactures();
 
     // Récupérer les clients depuis Firestore
     const clientsQuery = query(
@@ -245,10 +266,11 @@ export default function FacturesPage() {
         id: doc.id,
       })) as Client[];
       setClients(clientsData);
+    }, (error) => {
+      console.error("[DEBUG] Erreur d'écoute des clients:", error);
     });
 
     return () => {
-      unsubscribe();
       clientsUnsubscribe();
     };
   }, [user, router]);

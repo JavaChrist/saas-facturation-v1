@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import { enableIndexedDbPersistence, CACHE_SIZE_UNLIMITED, disableNetwork, enableNetwork } from "firebase/firestore";
+import { enableIndexedDbPersistence, disableNetwork, enableNetwork } from "firebase/firestore";
 
 // Utilisation des variables d'environnement pour la configuration
 const firebaseConfig = {
@@ -18,23 +18,50 @@ const firebaseConfig = {
 // Initialisation de Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialisation de Firestore avec des options optimisées pour la production
+// Initialisation de Firestore avec des options personnalisées
+// Utiliser un objet de configuration
+let firestoreSettings = {};
+
+// Si nous sommes dans un environnement navigateur
+if (typeof window !== "undefined") {
+  firestoreSettings = {
+    // Forcer l'utilisation du longPolling pour les environnements 
+    // où les WebSockets ne fonctionnent pas bien
+    experimentalForceLongPolling: true,
+    // Augmenter le délai d'expiration des opérations
+    experimentalAutoDetectLongPolling: true,
+    useFetchStreams: false,
+  };
+  
+  console.log("✅ Configuration spéciale de Firestore activée");
+}
+
+// Exporter l'instance Firestore avec les paramètres personnalisés
 export const db = getFirestore(app);
 
-// Activer la persistance locale et optimiser les paramètres de connexion
+// Tentative d'application des paramètres (fallback)
 if (typeof window !== "undefined") {
-  // Activer la persistance locale pour améliorer les performances et l'expérience hors ligne
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      // Plusieurs onglets ouverts, la persistance ne peut être activée que dans un seul onglet
-      console.warn("La persistance de Firestore n'a pas pu être activée car plusieurs onglets sont ouverts");
-    } else if (err.code === 'unimplemented') {
-      // Le navigateur actuel ne prend pas en charge la persistance
-      console.warn("Le navigateur actuel ne prend pas en charge la persistance Firestore");
-    } else {
-      console.error("Erreur lors de l'activation de la persistance Firestore:", err);
+  try {
+    // @ts-ignore - Accès direct au _settings qui existe mais n'est pas déclaré dans les types
+    if (db._settings) {
+      // @ts-ignore
+      db._settings = { ...db._settings, ...firestoreSettings };
+      console.log("✓ Paramètres Firestore appliqués avec succès");
     }
-  });
+  } catch (err) {
+    console.error("⚠️ Impossible d'appliquer les paramètres personnalisés à Firestore", err);
+  }
+  
+  // Tenter d'activer la persistance en mode silencieux
+  try {
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code !== 'failed-precondition') {
+        console.warn("⚠️ Problème avec la persistance Firestore", err);
+      }
+    });
+  } catch (err) {
+    console.warn("⚠️ Persistance Firestore non supportée", err);
+  }
 
   // Gérer les problèmes de connectivité
   window.addEventListener('online', () => {
