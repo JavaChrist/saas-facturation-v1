@@ -1,8 +1,13 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { 
+  getFirestore, 
+  connectFirestoreEmulator,
+  enableNetwork,
+  disableNetwork,
+  type Firestore
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
-import { enableIndexedDbPersistence, disableNetwork, enableNetwork } from "firebase/firestore";
 
 // Utilisation des variables d'environnement pour la configuration
 const firebaseConfig = {
@@ -15,71 +20,65 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialisation de Firebase
-const app = initializeApp(firebaseConfig);
+// Initialisation de Firebase - S'assurer qu'une seule instance est créée
+const app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
 
-// Initialisation de Firestore avec des options personnalisées
-// Utiliser un objet de configuration
-let firestoreSettings = {};
+// Configuration simplifiée de Firestore
+const firestoreDB = getFirestore(app);
 
-// Si nous sommes dans un environnement navigateur
+// Ajuster des paramètres d'exploitation
+let firebaseDiagnostic = "✓ Configuration standard";
+
+// Enregistrer des métriques pour debug en production
 if (typeof window !== "undefined") {
-  firestoreSettings = {
-    // Forcer l'utilisation du longPolling pour les environnements 
-    // où les WebSockets ne fonctionnent pas bien
-    experimentalForceLongPolling: true,
-    // Augmenter le délai d'expiration des opérations
-    experimentalAutoDetectLongPolling: true,
-    useFetchStreams: false,
-  };
-  
-  console.log("✅ Configuration spéciale de Firestore activée");
-}
-
-// Exporter l'instance Firestore avec les paramètres personnalisés
-export const db = getFirestore(app);
-
-// Tentative d'application des paramètres (fallback)
-if (typeof window !== "undefined") {
+  // Ne pas utiliser onSnapshot(), mais uniquement get()
   try {
-    // @ts-ignore - Accès direct au _settings qui existe mais n'est pas déclaré dans les types
-    if (db._settings) {
-      // @ts-ignore
-      db._settings = { ...db._settings, ...firestoreSettings };
-      console.log("✓ Paramètres Firestore appliqués avec succès");
-    }
-  } catch (err) {
-    console.error("⚠️ Impossible d'appliquer les paramètres personnalisés à Firestore", err);
-  }
-  
-  // Tenter d'activer la persistance en mode silencieux
-  try {
-    enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code !== 'failed-precondition') {
-        console.warn("⚠️ Problème avec la persistance Firestore", err);
-      }
+    // Mesurer le temps d'accès à Firestore
+    window.addEventListener('load', () => {
+      console.log("📊 Diagnostic Firebase démarré");
+      // Information de diagnostic
+      console.log(`🔑 Projet Firebase: ${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}`);
+      console.log(`🔑 Auth Domain: ${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}`);
+      
+      // Vérifier l'état de la connexion
+      console.log("🌐 État de la connexion: " + (navigator.onLine ? "En ligne" : "Hors ligne"));
     });
+    
+    firebaseDiagnostic = "✓ Diagnostic activé";
   } catch (err) {
-    console.warn("⚠️ Persistance Firestore non supportée", err);
+    console.warn("⚠️ Erreur de configuration diagnostic:", err);
   }
-
-  // Gérer les problèmes de connectivité
+  
+  // Gérer les événements de connexion/déconnexion au réseau
   window.addEventListener('online', () => {
-    enableNetwork(db).catch(err => {
-      console.error("Erreur lors de la reconnexion à Firestore:", err);
-    });
+    try {
+      console.log("🌐 Connexion internet détectée, rétablissement de Firestore");
+      enableNetwork(firestoreDB).catch(e => {
+        console.warn("Erreur enableNetwork:", e);
+      });
+    } catch (e) {
+      console.warn("⚠️ Erreur lors de la réactivation du réseau Firestore", e);
+    }
   });
 
   window.addEventListener('offline', () => {
-    disableNetwork(db).catch(err => {
-      console.error("Erreur lors de la déconnexion de Firestore:", err);
-    });
+    try {
+      console.log("📴 Déconnexion internet détectée, mise en veille de Firestore");
+      disableNetwork(firestoreDB).catch(e => {
+        console.warn("Erreur disableNetwork:", e);
+      });
+    } catch (e) {
+      console.warn("⚠️ Erreur lors de la mise en veille du réseau Firestore", e);
+    }
   });
 }
 
 // Exportation des services Firebase
+export const db = firestoreDB;
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+console.log(`Firebase initialisé: ${firebaseDiagnostic}`);
 
 // Connecter à l'émulateur Firestore en mode développement
 if (process.env.NODE_ENV === 'development' && typeof window !== "undefined" && process.env.NEXT_PUBLIC_USE_EMULATOR === 'true') {

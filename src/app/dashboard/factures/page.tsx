@@ -13,6 +13,9 @@ import {
   getDoc,
   Timestamp,
   getDocs,
+  limit,
+  startAfter,
+  orderBy,
 } from "firebase/firestore";
 import {
   FiArrowLeft,
@@ -21,6 +24,7 @@ import {
   FiFileText,
   FiX,
   FiEye,
+  FiRefreshCw,
 } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { Facture, Client } from "@/types/facture";
@@ -116,6 +120,9 @@ export default function FacturesPage() {
     maxFactures: number;
     currentFactures: number;
   }>({ planId: "", maxFactures: 0, currentFactures: 0 });
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
 
   // État pour le modal de sélection de modèle
   const [isModeleSelectorOpen, setIsModeleSelectorOpen] = useState(false);
@@ -144,6 +151,9 @@ export default function FacturesPage() {
       return;
     }
 
+    setIsLoading(true);
+    setErrorMessage(null);
+
     console.log("[DEBUG] Utilisateur connecté:", {
       uid: user.uid,
       email: user.email,
@@ -153,40 +163,80 @@ export default function FacturesPage() {
     // Test de connexion à Firestore
     const testFirestoreConnection = async () => {
       try {
-        const testDoc = doc(db, "test", "connection");
-        await getDoc(testDoc);
-        console.log("[DEBUG] Connexion à Firestore réussie");
+        // Utiliser une référence simple pour le test
+        console.log("[DEBUG] Test de connexion à Firestore...");
+        await fetch('https://firestore.googleapis.com');
+        console.log("[DEBUG] Connexion au domaine Firestore réussie");
       } catch (error) {
-        console.error("[DEBUG] Erreur de connexion à Firestore:", error);
+        console.error("[DEBUG] Erreur de connexion réseau à Firestore:", error);
+        setErrorMessage("Impossible de se connecter à Firestore. Vérifiez votre connexion Internet.");
       }
     };
 
     testFirestoreConnection();
 
-    // Approche plus sécurisée: activer un délai et un rattrapage d'erreur robuste
-    let retryCount = 0;
-    const maxRetries = 3;
-    const retryDelay = 1000; // 1 seconde
+    // Approche progressive: d'abord charger l'utilisateur et sa configuration
+    const MAX_BATCH_SIZE = 5; // Charger les factures par groupes de 5
+    let totalFactures: Facture[] = [];
+    let loadingError = false;
     
-    // Fonction de récupération avec gestion des erreurs
-    const fetchFactures = async () => {
+    // Fonction pour récupérer les informations utilisateur
+    const getUserInfo = async () => {
       try {
-        const facturesQuery = query(
-          collection(db, "factures"),
-          where("userId", "==", user.uid)
-        );
+        console.log("[DEBUG] Récupération du plan utilisateur");
+        const userPlan = await getUserPlan(user.uid);
+        console.log("[DEBUG] Plan utilisateur récupéré:", userPlan);
 
-        console.log("[DEBUG] Exécution de la requête Firestore:", {
-          collection: "factures",
-          userId: user.uid,
-          retry: retryCount
+        setPlanInfo({
+          planId: userPlan.planId,
+          maxFactures: userPlan.limites.factures === -1 ? Infinity : userPlan.limites.factures,
+          currentFactures: 0, // Sera mis à jour après chargement des factures
         });
 
-        const snapshot = await getDocs(facturesQuery);
+        return true;
+      } catch (err) {
+        console.error("[DEBUG] Erreur lors de la récupération du plan:", err);
+        setErrorMessage("Impossible de récupérer votre plan d'abonnement. Veuillez réessayer ultérieurement.");
+        setIsLoading(false);
+        return false;
+      }
+    };
+
+    // Fonction pour charger les factures par lots
+    const loadFactureBatch = async (lastVisible: any = null, attempt = 1) => {
+      const MAX_RETRIES = 3;
+      if (attempt > MAX_RETRIES) {
+        console.error(`[DEBUG] Abandon après ${MAX_RETRIES} tentatives`);
+        loadingError = true;
+        setErrorMessage("Impossible de charger vos factures après plusieurs tentatives. Veuillez actualiser la page.");
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        console.log(`[DEBUG] Chargement du lot de factures ${attempt}/${MAX_RETRIES}`);
         
-        console.log("[DEBUG] Factures récupérées:", snapshot.docs.length);
+        // Construire la requête avec limitation
+        let facturesRef = collection(db, "factures");
+        let baseQuery = query(
+          facturesRef, 
+          where("userId", "==", user.uid),
+          orderBy("dateCreation", "desc")  // Trier par date de création décroissante
+        );
         
-        const facturesData = snapshot.docs.map((doc) => {
+        // Créer la requête pour ce lot
+        let batchQuery = baseQuery;
+        if (lastVisible) {
+          batchQuery = query(baseQuery, startAfter(lastVisible));
+        }
+        batchQuery = query(batchQuery, limit(MAX_BATCH_SIZE));
+
+        // Exécuter la requête
+        console.log("[DEBUG] Exécution de la requête pour le lot");
+        const snapshot = await getDocs(batchQuery);
+        
+        // Traiter le résultat
+        const newBatch = snapshot.docs.map((doc) => {
           const data = doc.data();
           return {
             id: doc.id,
@@ -195,85 +245,108 @@ export default function FacturesPage() {
           };
         }) as Facture[];
         
-        setFactures(facturesData);
-
-        // Générer un numéro de facture séquentiel basé sur les factures existantes
-        setNewFacture(prev => {
-          // Ne réinitialiser que si le numéro est vide ou si nous utilisons l'ancien format
-          if (!prev.numero || prev.numero.startsWith('FCT-')) {
-            return {
-              ...prev,
-              numero: generateNewInvoiceNumber(facturesData)
-            };
-          }
-          return prev;
-        });
-
-        // Vérifier les limites du plan
-        try {
-          const userPlan = await getUserPlan(user.uid);
-          console.log("[DEBUG] Plan utilisateur:", userPlan);
-          const isLimitReached = await checkPlanLimit(
-            user.uid,
-            "factures",
-            facturesData.length
-          );
-          setLimitReached(isLimitReached);
-
-          setPlanInfo({
-            planId: userPlan.planId,
-            maxFactures:
-              userPlan.limites.factures === -1
-                ? Infinity
-                : userPlan.limites.factures,
-            currentFactures: facturesData.length,
+        console.log(`[DEBUG] ${newBatch.length} factures chargées dans ce lot`);
+        
+        // Ajouter au total
+        totalFactures = [...totalFactures, ...newBatch];
+        
+        // Mettre à jour l'état
+        setFactures(totalFactures);
+        setPlanInfo(prev => ({
+          ...prev,
+          currentFactures: totalFactures.length
+        }));
+        
+        // Vérifier si nous avons atteint la limite
+        const isLimitReached = await checkPlanLimit(
+          user.uid,
+          "factures",
+          totalFactures.length
+        );
+        setLimitReached(isLimitReached);
+        
+        // Si nous avons encore des factures à charger, continuer
+        if (snapshot.docs.length === MAX_BATCH_SIZE) {
+          const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+          // Délai court pour éviter de surcharger Firestore
+          setTimeout(() => {
+            loadFactureBatch(lastDoc, 1); // Réinitialiser le compteur de tentatives
+          }, 500);
+        } else {
+          console.log("[DEBUG] Toutes les factures ont été chargées, total:", totalFactures.length);
+          
+          // Générer un numéro de facture
+          setNewFacture(prev => {
+            if (!prev.numero || prev.numero.startsWith('FCT-')) {
+              return {
+                ...prev,
+                numero: generateNewInvoiceNumber(totalFactures)
+              };
+            }
+            return prev;
           });
-        } catch (err) {
-          console.error("[DEBUG] Erreur lors de la vérification des limites:", err);
+          
+          setIsLoading(false);
         }
       } catch (error) {
-        console.error("[DEBUG] Erreur lors de la récupération des factures:", error);
+        console.error(`[DEBUG] Erreur lors du chargement du lot ${attempt}:`, error);
         
-        // Si nous sommes dans les limites de retry, on réessaie
-        if (retryCount < maxRetries) {
-          retryCount++;
-          console.log(`[DEBUG] Tentative ${retryCount}/${maxRetries} dans ${retryDelay}ms...`);
-          
-          // Attendre avant de réessayer
-          setTimeout(() => {
-            fetchFactures();
-          }, retryDelay * retryCount);
-        } else {
-          console.error("[DEBUG] Nombre maximum de tentatives atteint. Abandonnement.");
-          // Montrer un message d'erreur à l'utilisateur si nécessaire
-          // setErrorMessage("Impossible de charger vos factures. Veuillez réessayer plus tard.");
-        }
+        // Attendre un peu plus longtemps à chaque nouvelle tentative
+        const retryDelay = 1000 * attempt;
+        console.log(`[DEBUG] Nouvelle tentative dans ${retryDelay}ms...`);
+        
+        setTimeout(() => {
+          loadFactureBatch(lastVisible, attempt + 1);
+        }, retryDelay);
       }
     };
 
-    // Démarrer la récupération des factures
-    fetchFactures();
+    // Séquence de chargement
+    const loadAllData = async () => {
+      const userInfoLoaded = await getUserInfo();
+      if (userInfoLoaded) {
+        await loadFactureBatch();
+      }
+    };
 
-    // Récupérer les clients depuis Firestore
-    const clientsQuery = query(
-      collection(db, "clients"),
-      where("userId", "==", user.uid)
-    );
+    loadAllData();
 
-    const clientsUnsubscribe = onSnapshot(clientsQuery, (snapshot) => {
-      const clientsData = snapshot.docs.map((doc) => ({
-        ...doc.data(),
-        id: doc.id,
-      })) as Client[];
-      setClients(clientsData);
-    }, (error) => {
-      console.error("[DEBUG] Erreur d'écoute des clients:", error);
-    });
+    // Chargement des clients avec gestion d'erreur
+    let clientsUnsubscribe = () => {};
+    
+    try {
+      console.log("[DEBUG] Chargement des clients...");
+      const clientsQuery = query(
+        collection(db, "clients"),
+        where("userId", "==", user.uid)
+      );
+
+      clientsUnsubscribe = onSnapshot(clientsQuery, (snapshot) => {
+        const clientsData = snapshot.docs.map((doc) => ({
+          ...doc.data(),
+          id: doc.id,
+        })) as Client[];
+        console.log(`[DEBUG] ${clientsData.length} clients chargés`);
+        setClients(clientsData);
+      }, (error) => {
+        console.error("[DEBUG] Erreur d'écoute des clients:", error);
+        setErrorMessage("Impossible de charger vos clients en temps réel. Les données peuvent ne pas être à jour.");
+      });
+    } catch (error) {
+      console.error("[DEBUG] Erreur lors de l'initialisation de l'écoute des clients:", error);
+      setErrorMessage("Impossible d'initialiser le chargement des clients. Veuillez actualiser la page.");
+    }
 
     return () => {
+      // Nettoyer l'écouteur des clients
       clientsUnsubscribe();
     };
-  }, [user, router]);
+  }, [user, router, retryCount]);
+
+  // Fonction pour retenter le chargement
+  const handleRetryLoading = () => {
+    setRetryCount(prev => prev + 1);
+  };
 
   // Utiliser useCallback pour la fonction openEditModal
   const openEditModal = useCallback(
@@ -749,126 +822,172 @@ export default function FacturesPage() {
         </div>
       </div>
 
-      {/* Information sur les limites du plan */}
-      <div className="mb-6 bg-white dark:bg-card-dark p-4 rounded-lg shadow-sm">
-        <div className="flex justify-between items-center">
+      {/* Affichage des erreurs */}
+      {errorMessage && (
+        <div className="mb-6 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md flex justify-between items-center">
           <div>
-            <h3 className="font-medium text-text-light dark:text-text-dark">
-              Factures
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {planInfo.maxFactures === -1
-                ? `Vous utilisez ${planInfo.currentFactures} facture(s) (illimité avec le plan ${planInfo.planId})`
-                : `Vous utilisez ${planInfo.currentFactures} facture(s) sur ${planInfo.maxFactures} disponible(s) avec votre plan ${planInfo.planId}`}
-            </p>
+            <p className="font-medium">Erreur</p>
+            <p>{errorMessage}</p>
+          </div>
+          <button 
+            onClick={handleRetryLoading}
+            className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 flex items-center"
+          >
+            <FiRefreshCw size={18} className="mr-2" /> Réessayer
+          </button>
+        </div>
+      )}
+
+      {/* Indicateur de chargement */}
+      {isLoading && (
+        <div className="flex justify-center items-center p-10">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
+          <p className="ml-4 text-text-light dark:text-text-dark">Chargement de vos factures...</p>
+        </div>
+      )}
+
+      {/* Information sur les limites du plan */}
+      {!isLoading && (
+        <div className="mb-6 bg-white dark:bg-card-dark p-4 rounded-lg shadow-sm">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="font-medium text-text-light dark:text-text-dark">
+                Factures
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {planInfo.maxFactures === -1
+                  ? `Vous utilisez ${planInfo.currentFactures} facture(s) (illimité avec le plan ${planInfo.planId})`
+                  : `Vous utilisez ${planInfo.currentFactures} facture(s) sur ${planInfo.maxFactures} disponible(s) avec votre plan ${planInfo.planId}`}
+              </p>
+            </div>
+            {limitReached && planInfo.maxFactures !== -1 && (
+              <div className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 px-3 py-1 rounded-full text-sm">
+                Limite atteinte
+              </div>
+            )}
           </div>
           {limitReached && planInfo.maxFactures !== -1 && (
-            <div className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 px-3 py-1 rounded-full text-sm">
-              Limite atteinte
+            <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              <a
+                href="/dashboard/abonnement"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Passez à un plan supérieur
+              </a>{" "}
+              pour créer plus de factures.
             </div>
           )}
         </div>
-        {limitReached && planInfo.maxFactures !== -1 && (
-          <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            <a
-              href="/dashboard/abonnement"
-              className="text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              Passez à un plan supérieur
-            </a>{" "}
-            pour créer plus de factures.
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Tableau des factures */}
-      <div className="overflow-x-auto">
-        <table className="w-full bg-card-light dark:bg-card-dark shadow-md rounded-lg">
-          <thead className="bg-gray-800 text-white">
-            <tr>
-              <th className="py-3 px-4 text-left">N° Facture</th>
-              <th className="py-3 px-4 text-left">Client</th>
-              <th className="py-3 px-4 text-left">Date de facture</th>
-              <th className="py-3 px-4 text-left">Total TTC</th>
-              <th className="py-3 px-4 text-left">Statut</th>
-              <th className="py-3 px-4 text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {factures
-              .filter((facture) => facture && facture.id)
-              .map((facture) => (
-                <tr
-                  key={facture.id}
-                  className="border-b dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/70"
-                >
-                  <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                    <a
-                      href={`/dashboard/factures/${facture.id}`}
-                      className="hover:text-blue-500 hover:underline cursor-pointer font-medium"
-                    >
-                      {facture.numero}
-                    </a>
-                  </td>
-                  <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                    {facture.client.nom}
-                  </td>
-                  <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                    {formatDate(facture.dateCreation)}
-                  </td>
-                  <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                    {facture.totalTTC.toFixed(2)} €
-                  </td>
-                  <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                    <span
-                      className={`py-1 px-3 rounded-full text-white text-sm ${
-                        facture.statut === "Payée"
-                          ? "bg-green-500"
-                          : facture.statut === "En attente"
-                          ? "bg-yellow-500"
-                          : facture.statut === "Envoyée"
-                          ? "bg-blue-500"
-                          : "bg-red-500"
-                      }`}
-                    >
-                      {facture.statut}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <button
-                      onClick={() => handleViewDetails(facture.id)}
-                      className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white mx-1"
-                      title="Voir détails"
-                    >
-                      <FiEye size={18} />
-                    </button>
-                    <button
-                      onClick={() => openModelSelector(facture)}
-                      className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white mx-1"
-                      title="Générer PDF"
-                    >
-                      <FiFileText size={18} />
-                    </button>
-                    <button
-                      onClick={() => openEditModal(facture)}
-                      className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 mx-1"
-                      title="Modifier"
-                    >
-                      <FiEdit size={18} />
-                    </button>
-                    <button
-                      onClick={() => deleteFacture(facture.id)}
-                      className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 mx-1"
-                      title="Supprimer"
-                    >
-                      <FiTrash2 size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+      {!isLoading && factures.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full bg-card-light dark:bg-card-dark shadow-md rounded-lg">
+            <thead className="bg-gray-800 text-white">
+              <tr>
+                <th className="py-3 px-4 text-left">N° Facture</th>
+                <th className="py-3 px-4 text-left">Client</th>
+                <th className="py-3 px-4 text-left">Date de facture</th>
+                <th className="py-3 px-4 text-left">Total TTC</th>
+                <th className="py-3 px-4 text-left">Statut</th>
+                <th className="py-3 px-4 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {factures
+                .filter((facture) => facture && facture.id)
+                .map((facture) => (
+                  <tr
+                    key={facture.id}
+                    className="border-b dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/70"
+                  >
+                    <td className="py-3 px-4 text-text-light dark:text-text-dark">
+                      <a
+                        href={`/dashboard/factures/${facture.id}`}
+                        className="hover:text-blue-500 hover:underline cursor-pointer font-medium"
+                      >
+                        {facture.numero}
+                      </a>
+                    </td>
+                    <td className="py-3 px-4 text-text-light dark:text-text-dark">
+                      {facture.client.nom}
+                    </td>
+                    <td className="py-3 px-4 text-text-light dark:text-text-dark">
+                      {formatDate(facture.dateCreation)}
+                    </td>
+                    <td className="py-3 px-4 text-text-light dark:text-text-dark">
+                      {facture.totalTTC.toFixed(2)} €
+                    </td>
+                    <td className="py-3 px-4 text-text-light dark:text-text-dark">
+                      <span
+                        className={`py-1 px-3 rounded-full text-white text-sm ${
+                          facture.statut === "Payée"
+                            ? "bg-green-500"
+                            : facture.statut === "En attente"
+                            ? "bg-yellow-500"
+                            : facture.statut === "Envoyée"
+                            ? "bg-blue-500"
+                            : "bg-red-500"
+                        }`}
+                      >
+                        {facture.statut}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        onClick={() => handleViewDetails(facture.id)}
+                        className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white mx-1"
+                        title="Voir détails"
+                      >
+                        <FiEye size={18} />
+                      </button>
+                      <button
+                        onClick={() => openModelSelector(facture)}
+                        className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white mx-1"
+                        title="Générer PDF"
+                      >
+                        <FiFileText size={18} />
+                      </button>
+                      <button
+                        onClick={() => openEditModal(facture)}
+                        className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 mx-1"
+                        title="Modifier"
+                      >
+                        <FiEdit size={18} />
+                      </button>
+                      <button
+                        onClick={() => deleteFacture(facture.id)}
+                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 mx-1"
+                        title="Supprimer"
+                      >
+                        <FiTrash2 size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Message si aucune facture */}
+      {!isLoading && factures.length === 0 && !errorMessage && (
+        <div className="text-center py-10">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">Vous n'avez pas encore de factures.</p>
+          <button
+            onClick={openModal}
+            disabled={limitReached}
+            className={`${
+              limitReached
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-gray-800 hover:bg-gray-600"
+            } text-white py-2 px-4 rounded-md transition-colors duration-300`}
+          >
+            Créer votre première facture
+          </button>
+        </div>
+      )}
 
       {/* Modal amélioré */}
       {isModalOpen && (
