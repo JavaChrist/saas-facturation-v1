@@ -1,29 +1,15 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { FiArrowLeft, FiFileText, FiEdit, FiTrash2, FiRefreshCw } from "react-icons/fi";
 import { useAuth } from "@/lib/authContext";
 import { generateInvoicePDF } from "@/services/pdfGenerator";
 import { doc, getDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Facture, Article } from "@/types/facture";
+import { Facture } from "@/types/facture";
 
-// Composant qui enveloppe toute la page avec un Suspense pour éviter les problèmes de rendu
+// Composant principal
 export default function FactureDetailPage() {
-  return (
-    <Suspense fallback={
-      <div className="p-6 flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
-        <p className="ml-3 text-gray-800 dark:text-gray-200">Chargement...</p>
-      </div>
-    }>
-      <FactureDetail />
-    </Suspense>
-  );
-}
-
-// Composant principal de détail des factures
-function FactureDetail() {
   const router = useRouter();
   const params = useParams();
   const { user } = useAuth();
@@ -44,10 +30,15 @@ function FactureDetail() {
         return;
       }
       
-      // Le middleware s'assure déjà que l'utilisateur est connecté, donc pas besoin de vérifier ici
-      
       try {
         setLoading(true);
+        
+        // Vérifier si l'utilisateur est connecté
+        if (!user) {
+          setLoading(false);
+          setError("Veuillez vous connecter pour consulter cette facture");
+          return;
+        }
         
         // Récupérer la facture directement depuis Firestore
         const factureRef = doc(db, "factures", factureId);
@@ -62,7 +53,7 @@ function FactureDetail() {
         const factureData = factureDoc.data();
         
         // Vérifier que l'utilisateur actuel est le propriétaire de la facture
-        if (user && factureData.userId !== user.uid) {
+        if (factureData.userId !== user.uid) {
           setError("Vous n'êtes pas autorisé à consulter cette facture");
           setLoading(false);
           return;
@@ -178,7 +169,6 @@ function FactureDetail() {
   const handleRetry = () => {
     setLoading(true);
     setError(null);
-    // Force refresh
     router.refresh();
   };
   

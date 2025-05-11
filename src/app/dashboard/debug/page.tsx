@@ -15,9 +15,10 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { useFacture } from "@/lib/factureProvider";
 
 export default function DebugPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [debugData, setDebugData] = useState<any>(null);
@@ -26,6 +27,9 @@ export default function DebugPage() {
     status: "success" | "error" | "none";
     message: string;
   }>({ status: "none", message: "" });
+  const { factureData, loading: factureLoading, invalidateCache } = useFacture();
+  const [storageData, setStorageData] = useState<any>({});
+  const [cookieData, setCookieData] = useState<string>("");
 
   const fetchDebugData = useCallback(async () => {
     if (!user) return;
@@ -171,6 +175,70 @@ export default function DebugPage() {
 
     fetchDebugData();
   }, [user, router, fetchDebugData]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Récupération des données du localStorage
+      const localStorageData: Record<string, any> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          try {
+            const value = localStorage.getItem(key);
+            if (value && (key.includes('firebase') || key.includes('plan') || key.includes('facture'))) {
+              localStorageData[key] = value.substring(0, 100) + (value.length > 100 ? '...' : '');
+            }
+          } catch (e) {
+            localStorageData[key] = 'Erreur de lecture';
+          }
+        }
+      }
+      
+      setStorageData(localStorageData);
+      
+      // Récupération des cookies
+      setCookieData(document.cookie);
+    }
+  }, []);
+
+  const forceStorageRefresh = () => {
+    if (typeof window !== 'undefined') {
+      const localStorageData: Record<string, any> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          try {
+            const value = localStorage.getItem(key);
+            if (value && (key.includes('firebase') || key.includes('plan') || key.includes('facture'))) {
+              localStorageData[key] = value.substring(0, 100) + (value.length > 100 ? '...' : '');
+            }
+          } catch (e) {
+            localStorageData[key] = 'Erreur de lecture';
+          }
+        }
+      }
+      
+      setStorageData(localStorageData);
+      setCookieData(document.cookie);
+    }
+  };
+
+  // Fonction pour effacer tout le localStorage
+  const clearAllStorage = () => {
+    if (typeof window !== 'undefined' && confirm('Êtes-vous sûr de vouloir effacer tout le localStorage?')) {
+      localStorage.clear();
+      sessionStorage.clear();
+      forceStorageRefresh();
+    }
+  };
+
+  // Fonction pour effacer tout le cache des factures
+  const clearFactureCache = () => {
+    if (typeof window !== 'undefined' && confirm('Êtes-vous sûr de vouloir effacer le cache des factures?')) {
+      invalidateCache();
+      forceStorageRefresh();
+    }
+  };
 
   if (!user) {
     return <p className="text-center text-gray-600 mt-10">Redirection...</p>;
@@ -594,6 +662,72 @@ export default function DebugPage() {
             <p className="text-gray-500 text-lg">Aucune donnée disponible</p>
           </div>
         )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          {/* État d'authentification */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+            <h2 className="text-xl font-semibold mb-4">État d'authentification</h2>
+            <div className="mb-2">
+              <span className="font-medium">Chargement :</span> {authLoading ? "En cours" : "Terminé"}
+            </div>
+            <div className="mb-2">
+              <span className="font-medium">Utilisateur :</span> {user ? "Connecté" : "Non connecté"}
+            </div>
+            {user && (
+              <>
+                <div className="mb-2">
+                  <span className="font-medium">ID utilisateur :</span> {user.uid}
+                </div>
+                <div className="mb-2">
+                  <span className="font-medium">Email :</span> {user.email}
+                </div>
+              </>
+            )}
+          </div>
+          
+          {/* État du cache des factures */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+            <h2 className="text-xl font-semibold mb-4">Cache des factures</h2>
+            <div className="mb-2">
+              <span className="font-medium">Chargement :</span> {factureLoading ? "En cours" : "Terminé"}
+            </div>
+            <div className="mb-2">
+              <span className="font-medium">Factures en cache :</span> {Object.keys(factureData).length}
+            </div>
+            <button 
+              onClick={clearFactureCache}
+              className="bg-red-500 text-white px-4 py-2 rounded mt-2">
+              Effacer le cache des factures
+            </button>
+          </div>
+          
+          {/* Données du localStorage */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow md:col-span-2">
+            <h2 className="text-xl font-semibold mb-4">Données de stockage</h2>
+            <button 
+              onClick={forceStorageRefresh}
+              className="bg-blue-500 text-white px-4 py-2 rounded mb-4 mr-4">
+              Rafraîchir
+            </button>
+            <button 
+              onClick={clearAllStorage}
+              className="bg-red-500 text-white px-4 py-2 rounded mb-4">
+              Effacer tout le stockage
+            </button>
+            
+            <div className="overflow-auto">
+              <h3 className="font-medium mt-4 mb-2">localStorage:</h3>
+              <div className="bg-gray-100 dark:bg-gray-900 p-4 rounded font-mono text-sm">
+                <pre>{JSON.stringify(storageData, null, 2)}</pre>
+              </div>
+              
+              <h3 className="font-medium mt-4 mb-2">Cookies:</h3>
+              <div className="bg-gray-100 dark:bg-gray-900 p-4 rounded font-mono text-sm break-all">
+                <pre>{cookieData || "Aucun cookie trouvé"}</pre>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
