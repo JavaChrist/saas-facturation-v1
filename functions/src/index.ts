@@ -10,7 +10,6 @@
 import * as functions from "firebase-functions/v1"; // Utiliser v1 pour la compatibilité
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
-import * as sgMail from "@sendgrid/mail";
 
 // Type pour corriger les erreurs de compilation
 interface InvitationData {
@@ -40,30 +39,16 @@ admin.initializeApp();
 let config: any;
 try {
   config = functions.config();
-  console.log("Configuration chargée:", Object.keys(config));
 } catch (e) {
-  console.warn("Erreur lors du chargement de la configuration:", e);
-  config = { sendgrid: {}, email: {} };
+  config = { email: {} };
 }
 
-// Configurer SendGrid avec la clé API
-// Pour configurer en production, utilisez:
-// firebase functions:config:set sendgrid.key="VOTRE_CLE_API" email.commercial="votre@email.com" email.from="no-reply@votredomaine.com"
-const SENDGRID_API_KEY = config.sendgrid?.key || process.env.SENDGRID_API_KEY || "";
 // L'email qui recevra les demandes commerciales (vous)
 const COMMERCIAL_EMAIL = config.email?.commercial || process.env.COMMERCIAL_EMAIL || "votre-email@domaine.com";
 // L'email d'expéditeur de vos messages
 const EMAIL_FROM = config.email?.from || process.env.EMAIL_FROM || "facturation@votredomaine.com";
 
-if (SENDGRID_API_KEY) {
-  sgMail.setApiKey(SENDGRID_API_KEY);
-  console.log("SendGrid configuré avec succès");
-} else {
-  console.warn("ATTENTION: Clé API SendGrid non configurée. Utilisez firebase functions:config:set sendgrid.key='VOTRE_CLE_API'");
-}
-
-// Configuration du transporteur d'email de secours (utilisé si SendGrid n'est pas configuré)
-// Note: En production, utilisez un service comme SendGrid, Mailgun, etc.
+// Configuration du transporteur d'email
 // Pour le développement, vous pouvez utiliser un compte Gmail ou un service SMTP test
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -73,42 +58,12 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Fonction utilitaire pour envoyer un email via SendGrid ou fallback vers Nodemailer
+// Fonction utilitaire pour envoyer un email via Nodemailer
 async function sendEmail(mailOptions: any): Promise<void> {
-  console.log("Tentative d'envoi d'email à:", mailOptions.to, "depuis:", mailOptions.from);
-  
-  if (SENDGRID_API_KEY) {
-    try {
-      // Formater pour SendGrid
-      const msg = {
-        to: mailOptions.to,
-        from: mailOptions.from,
-        subject: mailOptions.subject,
-        text: mailOptions.text || "", // Texte brut facultatif
-        html: mailOptions.html,
-        attachments: mailOptions.attachments,
-      };
-
-      console.log("Envoi via SendGrid avec clé API:", SENDGRID_API_KEY.substring(0, 10) + "...[masqué]");
-      await sgMail.send(msg);
-      console.log("Email envoyé avec succès via SendGrid");
-      return;
-    } catch (sgError) {
-      console.error("Erreur avec SendGrid, détails:", sgError);
-      console.error("Fallback vers Nodemailer");
-      // Continuer avec Nodemailer en cas d'échec
-    }
-  } else {
-    console.log("Aucune clé API SendGrid trouvée, utilisation de Nodemailer");
-  }
-
   try {
-    // Utiliser Nodemailer comme fallback
-    console.log("Tentative d'envoi via Nodemailer");
     await transporter.sendMail(mailOptions);
-    console.log("Email envoyé avec succès via Nodemailer (fallback)");
   } catch (error) {
-    console.error("Erreur lors de l'envoi d'email via Nodemailer:", error);
+    console.error("Erreur lors de l'envoi d'email:", error);
     throw error;
   }
 }
@@ -239,7 +194,6 @@ const createClientConfirmationEmail = (
 // Fonction pour envoyer une invitation à un utilisateur
 exports.sendUserInvitation = functions.https.onCall(
   async (data: InvitationData, context: functions.https.CallableContext) => {
-    // Vérifier si l'utilisateur est authentifié
     if (!context.auth) {
       throw new functions.https.HttpsError(
         "unauthenticated",
@@ -281,11 +235,11 @@ exports.sendUserInvitation = functions.https.onCall(
       await invitationToken.set({
         email: email,
         organizationId: organizationId,
-        role: role || "viewer", // Rôle par défaut
+        role: role || "viewer",
         createdBy: context.auth.uid,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         status: "pending",
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Expire dans 7 jours
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       });
 
       // Construire le lien d'invitation
@@ -316,7 +270,6 @@ exports.sendUserInvitation = functions.https.onCall(
 // Fonction pour envoyer une facture par email
 exports.sendInvoiceByEmail = functions.https.onCall(
   async (data: InvoiceData, context: functions.https.CallableContext) => {
-    // Vérifier si l'utilisateur est authentifié
     if (!context.auth) {
       throw new functions.https.HttpsError(
         "unauthenticated",
@@ -363,8 +316,6 @@ exports.sendInvoiceByEmail = functions.https.onCall(
       }
 
       // Générer ou récupérer l'URL du PDF de la facture
-      // Note: Vous devez implémenter la génération de PDF et son stockage dans Firebase Storage
-      // Cet exemple suppose que l'URL est déjà stockée dans factureData.pdfUrl
       let pdfUrl = factureData?.pdfUrl;
 
       // Si l'URL n'existe pas, générer une URL temporaire depuis Storage
@@ -378,10 +329,7 @@ exports.sendInvoiceByEmail = functions.https.onCall(
           });
           pdfUrl = url;
         } catch (storageError) {
-          console.error(
-            "Erreur lors de la génération de l'URL du PDF:",
-            storageError
-          );
+          console.error("Erreur lors de la génération de l'URL du PDF:", storageError);
           throw new functions.https.HttpsError(
             "internal",
             "Impossible de générer l'URL du PDF."
@@ -462,11 +410,10 @@ exports.sendContactRequest = functions.https.onCall(
         date: admin.firestore.FieldValue.serverTimestamp(),
         status: "pending",
         source: "subscription_page",
-        // Ajouter l'ID de l'utilisateur s'il est connecté
         userId: context.auth ? context.auth.uid : null,
       });
 
-      // Envoyer un email au service commercial (vous)
+      // Envoyer un email au service commercial
       const commercialMailOptions = createCommercialEmail(name, email, message);
       await sendEmail(commercialMailOptions);
 

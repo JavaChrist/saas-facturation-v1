@@ -19,26 +19,19 @@ export interface OrganizationUser {
   displayName: string;
   role: "admin" | "editor" | "viewer";
   createdAt: Date;
-  organizationId: string; // ID de l'organisation principale
+  organizationId: string;
   isActive: boolean;
 }
 
 /**
  * Récupère tous les utilisateurs de l'organisation
- * @param organizationId ID de l'organisation
- * @returns Liste des utilisateurs
  */
 export const getOrganizationUsers = async (
   organizationId: string
 ): Promise<OrganizationUser[]> => {
   try {
-    console.log("[DEBUG] getOrganizationUsers appelé avec ID:", organizationId);
-
     // Essayer d'abord de récupérer directement les membres de l'organisation
     try {
-      console.log(
-        "[DEBUG] Tentative de récupération des membres de l'organisation directement"
-      );
       const membersCollection = collection(
         db,
         "organizations",
@@ -48,7 +41,6 @@ export const getOrganizationUsers = async (
       const membersSnapshot = await getDocs(membersCollection);
 
       if (!membersSnapshot.empty) {
-        console.log("[DEBUG] Membres trouvés:", membersSnapshot.size);
         const members = membersSnapshot.docs.map((doc) => ({
           id: doc.id,
           email: doc.data().email,
@@ -61,32 +53,19 @@ export const getOrganizationUsers = async (
           isActive: doc.data().actif !== undefined ? doc.data().actif : true,
         })) as OrganizationUser[];
 
-        console.log("[DEBUG] Membres transformés:", members.length);
         return members;
-      } else {
-        console.log("[DEBUG] Aucun membre trouvé dans la sous-collection");
       }
     } catch (subErr) {
-      console.error(
-        "[DEBUG] Erreur lors de la récupération des membres:",
-        subErr
-      );
+      console.error("Erreur lors de la récupération des membres:", subErr);
     }
 
     // Fallback: essayer la collection utilisateursOrganisation
-    console.log(
-      "[DEBUG] Tentative de récupération depuis utilisateursOrganisation"
-    );
     const usersQuery = query(
       collection(db, "utilisateursOrganisation"),
       where("organisationId", "==", organizationId)
     );
 
     const snapshot = await getDocs(usersQuery);
-    console.log(
-      "[DEBUG] Résultats de utilisateursOrganisation:",
-      snapshot.size
-    );
 
     const users = snapshot.docs.map((doc) => ({
       id: doc.id,
@@ -96,16 +75,11 @@ export const getOrganizationUsers = async (
         : new Date(doc.data().dateCreation || Date.now()),
     })) as OrganizationUser[];
 
-    console.log("[DEBUG] Utilisateurs récupérés:", users.length);
     return users;
   } catch (error) {
-    console.error(
-      "[DEBUG] Erreur complète lors de la récupération des utilisateurs:",
-      error
-    );
+    console.error("Erreur lors de la récupération des utilisateurs:", error);
     // En mode développement, retourner un utilisateur factice pour éviter l'erreur
     if (process.env.NODE_ENV === "development") {
-      console.log("[DEBUG] Mode dev: création d'un utilisateur de test");
       return [
         {
           id: "test-user-id",
@@ -124,10 +98,6 @@ export const getOrganizationUsers = async (
 
 /**
  * Ajoute un nouvel utilisateur à l'organisation
- * @param userId ID de l'utilisateur principal (admin)
- * @param organizationId ID de l'organisation
- * @param newUser Nouvel utilisateur à ajouter
- * @returns ID de l'utilisateur créé
  */
 export const addOrganizationUser = async (
   userId: string,
@@ -135,13 +105,6 @@ export const addOrganizationUser = async (
   newUser: Omit<OrganizationUser, "id" | "createdAt" | "organizationId">
 ): Promise<string> => {
   try {
-    console.log(
-      "[DEBUG] addOrganizationUser appelé avec:",
-      userId,
-      organizationId,
-      newUser
-    );
-
     // Récupérer tous les utilisateurs existants
     const existingUsers = await getOrganizationUsers(organizationId);
 
@@ -168,11 +131,6 @@ export const addOrganizationUser = async (
       actif: true,
     });
 
-    console.log(
-      "[DEBUG] Utilisateur ajouté à utilisateursOrganisation:",
-      docRef.id
-    );
-
     // Ajouter l'utilisateur comme membre de l'organisation
     const orgMemberRef = doc(
       db,
@@ -189,22 +147,15 @@ export const addOrganizationUser = async (
       actif: true,
     });
 
-    console.log("[DEBUG] Utilisateur ajouté comme membre de l'organisation");
-
     return docRef.id;
   } catch (error) {
-    console.error(
-      "[DEBUG] Erreur complète lors de l'ajout d'un utilisateur:",
-      error
-    );
+    console.error("Erreur lors de l'ajout d'un utilisateur:", error);
     throw error;
   }
 };
 
 /**
  * Désactive un utilisateur de l'organisation
- * @param userId ID de l'utilisateur à désactiver
- * @returns true si la désactivation a réussi
  */
 export const deactivateUser = async (userId: string): Promise<boolean> => {
   try {
@@ -245,8 +196,6 @@ export const deactivateUser = async (userId: string): Promise<boolean> => {
 
 /**
  * Vérifie si un utilisateur peut être ajouté à l'organisation
- * @param adminId ID de l'administrateur de l'organisation
- * @returns true si un utilisateur peut être ajouté, false sinon
  */
 export const canAddUser = async (adminId: string): Promise<boolean> => {
   try {
@@ -256,10 +205,7 @@ export const canAddUser = async (adminId: string): Promise<boolean> => {
     // Récupérer tous les utilisateurs de l'organisation
     const organizationId = await getOrganizationId(adminId);
     if (!organizationId) {
-      console.error(
-        "[DEBUG] ID d'organisation non trouvé pour l'utilisateur:",
-        adminId
-      );
+      console.error("ID d'organisation non trouvé pour l'utilisateur:", adminId);
       return false;
     }
 
@@ -268,25 +214,18 @@ export const canAddUser = async (adminId: string): Promise<boolean> => {
     // Vérifier si la limite est atteinte
     return !(await checkPlanLimit(adminId, "utilisateurs", users.length));
   } catch (error) {
-    console.error(
-      "Erreur lors de la vérification des limites d'utilisateurs:",
-      error
-    );
+    console.error("Erreur lors de la vérification des limites d'utilisateurs:", error);
     return false;
   }
 };
 
 /**
  * Récupère l'ID de l'organisation d'un utilisateur
- * @param userId ID de l'utilisateur
- * @returns ID de l'organisation ou null si non trouvé
  */
 export const getOrganizationId = async (
   userId: string
 ): Promise<string | null> => {
   try {
-    console.log("[DEBUG] getOrganizationId appelé pour:", userId);
-
     // Vérifier d'abord si l'utilisateur est propriétaire d'une organisation
     const orgsQuery = query(
       collection(db, "organizations"),
@@ -294,33 +233,19 @@ export const getOrganizationId = async (
     );
 
     const orgsSnapshot = await getDocs(orgsQuery);
-    console.log(
-      "[DEBUG] Organisations trouvées comme propriétaire:",
-      orgsSnapshot.size
-    );
 
     if (!orgsSnapshot.empty) {
       const orgId = orgsSnapshot.docs[0].id;
-      console.log(
-        "[DEBUG] ID d'organisation trouvé comme propriétaire:",
-        orgId
-      );
       return orgId;
     }
 
     // Sinon, chercher dans les membres d'organisations
-    // Parcourir toutes les organisations pour vérifier la sous-collection membres
     const allOrgsSnapshot = await getDocs(collection(db, "organizations"));
-    console.log("[DEBUG] Nombre total d'organisations:", allOrgsSnapshot.size);
 
     for (const orgDoc of allOrgsSnapshot.docs) {
       const memberRef = doc(db, "organizations", orgDoc.id, "membres", userId);
       const memberSnap = await getDoc(memberRef);
       if (memberSnap.exists()) {
-        console.log(
-          "[DEBUG] Utilisateur trouvé comme membre de l'organisation:",
-          orgDoc.id
-        );
         return orgDoc.id;
       }
     }
@@ -332,41 +257,24 @@ export const getOrganizationId = async (
     );
 
     const usersSnapshot = await getDocs(usersQuery);
-    console.log(
-      "[DEBUG] Utilisateurs trouvés dans utilisateursOrganisation:",
-      usersSnapshot.size
-    );
 
     if (!usersSnapshot.empty) {
       const orgId = usersSnapshot.docs[0].data().organisationId;
-      console.log(
-        "[DEBUG] ID d'organisation trouvé dans utilisateursOrganisation:",
-        orgId
-      );
       return orgId;
     }
 
-    // Mode développement - retourner l'ID que vous avez spécifié lors de la création manuelle
+    // Mode développement - retourner l'ID par défaut
     if (process.env.NODE_ENV === "development") {
-      console.log("[DEBUG] Mode dev: retour de l'ID d'organisation par défaut");
-      // Retourner l'ID exact de votre document d'organisation
-      return "organizations"; // Utilisez l'ID que vous avez choisi lors de la création
+      return "organizations";
     }
 
-    console.log("[DEBUG] Aucune organisation trouvée pour cet utilisateur");
     return null;
   } catch (error) {
-    console.error(
-      "[DEBUG] Erreur lors de la récupération de l'ID de l'organisation:",
-      error
-    );
+    console.error("Erreur lors de la récupération de l'ID de l'organisation:", error);
 
-    // Mode développement - retourner l'ID que vous avez spécifié lors de la création manuelle
+    // Mode développement - retourner l'ID par défaut
     if (process.env.NODE_ENV === "development") {
-      console.log(
-        "[DEBUG] Mode dev après erreur: retour de l'ID d'organisation par défaut"
-      );
-      return "organizations"; // Utilisez l'ID que vous avez choisi lors de la création
+      return "organizations";
     }
 
     return null;

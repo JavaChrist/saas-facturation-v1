@@ -43,6 +43,7 @@ function AbonnementContent() {
   const [contactFormData, setContactFormData] = useState({
     name: "",
     email: "",
+    phone: "",
     message: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -432,11 +433,21 @@ function AbonnementContent() {
     setContactSuccess(null);
 
     try {
+      // Vérifier que le téléphone est renseigné
+      if (!contactFormData.name || !contactFormData.email || !contactFormData.message || !contactFormData.phone) {
+        setError("Tous les champs sont requis");
+        setIsSubmitting(false);
+        return;
+      }
+
       // Envoyer la demande via le service d'emails
+      // Inclure le numéro de téléphone dans le message
+      const messageWithPhone = `Téléphone: ${contactFormData.phone}\n\n${contactFormData.message}`;
+      
       const result = await emailService.sendContactRequest(
         contactFormData.name,
         contactFormData.email,
-        contactFormData.message
+        messageWithPhone
       );
 
       if (result.success) {
@@ -446,7 +457,7 @@ function AbonnementContent() {
         
         // Réinitialiser le formulaire après 3 secondes
         setTimeout(() => {
-          setContactFormData({ name: "", email: "", message: "" });
+          setContactFormData({ name: "", email: "", phone: "", message: "" });
           setShowContactForm(false);
           setContactSuccess(null);
         }, 3000);
@@ -1029,6 +1040,10 @@ function AbonnementContent() {
                   Complétez ce formulaire pour recevoir une proposition commerciale personnalisée ou pour discuter de vos besoins spécifiques.
                 </p>
 
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                  <span className="text-red-500">*</span> Champ obligatoire
+                </p>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Nom <span className="text-red-500">*</span>
@@ -1062,6 +1077,26 @@ function AbonnementContent() {
                       })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    required
+                    disabled={isSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Téléphone <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={contactFormData.phone}
+                    onChange={(e) =>
+                      setContactFormData({
+                        ...contactFormData,
+                        phone: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    placeholder="Votre numéro de téléphone"
                     required
                     disabled={isSubmitting}
                   />

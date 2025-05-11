@@ -11,7 +11,6 @@
 import {
   collection,
   addDoc,
-  doc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import emailjs from '@emailjs/browser';
@@ -68,71 +67,47 @@ export const emailService = {
             language: navigator.language,
           },
         });
-        console.log("Demande commerciale enregistrée dans Firestore avec succès");
         
         // Envoyer un email via EmailJS
+        const templateParams = {
+          to_email: "support@javachrist.fr",
+          from_name: name,
+          from_email: email,
+          message: message,
+          reply_to: email,
+          subject: "Nouvelle demande de contact - Facturation SaaS"
+        };
+        
+        await emailjs.send(
+          EMAILJS_SERVICE_ID,
+          EMAILJS_TEMPLATE_ID_ADMIN,
+          templateParams,
+          EMAILJS_PUBLIC_KEY
+        );
+        
+        // Essayer d'envoyer un email de confirmation au client également
         try {
-          console.log("Configuration EmailJS:", { 
-            service: EMAILJS_SERVICE_ID, 
-            template: EMAILJS_TEMPLATE_ID_ADMIN,
-            publicKey: EMAILJS_PUBLIC_KEY
-          });
-           
-          const templateParams = {
-            to_email: "support@javachrist.fr",
-            from_name: name,
-            from_email: email,
-            message: message,
-            reply_to: email,
-            subject: "Nouvelle demande de contact - Facturation SaaS"
+          const confirmationParams = {
+            to_email: email,
+            to_name: name,
+            message: "Nous avons bien reçu votre demande et nous vous répondrons dans les plus brefs délais. Merci de nous avoir contactés!",
+            subject: "Confirmation de votre demande - Facturation SaaS"
           };
-           
-          console.log("Paramètres du template:", templateParams);
           
-          const emailResult = await emailjs.send(
+          await emailjs.send(
             EMAILJS_SERVICE_ID,
-            EMAILJS_TEMPLATE_ID_ADMIN,
-            templateParams,
+            EMAILJS_TEMPLATE_ID_CLIENT,
+            confirmationParams,
             EMAILJS_PUBLIC_KEY
           );
-          
-          console.log("Email envoyé avec succès via EmailJS:", emailResult.text);
-          
-          // Essayer d'envoyer un email de confirmation au client également
-          try {
-            const confirmationParams = {
-              to_email: email,
-              to_name: name,
-              message: "Nous avons bien reçu votre demande et nous vous répondrons dans les plus brefs délais. Merci de nous avoir contactés!",
-              subject: "Confirmation de votre demande - Facturation SaaS"
-            };
-            
-            await emailjs.send(
-              EMAILJS_SERVICE_ID,
-              EMAILJS_TEMPLATE_ID_CLIENT,
-              confirmationParams,
-              EMAILJS_PUBLIC_KEY
-            );
-            
-            console.log("Email de confirmation envoyé au client");
-          } catch (confirmationError) {
-            console.error("Erreur lors de l'envoi de l'email de confirmation:", confirmationError);
-            // Ne pas échouer si l'email de confirmation n'est pas envoyé
-          }
-          
-          return {
-            success: true,
-            message: `Votre demande a été envoyée avec succès. Notre équipe commerciale vous contactera prochainement.`,
-          };
-        } catch (emailError) {
-          console.error("Erreur lors de l'envoi via EmailJS:", emailError);
-          
-          // Même si l'email échoue, nous avons enregistré la demande dans Firestore
-          return {
-            success: true,
-            message: `Votre demande a été enregistrée. Notre équipe commerciale vous contactera prochainement.`,
-          };
+        } catch (confirmationError) {
+          console.error("Erreur lors de l'envoi de l'email de confirmation:", confirmationError);
         }
+        
+        return {
+          success: true,
+          message: `Votre demande a été envoyée avec succès. Notre équipe commerciale vous contactera prochainement.`,
+        };
       } catch (dbError) {
         console.error("Erreur lors de l'enregistrement de la demande:", dbError);
         throw dbError;

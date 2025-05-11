@@ -105,13 +105,16 @@ npm run dev
 
 ### Configuration de l'envoi d'emails
 
-L'application utilise EmailJS pour l'envoi d'emails directement depuis le client :
+L'application utilise exclusivement EmailJS pour l'envoi d'emails depuis le client :
 
 1. Créer un compte sur [EmailJS](https://www.emailjs.com/)
-2. Créer un service email dans votre compte EmailJS
-3. Créer deux templates : un pour les notifications admin et un pour les confirmations client
-4. Configurer les ID de service et templates dans `src/services/emailService.ts`
-5. S'assurer que la clé publique est correctement configurée dans `src/app/providers.tsx`
+2. Créer un service email dans votre compte EmailJS (service_7p7k9dm)
+3. Créer deux templates : 
+   - Un pour les notifications admin (template_hpsrdrj)
+   - Un pour les confirmations client (template_fvccesb)
+4. Configurer la clé publique (YCx1G77Q033P704UD) dans le service d'email
+
+Le formulaire de contact et les notifications utilisent maintenant EmailJS au lieu des fonctions Firebase pour une meilleure délivrabilité et une réduction des coûts.
 
 ### Déploiement
 
