@@ -2,6 +2,7 @@
 
 import { AuthProvider } from "@/lib/authContext";
 import { ThemeProvider } from "@/lib/themeContext";
+import { FactureProvider } from "@/lib/factureProvider";
 import { useEffect } from "react";
 import emailjs from '@emailjs/browser';
 
@@ -22,7 +23,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider>
-      <AuthProvider>{children}</AuthProvider>
+      <AuthProvider>
+        <FactureProvider>
+          {children}
+        </FactureProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

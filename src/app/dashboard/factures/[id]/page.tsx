@@ -3,249 +3,95 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { FiArrowLeft, FiFileText, FiEdit, FiTrash2, FiRefreshCw } from "react-icons/fi";
 import { useAuth } from "@/lib/authContext";
-import { getFacture } from "@/services/factureService";
+import { useFacture } from "@/lib/factureProvider";
 import { generateInvoicePDF } from "@/services/pdfGenerator";
-import { Facture, Article } from "@/types/facture";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
-import { db, waitForAuth } from "@/lib/firebase";
-import { doc, getDoc, deleteDoc } from "firebase/firestore";
-import { User } from "firebase/auth";
+import { doc, deleteDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Facture } from "@/types/facture";
 
 export default function FactureDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { user, loading: authLoading } = useAuth();
+  const { loadFacture, factureData, loading: factureLoading, error: factureError } = useFacture();
   const [facture, setFacture] = useState<Facture | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  const factureId = params?.id as string;
-
-  // Fonction unique pour gérer tout le chargement
+  const [localLoading, setLocalLoading] = useState<boolean>(true);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<boolean>(false);
+  
+  // Récupérer l'id de la facture depuis les paramètres de l'URL
+  const factureId = typeof params?.id === "string" ? params.id : Array.isArray(params?.id) ? params.id[0] : "";
+  
+  // Charger la facture dès que possible
   useEffect(() => {
-    let isMounted = true;
-    let redirectTimer: NodeJS.Timeout | null = null;
-    
-    const loadData = async () => {
+    // Fonction pour charger les données
+    const fetchData = async () => {
       try {
-        // Si l'authentification est toujours en cours, attendons
+        setLocalLoading(true);
+        
+        // Si l'authentification est en cours, attendre
         if (authLoading) {
-          return; // Sortir et attendre le prochain rendu
+          return;
         }
         
-        // Une fois l'authentification terminée, vérifier si l'utilisateur est connecté
+        // Si aucun utilisateur n'est connecté, rediriger
         if (!user) {
-          console.log("Utilisateur non connecté, planification de la redirection...");
-          
-          // Stocker l'URL actuelle pour la redirection après login
+          // Stocker l'URL actuelle pour redirection après login
+          const currentPath = `/dashboard/factures/${factureId}`;
           if (typeof window !== 'undefined') {
-            const currentPath = `/dashboard/factures/${factureId}`;
             localStorage.setItem("authRedirectUrl", currentPath);
             sessionStorage.setItem("authRedirectUrl", currentPath);
           }
           
-          // Utiliser un timer pour éviter les redirections instantanées
-          // qui peuvent provoquer des clignotements
-          redirectTimer = setTimeout(() => {
-            console.log("Redirection vers /login");
-            router.push(`/login`);
-          }, 500);
-          
+          // Rediriger avec un délai pour éviter les flashs
+          setTimeout(() => {
+            router.push('/login');
+          }, 100);
           return;
         }
         
-        // L'utilisateur est connecté, annuler toute redirection programmée
-        if (redirectTimer) {
-          clearTimeout(redirectTimer);
-          redirectTimer = null;
-        }
-        
-        // Vérifier que nous avons un ID de facture
-        if (!factureId) {
-          if (isMounted) {
-            setError("ID de facture manquant");
-            setLoading(false);
-          }
-          return;
-        }
-        
-        console.log("Chargement de la facture avec ID:", factureId);
-        
-        try {
-          // Récupérer la facture directement sans appeler waitForAuth
-          const factureRef = doc(db, "factures", factureId);
-          const factureDoc = await getDoc(factureRef);
-          
-          if (!factureDoc.exists()) {
-            if (isMounted) {
-              setError("Facture introuvable");
-              setLoading(false);
-            }
-            return;
-          }
-          
-          const factureData = factureDoc.data();
-          
-          // Vérifier l'appartenance de la facture à l'utilisateur
-          if (factureData.userId !== user.uid) {
-            console.error("Accès non autorisé à la facture");
-            if (isMounted) {
-              setError("Vous n'êtes pas autorisé à consulter cette facture");
-              setLoading(false);
-            }
-            return;
-          }
-          
-          // Vérification et conversion des dates
-          let dateCreation = new Date();
-          try {
-            if (factureData.dateCreation) {
-              if (typeof factureData.dateCreation.toDate === 'function') {
-                dateCreation = factureData.dateCreation.toDate();
-              } else if (factureData.dateCreation instanceof Date) {
-                dateCreation = factureData.dateCreation;
-              } else if (typeof factureData.dateCreation === 'string') {
-                dateCreation = new Date(factureData.dateCreation);
-              }
-            }
-          } catch (dateError) {
-            console.error("Erreur lors de la conversion de la date:", dateError);
-            dateCreation = new Date();
-          }
-          
-          // Normalisation du client
-          if (!factureData.client) {
-            factureData.client = {
-              id: "",
-              nom: "Client non défini",
-              refClient: "",
-              rue: "",
-              codePostal: "",
-              ville: "",
-              email: "",
-              emails: [],
-              delaisPaiement: "30 jours"
-            };
-          } else {
-            // Valeurs par défaut
-            const defaultClient = {
-              id: "",
-              nom: "Client sans nom",
-              refClient: "",
-              rue: "",
-              codePostal: "",
-              ville: "",
-              email: "",
-              emails: [],
-              delaisPaiement: "30 jours"
-            };
-            
-            factureData.client = {
-              ...defaultClient,
-              ...factureData.client,
-              emails: Array.isArray(factureData.client.emails) ? factureData.client.emails : []
-            };
-          }
-          
-          // Normalisation des articles
-          if (!factureData.articles || !Array.isArray(factureData.articles)) {
-            factureData.articles = [];
-          } else {
-            factureData.articles = factureData.articles.map((article: any, index: number) => {
-              if (article.isComment) {
-                return {
-                  id: article.id || Date.now() + index,
-                  description: article.description || "Commentaire",
-                  quantite: 0,
-                  prixUnitaireHT: 0,
-                  tva: 0,
-                  totalTTC: 0,
-                  isComment: true
-                };
-              }
-              
-              const prixUnitaireHT = typeof article.prixUnitaireHT === 'number' ? article.prixUnitaireHT : 0;
-              const quantite = typeof article.quantite === 'number' ? article.quantite : 0;
-              const tva = typeof article.tva === 'number' ? article.tva : 20;
-              
-              const totalHT = prixUnitaireHT * quantite;
-              const totalTVA = (totalHT * tva) / 100;
-              const totalTTC = totalHT + totalTVA;
-              
-              return {
-                id: article.id || Date.now() + index,
-                description: article.description || `Article ${index + 1}`,
-                quantite: quantite,
-                prixUnitaireHT: prixUnitaireHT,
-                tva: tva,
-                totalTTC: totalTTC,
-                isComment: false
-              };
-            });
-          }
-          
-          // Calcul des totaux
-          const totalHT = factureData.articles
-            .filter((a: Article) => !a.isComment)
-            .reduce((sum: number, article: Article) => sum + (article.prixUnitaireHT * article.quantite), 0);
-          
-          const totalTTC = factureData.articles
-            .filter((a: Article) => !a.isComment)
-            .reduce((sum: number, article: Article) => sum + article.totalTTC, 0);
-          
-          // Construction de l'objet final
-          const factureObj: Facture = {
-            id: factureDoc.id,
-            userId: factureData.userId || user.uid,
-            numero: factureData.numero || "Facture sans numéro",
-            statut: factureData.statut || "En attente",
-            client: factureData.client,
-            articles: factureData.articles,
-            totalHT: factureData.totalHT || totalHT,
-            totalTTC: factureData.totalTTC || totalTTC,
-            dateCreation: dateCreation
-          };
-          
-          if (isMounted) {
-            setFacture(factureObj);
-            setLoading(false);
-          }
-        } catch (fetchError) {
-          console.error("Erreur lors de la récupération de la facture:", fetchError);
-          if (isMounted) {
-            if (fetchError instanceof Error) {
-              setError(`Erreur lors du chargement: ${fetchError.message}`);
-            } else {
-              setError("Impossible de charger les détails de la facture");
-            }
-            setLoading(false);
-          }
+        // Essayer de charger la facture depuis le cache du contexte
+        // ou depuis Firestore si pas en cache
+        const result = await loadFacture(factureId);
+        if (result) {
+          setFacture(result);
+          setLocalError(null);
+        } else {
+          setLocalError(factureError || "Impossible de charger la facture");
         }
       } catch (error) {
-        console.error("Erreur globale:", error);
-        if (isMounted) {
-          setError("Une erreur est survenue. Veuillez réessayer ou contacter le support.");
-          setLoading(false);
-        }
+        console.error("Erreur lors du chargement de la facture:", error);
+        setLocalError("Une erreur est survenue. Veuillez réessayer.");
+      } finally {
+        setLocalLoading(false);
       }
     };
-
-    loadData();
     
-    return () => {
-      isMounted = false;
-      if (redirectTimer) {
-        clearTimeout(redirectTimer);
-      }
-    };
-  }, [factureId, user, authLoading, router]);
-
+    fetchData();
+  }, [factureId, user, authLoading, loadFacture, factureError, router]);
+  
+  // Mettre à jour la facture lorsque le cache est actualisé
+  useEffect(() => {
+    if (factureId && factureData[factureId]) {
+      setFacture(factureData[factureId]);
+      setLocalError(null);
+    }
+  }, [factureId, factureData]);
+  
   // Format de date français
   const formatDate = (date: any): string => {
     try {
       if (!date) return "-";
+      
+      // Gérer le cas des Timestamps Firestore
+      if (date && typeof date.toDate === 'function') {
+        return date.toDate().toLocaleDateString("fr-FR", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric"
+        });
+      }
+      
       const dateObj = date instanceof Date ? date : new Date(date);
       return dateObj.toLocaleDateString("fr-FR", {
         day: "2-digit",
@@ -257,7 +103,7 @@ export default function FactureDetailPage() {
       return "-";
     }
   };
-
+  
   // Gérer la génération du PDF
   const handleGeneratePDF = async () => {
     if (!facture) return;
@@ -266,17 +112,17 @@ export default function FactureDetailPage() {
       await generateInvoicePDF(facture);
     } catch (error) {
       console.error("Erreur lors de la génération du PDF:", error);
-      setError("Erreur lors de la génération du PDF. Veuillez réessayer.");
+      setLocalError("Erreur lors de la génération du PDF. Veuillez réessayer.");
     }
   };
-
+  
   // Gérer la suppression d'une facture
   const handleDelete = async () => {
     if (!facture || !user) {
-      setError("Impossible de supprimer cette facture");
+      setLocalError("Impossible de supprimer cette facture");
       return;
     }
-
+    
     // Confirmer la suppression
     if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette facture ?")) {
       return;
@@ -284,63 +130,64 @@ export default function FactureDetailPage() {
     
     try {
       setDeleting(true);
-      setError(null);
-
-      console.log("Suppression de la facture:", facture.id);
+      setLocalError(null);
       
-      // Vérifier que l'utilisateur est bien le propriétaire
+      // Vérifier que l'utilisateur est propriétaire
       if (facture.userId !== user.uid) {
-        setError("Vous n'êtes pas autorisé à supprimer cette facture");
+        setLocalError("Vous n'êtes pas autorisé à supprimer cette facture");
         setDeleting(false);
         return;
       }
-
-      // Supprimer directement avec Firestore
+      
+      // Supprimer la facture
       await deleteDoc(doc(db, "factures", facture.id));
-      console.log("Facture supprimée avec succès");
       
-      // Rediriger vers la liste de factures
+      // Rediriger vers la liste
       router.push("/dashboard/factures");
-    } catch (error) {
-      console.error("Erreur lors de la suppression de la facture:", error);
-      let errorMessage = "Erreur lors de la suppression de la facture";
-      
-      if (error instanceof Error) {
-        errorMessage += `: ${error.message}`;
-      }
-      
-      setError(errorMessage);
+    } catch (error: any) {
+      console.error("Erreur lors de la suppression:", error);
+      setLocalError(`Erreur lors de la suppression: ${error.message || "Veuillez réessayer"}`);
       setDeleting(false);
     }
   };
-
+  
   // Gérer l'édition d'une facture
   const handleEdit = () => {
     router.push(`/dashboard/factures?id=${factureId}`);
   };
-
+  
   // Gérer les tentatives de rechargement
-  const handleRetry = () => {
-    setLoading(true);
-    setError(null);
-    // Force remount/reload
-    router.refresh();
+  const handleRetry = async () => {
+    setLocalLoading(true);
+    setLocalError(null);
+    try {
+      const result = await loadFacture(factureId);
+      if (result) {
+        setFacture(result);
+      } else {
+        setLocalError("Impossible de charger la facture");
+      }
+    } catch (error) {
+      setLocalError("Erreur lors du rechargement de la facture");
+    } finally {
+      setLocalLoading(false);
+    }
   };
-
+  
   // Afficher le chargement
-  if (loading || authLoading) {
+  if (localLoading || authLoading || factureLoading) {
     return (
       <div className="p-6 flex items-center justify-center h-screen">
         <div className="flex flex-col items-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100 mb-4"></div>
-          <p className="text-gray-800 dark:text-gray-200">Chargement en cours...</p>
+          <p className="text-gray-800 dark:text-gray-200">Chargement de la facture...</p>
         </div>
       </div>
     );
   }
-
+  
   // Afficher les erreurs
-  if (error || !facture) {
+  if (localError || !facture) {
     return (
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
@@ -363,13 +210,13 @@ export default function FactureDetailPage() {
           </div>
         </div>
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">
-          <p>{error || "Facture introuvable"}</p>
+          <p>{localError || "Facture introuvable"}</p>
         </div>
       </div>
     );
   }
-
-  // Le reste du composant reste inchangé
+  
+  // Afficher les détails de la facture
   return (
     <div className="p-6 bg-background-light dark:bg-background-dark">
       <div className="flex justify-between items-center mb-6">
