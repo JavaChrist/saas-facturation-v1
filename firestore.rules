@@ -78,5 +78,20 @@ service cloud.firestore {
       allow create: if isAuthenticated() && 
                     request.auth.uid == request.resource.data.userId;
     }
+
+    // Règles pour la collection contactRequests
+    match /contactRequests/{requestId} {
+      // Seul l'administrateur peut lire les demandes 
+      // Utiliser l'adresse email vérifiée pour identification
+      allow read: if isAuthenticated() && 
+                  request.auth.token.email == "support@javachrist.fr";
+      
+      // Permettre à tout utilisateur (même non authentifié) de créer une demande
+      allow create: if true;
+      
+      // Seul l'administrateur peut modifier ou supprimer les demandes
+      allow update, delete: if isAuthenticated() && 
+                            request.auth.token.email == "support@javachrist.fr";
+    }
   }
 } 

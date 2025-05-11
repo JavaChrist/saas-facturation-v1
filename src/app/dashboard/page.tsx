@@ -11,6 +11,7 @@ import {
   FiAward,
   FiShield,
   FiUserPlus,
+  FiMail
 } from "react-icons/fi";
 import Link from "next/link";
 import Image from "next/image";
@@ -407,44 +408,37 @@ export default function Dashboard() {
       {/* Contenu principal */}
       <main className="flex-1 p-6 overflow-auto">
         {/* Topbar */}
-        <div className="flex justify-between items-center bg-card-light dark:bg-card-dark p-4 shadow-md rounded-md mb-8">
-          <div className="flex items-center">
-            <h1 className="text-2xl font-semibold text-text-light dark:text-text-dark flex items-center">
-              Bienvenue, {user.email || "Utilisateur"}
-              <Image
-                src="/favicon.ico"
-                alt="Logo"
-                width={48}
-                height={48}
-                className="ml-2"
-                style={{ height: "auto" }}
-                priority
-              />
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Tableau de bord
             </h1>
-            <Link href="/dashboard/abonnement" className="ml-4">
-              <div
-                className={`flex items-center space-x-1 px-3 py-1 rounded-full text-sm border font-medium transition-all duration-300 shadow-sm hover:shadow ${
-                  userPlanInfo.planId === "premium"
-                    ? "border-blue-300 bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800/70"
-                    : userPlanInfo.planId === "enterprise"
-                    ? "border-purple-300 bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800/70"
-                    : "border-gray-300 bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800/70"
-                }`}
-              >
-                <span className="flex items-center">
-                  {userPlanInfo.planIcon}
-                  <span className="ml-1.5">Plan {userPlanInfo.planName}</span>
+            <p className="text-gray-600 dark:text-gray-400">
+              Bienvenue, {user?.displayName || user?.email || "Utilisateur"}
+            </p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div>
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                Plan actif
+              </div>
+              <div className="flex items-center">
+                {userPlanInfo.planIcon}
+                <span
+                  className={`ml-1 font-medium text-${userPlanInfo.planColor}-600 dark:text-${userPlanInfo.planColor}-400`}
+                >
+                  {userPlanInfo.planName}
                 </span>
               </div>
-            </Link>
-          </div>
-          <div className="flex items-center gap-4">
+            </div>
+            <DateFilter
+              onDateChange={(range: DateRange) => setDateRange(range)}
+              className="w-56"
+            />
             <NotificationBell />
-            <DateFilter onDateChange={handleDateChange} className="w-56" />
           </div>
         </div>
 
-        {/* Statistiques */}
         <div className="mb-8">
           <DashboardStats user={user} dateRange={dateRange} />
         </div>

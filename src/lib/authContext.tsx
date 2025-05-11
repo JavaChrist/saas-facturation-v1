@@ -262,15 +262,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     );
 
-    // Déconnexion automatique à la fermeture de l'onglet ou du navigateur
-    const handleBeforeUnload = () => {
-      signOut(auth);
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
+    // Supprimer la déconnexion automatique lors de la fermeture du navigateur
+    // Ce comportement cause des problèmes en production car les utilisateurs sont déconnectés trop facilement
+    
     return () => {
       console.log("AuthProvider: Nettoyage du listener d'authentification");
       unsubscribe();
-      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, []);
 

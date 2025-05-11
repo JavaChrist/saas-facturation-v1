@@ -1,14 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { FiArrowLeft, FiFileText, FiSend, FiDownload } from "react-icons/fi";
+import { FiArrowLeft, FiFileText, FiDownload } from "react-icons/fi";
 import { useAuth } from "@/lib/authContext";
 import { getFacture } from "@/services/factureService";
 import { generateInvoicePDF } from "@/services/pdfGenerator";
 import { Facture } from "@/types/facture";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { emailService } from "@/services/emailService";
 
 export default function FactureDetailsPage({
   params,
@@ -21,9 +20,6 @@ export default function FactureDetailsPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userChecked, setUserChecked] = useState(false);
-  const [sendingEmail, setSendingEmail] = useState(false);
-  const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
   const [redirectAttempted, setRedirectAttempted] = useState(false);
 
   // Vérifier l'état d'authentification à chaque rendu
@@ -130,46 +126,6 @@ export default function FactureDetailsPage({
     } catch (error) {
       console.error("Erreur lors de la génération du PDF:", error);
       alert("Erreur lors de la génération du PDF");
-    }
-  };
-
-  // Fonction pour envoyer la facture par email
-  const handleSendEmail = async () => {
-    if (!facture) return;
-
-    // Vérifier que le client a un email
-    if (!facture.client.email) {
-      setEmailError("Le client n'a pas d'adresse email configurée.");
-      return;
-    }
-
-    setSendingEmail(true);
-    setEmailSuccess(null);
-    setEmailError(null);
-
-    try {
-      // Appeler le service pour envoyer l'email
-      const result = await emailService.sendInvoiceByEmail(facture.id, facture.client.email);
-
-      if (result.success) {
-        // Vérifier si c'est une simulation ou un envoi réel
-        if (result.message.includes("SIMULATION")) {
-          setEmailSuccess(`${result.message} - En mode développement, l'email n'est pas réellement envoyé.`);
-        } else {
-          setEmailSuccess(`Facture envoyée avec succès à ${facture.client.email}`);
-        }
-      } else {
-        setEmailError(`Erreur lors de l'envoi: ${result.message}`);
-      }
-    } catch (error) {
-      console.error("Erreur lors de l'envoi de la facture par email:", error);
-      setEmailError(
-        `Une erreur est survenue lors de l'envoi: ${
-          error instanceof Error ? error.message : "Erreur inconnue"
-        }`
-      );
-    } finally {
-      setSendingEmail(false);
     }
   };
 
@@ -374,7 +330,7 @@ export default function FactureDetailsPage({
           </div>
         </div>
 
-        {/* Sidebar avec actions (sans options de paiement) */}
+        {/* Sidebar avec actions */}
         <div className="space-y-6">
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
             <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
@@ -387,24 +343,6 @@ export default function FactureDetailsPage({
               >
                 <FiDownload className="mr-2" /> Télécharger PDF
               </button>
-              <button
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center"
-                onClick={handleSendEmail}
-                disabled={sendingEmail}
-              >
-                <FiSend className="mr-2" />
-                {sendingEmail ? "Envoi en cours..." : "Envoyer par email"}
-              </button>
-              {emailSuccess && (
-                <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-3 rounded-md mt-2">
-                  {emailSuccess}
-                </div>
-              )}
-              {emailError && (
-                <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 rounded-md mt-2">
-                  {emailError}
-                </div>
-              )}
               <button
                 onClick={() => router.push(`/dashboard/factures`)}
                 className="w-full bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 flex items-center justify-center"

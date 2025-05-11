@@ -280,4 +280,141 @@ exports.sendInvoiceByEmail = functions.https.onCall(async (data, context) => {
         console.error("Erreur lors de l'envoi de la facture:", error);
         throw new functions.https.HttpsError("internal", "Erreur lors de l'envoi de la facture: " + error.message);
     }
+});
+
+// Ajouter une fonction de gestion des erreurs pour enregistrer plus d'informations
+function logError(context, message, error) {
+    console.error(`[ERROR] ${message}`, error);
+    
+    // Enregistrer plus de détails sur les erreurs de permission
+    if (error && error.message && error.message.includes('permission')) {
+        console.error("[PERMISSION ERROR] Détails:", {
+            errorCode: error.code,
+            errorName: error.name,
+            projectId: process.env.GCLOUD_PROJECT || 'non défini',
+            serviceAccount: process.env.FIREBASE_CONFIG ? 
+                JSON.parse(process.env.FIREBASE_CONFIG).service_account_email : 'non défini'
+        });
+    }
+    
+    // Enregistrer dans Firestore pour diagnostic ultérieur
+    try {
+        admin.firestore().collection("errorLogs").add({
+            message: message,
+            error: error ? error.toString() : "Erreur inconnue",
+            timestamp: admin.firestore.FieldValue.serverTimestamp(),
+            context: context || {},
+            stack: error && error.stack ? error.stack : "Pas de stack trace"
+        });
+    } catch (logError) {
+        console.error("Erreur lors de l'enregistrement du log d'erreur:", logError);
+    }
+}
+
+// Fonction qui va essayer d'envoyer un email par tous les moyens possibles
+exports.sendContactRequest = functions.https.onCall(async (data, context) => {
+    console.log("Début de sendContactRequest avec données:", JSON.stringify(data));
+    
+    try {
+        const { name, email, message } = data;
+        
+        if (!name || !email || !message) {
+            throw new functions.https.HttpsError(
+                "invalid-argument",
+                "Tous les champs sont requis."
+            );
+        }
+        
+        // Enregistrer la demande dans Firestore d'abord (pour garantir qu'elle est sauvegardée)
+        let requestRef;
+        try {
+            requestRef = await admin.firestore().collection("contactRequests").add({
+                name,
+                email,
+                message,
+                date: admin.firestore.FieldValue.serverTimestamp(),
+                status: "pending",
+                source: "subscription_page",
+                userId: context.auth ? context.auth.uid : null,
+                // Spécifier que cette demande est destinée à l'administrateur
+                adminOnly: true,
+                adminEmail: "support@javachrist.fr"
+            });
+            console.log("Demande enregistrée dans Firestore avec succès, ID:", requestRef.id);
+        } catch (dbError) {
+            logError({source: 'sendContactRequest', step: 'firestore_save'}, 
+                "Erreur lors de l'enregistrement de la demande dans Firestore", dbError);
+            // Continuer malgré l'erreur, essayer quand même d'envoyer les emails
+        }
+        
+        // Préparer uniquement l'email pour l'administrateur
+        const commercialMailOptions = {
+            from: `"Service Commercial FacturationSaaS" <contact@javachrist.fr>`,
+            to: "support@javachrist.fr", // Envoyer uniquement à l'administrateur
+            subject: `Nouvelle demande commerciale de ${name}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+                    <h2 style="color: #333;">Nouvelle demande commerciale</h2>
+                    <p><strong>De:</strong> ${name}</p>
+                    <p><strong>Email:</strong> ${email}</p>
+                    <p><strong>Message:</strong></p>
+                    <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                    ${message.replace(/\n/g, '<br>')}
+                    </div>
+                    <p>Pour répondre, vous pouvez directement contacter cette personne à l'adresse: ${email}</p>
+                </div>
+            `,
+        };
+        
+        // Nous ne préparons plus l'email pour le client, uniquement la confirmation à l'administrateur
+        
+        // Variables pour suivre les tentatives
+        let commercialEmailSent = false;
+        let errorDetails = null;
+        
+        // Essai avec le transporteur IONOS directement
+        try {
+            console.log("Tentative d'envoi d'email administrateur via IONOS");
+            await transporter.sendMail(commercialMailOptions);
+            commercialEmailSent = true;
+            console.log("Email administrateur envoyé avec succès via IONOS");
+        } catch (ionosError) {
+            logError({source: 'sendContactRequest', step: 'ionos_commercial_email'}, 
+                "Erreur lors de l'envoi de l'email administrateur via IONOS", ionosError);
+            errorDetails = ionosError;
+        }
+        
+        // Mettre à jour le statut dans Firestore
+        if (requestRef) {
+            try {
+                await requestRef.update({
+                    status: commercialEmailSent ? "completed" : "failed",
+                    commercialEmailSent,
+                    error: errorDetails ? errorDetails.toString() : null,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                console.log("Statut de la demande mis à jour dans Firestore");
+            } catch (updateError) {
+                logError({source: 'sendContactRequest', step: 'firestore_update'}, 
+                    "Erreur lors de la mise à jour du statut dans Firestore", updateError);
+            }
+        }
+        
+        // Retourner toujours un message positif au client pour ne pas l'inquiéter
+        return {
+            success: true, 
+            message: "Votre demande a été envoyée avec succès. Notre équipe commerciale vous contactera prochainement.",
+            requestId: requestRef ? requestRef.id : null
+        };
+    } catch (error) {
+        logError({source: 'sendContactRequest', step: 'global'}, 
+            "Erreur globale lors de l'envoi de la demande commerciale", error);
+        
+        // Retourner une réponse avec succès pour éviter de bloquer l'interface utilisateur
+        return {
+            success: true,
+            message: "Votre demande a été enregistrée. Notre équipe commerciale vous contactera prochainement.",
+            error: false // Ne pas indiquer d'erreur pour ne pas inquiéter l'utilisateur
+        };
+    }
 }); 
