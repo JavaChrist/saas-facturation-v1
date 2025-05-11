@@ -1,3 +1,5 @@
+"use client";
+
 import { db, auth, waitForAuth } from "@/lib/firebase";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
