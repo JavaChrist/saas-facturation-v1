@@ -3,7 +3,7 @@ import { useState, useEffect, Suspense } from "react";
 import { FiArrowLeft, FiCheck, FiX, FiCreditCard } from "react-icons/fi";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
-import { getUserPlan, UserPlan, hasUserPlan, setAdminPlan, cancelSubscription, ADMIN_USERS } from "@/services/subscriptionService";
+import { getUserPlan, UserPlan, hasUserPlan, setAdminPlan, cancelSubscription, ADMIN_USERS, isAdminEmail } from "@/services/subscriptionService";
 import StripePaymentForm from "@/components/StripePaymentForm";
 import { MdOutlineContactSupport } from "react-icons/md";
 import { changePlanDev } from "@/services/subscriptionService";
@@ -223,7 +223,24 @@ function AbonnementContent() {
   useEffect(() => {
     if (user) {
       setShowAdminButton(process.env.NODE_ENV === "development");
-      setIsAdmin(ADMIN_USERS.includes(user.uid));
+      
+      // Si c'est un utilisateur admin par UID ou par email, définir isAdmin et forcer le plan Enterprise
+      const isUserAdmin = ADMIN_USERS.includes(user.uid) || isAdminEmail(user.email);
+      setIsAdmin(isUserAdmin);
+      
+      // Si c'est un admin, forcer le plan enterprise
+      if (isUserAdmin && planActuel !== "enterprise") {
+        // Forcer immédiatement le changement de plan pour l'affichage
+        setPlanActuel("enterprise");
+        
+        // Sauvegarder le plan dans le stockage local
+        if (typeof window !== "undefined") {
+          localStorage.setItem("lastUsedPlanId", "enterprise");
+          sessionStorage.setItem("lastUsedPlanId", "enterprise");
+          sessionStorage.setItem("planId", "enterprise");
+          sessionStorage.setItem("planJustChanged", "true");
+        }
+      }
       
       // Précharger l'email de l'utilisateur dans le formulaire de contact
       if (user.email) {
@@ -235,13 +252,21 @@ function AbonnementContent() {
       
       // Vérifier si on doit afficher le bouton d'annulation
       // (uniquement pour les utilisateurs non-admin avec un plan payant)
-      if (planActuel !== "gratuit" && !ADMIN_USERS.includes(user.uid)) {
+      if (planActuel !== "gratuit" && !isUserAdmin) {
         setShowCancelButton(true);
       } else {
         setShowCancelButton(false);
       }
     }
   }, [user, planActuel]);
+
+  // Force showAdminButton à true en développement
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      setShowAdminButton(true);
+      console.log("Mode développement détecté, bouton administrateur activé");
+    }
+  }, []);
 
   const handleSubscribe = async (planId: string) => {
     setIsLoading(true);
@@ -264,6 +289,12 @@ function AbonnementContent() {
         setError(`Vous êtes déjà abonné au plan ${planId}. Impossible de souscrire deux fois au même plan.`);
         setIsLoading(false);
         return;
+      }
+
+      // Sauvegarder le plan actuel avant de changer
+      if (typeof window !== "undefined") {
+        // Enregistrer le plan actuel pour pouvoir le restaurer en cas d'annulation
+        localStorage.setItem("previousPlanId", planActuel);
       }
 
       // Mettre à jour immédiatement les marqueurs de plan
@@ -327,29 +358,97 @@ function AbonnementContent() {
   };
 
   // Fonction appelée lorsque le paiement est réussi
-  const handlePaymentSuccess = (subscriptionId: string) => {
-    setIsPaymentFormVisible(false);
-    setSelectedPlan(null);
-    setSuccess(`Abonnement activé avec succès! (ID: ${subscriptionId})`);
-
-    // En mode développement, forcer un rechargement pour que les changements soient visibles partout
-    if (process.env.NODE_ENV === "development") {
-      // Rafraîchir la page après 2 secondes
+  const handlePaymentSuccess = async (sessionId: string) => {
+    try {
+      setIsLoading(true);
+      
+      // Fermer la fenêtre de paiement
+      setIsPaymentFormVisible(false);
+      setSelectedPlan(null);
+      
+      // Appeler l'API pour confirmer le paiement et activer l'abonnement
+      const response = await fetch("/api/subscription/success", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId,
+          userId: user?.uid,
+          planId: selectedPlan?.id,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Erreur HTTP ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Mettre à jour le stockage local
+      if (typeof window !== "undefined") {
+        // Définir les flags de plan correctement vérifié
+        localStorage.setItem("lastUsedPlanId", data.subscription.planId);
+        sessionStorage.setItem("lastUsedPlanId", data.subscription.planId);
+        sessionStorage.setItem("planId", data.subscription.planId);
+        sessionStorage.setItem("planJustChanged", "true");
+        sessionStorage.setItem("paymentVerified", "true");
+        
+        // Supprimer le plan en attente
+        sessionStorage.removeItem("pendingPlanId");
+        sessionStorage.removeItem("pendingPlanChange");
+      }
+      
+      // Afficher un message de succès
+      setSuccess(`Abonnement activé avec succès! (ID: ${sessionId})`);
+      
+      // Mettre à jour l'état local
+      setPlanActuel(data.subscription.planId);
+      
+      // Rafraîchir la page après un délai
       setTimeout(() => {
         window.location.reload();
       }, 2000);
-    } else {
-      // En production, utiliser router.refresh qui est plus léger
-      setTimeout(() => {
-        router.refresh();
-      }, 2000);
+    } catch (error) {
+      console.error("Erreur lors de la confirmation du paiement:", error);
+      setError(`Erreur lors de l'activation de l'abonnement: ${error instanceof Error ? error.message : "Erreur inconnue"}`);
+      setIsLoading(false);
     }
   };
 
   // Fonction appelée lorsque l'utilisateur annule le paiement
   const handlePaymentCancel = () => {
+    // Fermer la vue du formulaire de paiement
     setIsPaymentFormVisible(false);
     setSelectedPlan(null);
+    
+    // Réinitialiser les valeurs de stockage local pour éviter la persistance du plan payant
+    if (typeof window !== "undefined") {
+      // Supprimer les marques de changement de plan
+      sessionStorage.removeItem("planJustChanged");
+      sessionStorage.removeItem("planId");
+      
+      // Si l'utilisateur avait un plan précédent, le restaurer
+      const previousPlan = localStorage.getItem("previousPlanId");
+      if (previousPlan) {
+        // Restaurer le plan précédent
+        localStorage.setItem("lastUsedPlanId", previousPlan);
+        sessionStorage.setItem("lastUsedPlanId", previousPlan);
+      } else {
+        // Sinon revenir au plan gratuit
+        localStorage.setItem("lastUsedPlanId", "gratuit");
+        sessionStorage.setItem("lastUsedPlanId", "gratuit");
+      }
+    }
+    
+    // Afficher un message à l'utilisateur
+    setError("Paiement annulé. Votre abonnement n'a pas été modifié.");
+    
+    // Rafraîchir la page pour s'assurer que les changements prennent effet
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
   };
 
   // Fonction pour simuler un abonnement en mode développement
@@ -748,54 +847,98 @@ function AbonnementContent() {
               </div>
             )}
             
-            {/* Bouton de désabonnement intégré directement ici */}
-            {showCancelButton && (
-              <div className="mt-6">
-                {confirmCancel ? (
-                  <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/30 rounded-lg">
-                    <p className="text-red-700 dark:text-red-300 mb-3">
-                      Êtes-vous sûr de vouloir annuler votre abonnement ? Vous perdrez l'accès aux fonctionnalités premium.
-                    </p>
-                    <div className="flex space-x-3">
-                      <button
-                        onClick={handleCancelSubscription}
-                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-300"
-                        disabled={isLoading}
-                      >
-                        {isLoading ? "Annulation..." : "Confirmer l'annulation"}
-                      </button>
-                      <button
-                        onClick={() => setConfirmCancel(false)}
-                        className="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors duration-300"
-                      >
-                        Annuler
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setConfirmCancel(true)}
-                    className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-300 flex items-center"
-                  >
-                    <FiX className="mr-2" /> Annuler mon abonnement
-                  </button>
+          </div>
+        </div>
+        
+        {/* Boutons d'administration et de gestion d'abonnement */}
+        <div className="mt-6">
+          {/* Message de debug pour support@javachrist.fr */}
+          {user?.email && (
+            <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-md mb-3">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Email connecté: {user.email}
+              </p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Est admin email: {isAdminEmail(user.email) ? "Oui" : "Non"}
+              </p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Est admin UID: {ADMIN_USERS.includes(user.uid) ? "Oui" : "Non"}
+              </p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                UID: {user.uid}
+              </p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Mode: {process.env.NODE_ENV}
+              </p>
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Plan actuel: {planActuel}
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col md:flex-row gap-4 mt-4">
+            {/* Bouton pour définir un administrateur (visible pour les emails autorisés) */}
+            {(isAdminEmail(user?.email || "") || ADMIN_USERS.includes(user?.uid || "")) && (
+              <button
+                onClick={handleSetAdminPlan}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors duration-300"
+                disabled={isLoading || isAdmin}
+              >
+                {isLoading ? "Configuration..." : isAdmin ? "Déjà administrateur" : "Définir comme administrateur"}
+              </button>
+            )}
+            
+            {/* Bouton pour forcer le plan Enterprise */}
+            {planActuel !== "enterprise" && (
+              <button
+                onClick={() => handleSubscribe("enterprise")}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors duration-300 flex items-center justify-center"
+              >
+                Passer au plan Enterprise
+              </button>
+            )}
+            
+            {/* Bouton pour annuler l'abonnement (visible pour tout plan non gratuit) */}
+            {planActuel !== "gratuit" && (
+              <div>
+                <button
+                  onClick={() => setConfirmCancel(true)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-300 flex items-center"
+                  disabled={isAdmin}
+                >
+                  <FiX className="mr-2" /> Annuler mon abonnement
+                </button>
+                {isAdmin && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Les administrateurs ne peuvent pas annuler leur abonnement
+                  </p>
                 )}
               </div>
             )}
           </div>
-        </div>
-        
-        {/* Bouton d'administrateur (déplacé hors de la carte) */}
-        <div className="mt-6">
-          {/* Bouton pour définir un administrateur (visible seulement en développement) */}
-          {showAdminButton && !isAdmin && (
-            <button
-              onClick={handleSetAdminPlan}
-              className="mr-4 px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors duration-300"
-              disabled={isLoading}
-            >
-              {isLoading ? "Configuration..." : "Définir comme administrateur"}
-            </button>
+          
+          {/* Dialog de confirmation d'annulation */}
+          {confirmCancel && (
+            <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/30 rounded-lg">
+              <p className="text-red-700 dark:text-red-300 mb-3">
+                Êtes-vous sûr de vouloir annuler votre abonnement ? Vous perdrez l'accès aux fonctionnalités premium.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleCancelSubscription}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors duration-300"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Annulation..." : "Confirmer l'annulation"}
+                </button>
+                <button
+                  onClick={() => setConfirmCancel(false)}
+                  className="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-white rounded-md hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors duration-300"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>

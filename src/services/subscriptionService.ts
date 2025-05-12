@@ -4,6 +4,8 @@ import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 // Liste des utilisateurs administrateurs ayant accès gratuitement au plan Enterprise
 export const ADMIN_USERS = [
   "oq10PAIePPXMVgFX82tlXu67oVx2",
+  // Ajout de l'ID pour support@javachrist.fr
+  // Remplacez ce commentaire par l'ID réel lorsque vous l'aurez obtenu
 ];
 
 export interface UserPlan {
@@ -13,6 +15,7 @@ export interface UserPlan {
   stripeSubscriptionId?: string;
   dateStart?: Date;
   dateEnd?: Date;
+  paymentVerified?: boolean;  // Indique si le paiement a été vérifié
   limites: {
     clients: number;
     factures: number;
@@ -31,6 +34,32 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
     
     // Mode développement - retourner un plan factice si la collection users n'existe pas
     const isDevelopment = process.env.NODE_ENV === "development";
+
+    // En mode client (navigateur), vérifier si un paiement est validé
+    const isPaymentVerified = typeof window !== "undefined" ? 
+      sessionStorage.getItem("paymentVerified") === "true" : false;
+    
+    // Vérifier si l'utilisateur est admin
+    const isAdmin = ADMIN_USERS.includes(userId);
+    
+    // Vérifier s'il y a un changement de plan en attente (non validé)
+    const hasPendingPlan = typeof window !== "undefined" ? 
+      sessionStorage.getItem("pendingPlanChange") === "true" : false;
+    
+    // Si changement en attente sans vérification de paiement, et utilisateur non admin,
+    // réinitialiser au plan gratuit par défaut
+    if (hasPendingPlan && !isPaymentVerified && !isAdmin && typeof window !== "undefined") {
+      // Restaurer le plan précédent ou remettre au plan gratuit
+      const previousPlanId = localStorage.getItem("previousPlanId") || "gratuit";
+      localStorage.setItem("lastUsedPlanId", previousPlanId);
+      sessionStorage.setItem("lastUsedPlanId", previousPlanId);
+      
+      // Nettoyer les variables temporaires
+      sessionStorage.removeItem("pendingPlanId");
+      sessionStorage.removeItem("pendingPlanChange");
+      
+      console.log("Remise au plan précédent car paiement non vérifié:", previousPlanId);
+    }
 
     if (isDevelopment || isVercelProduction) {
       // Vérification spéciale pour Vercel
@@ -437,16 +466,18 @@ export const updateUserSubscription = async (
  */
 export const hasUserPlan = async (userId: string, planId: string): Promise<boolean> => {
   try {
-    // Si c'est un administrateur demandant le plan Enterprise, toujours permettre l'accès
-    if (ADMIN_USERS.includes(userId) && 
+    // Récupérer les informations de l'utilisateur
+    const userRef = doc(db, "users", userId);
+    const userDoc = await getDoc(userRef);
+    const userData = userDoc.exists() ? userDoc.data() : null;
+    
+    // Si c'est un administrateur par ID ou un email admin demandant le plan Enterprise, toujours permettre l'accès
+    if ((ADMIN_USERS.includes(userId) || (userData?.email && isAdminEmail(userData.email))) && 
         (planId === "enterprise" || planId === "entreprise")) {
       return false; // Retourne false pour permettre de "s'abonner" (même si c'est gratuit)
     }
     
     // Récupérer le plan actuel de l'utilisateur depuis Firebase
-    const userRef = doc(db, "users", userId);
-    const userDoc = await getDoc(userRef);
-    
     if (userDoc.exists() && userDoc.data().subscription) {
       const subscription = userDoc.data().subscription;
       
@@ -474,10 +505,30 @@ export const hasUserPlan = async (userId: string, planId: string): Promise<boole
  */
 export const changePlanDev = async (userId: string, newPlanId: string, userEmail?: string): Promise<boolean> => {
   try {
-    // Vérifier si l'utilisateur a déjà ce plan
+    // Vérifier si l'utilisateur a déjà le plan demandé
     const alreadyHasPlan = await hasUserPlan(userId, newPlanId);
     if (alreadyHasPlan) {
       return false;
+    }
+
+    // Vérifier si l'utilisateur est administrateur
+    const isUserAdmin = ADMIN_USERS.includes(userId) || (userEmail && isAdminEmail(userEmail));
+    
+    // Si l'utilisateur n'est pas admin et essaie d'accéder à un plan payant sans preuve de paiement,
+    // ne pas autoriser le changement mais créer un abonnement temporaire
+    if (!isUserAdmin && (newPlanId === "premium" || newPlanId === "enterprise" || newPlanId === "entreprise")) {
+      // Enregistrer la tentative dans les variables de session (nécessaire pour la redirection Stripe)
+      if (typeof window !== "undefined") {
+        // Mémoriser la tentative mais sans confirmer l'activation
+        sessionStorage.setItem("pendingPlanId", newPlanId);
+        sessionStorage.setItem("pendingPlanChange", "true");
+        
+        // Ne pas définir lastUsedPlanId ou planId pour éviter la persistance du plan
+        console.log(`Tentative de passage au plan ${newPlanId} en attente de validation de paiement`);
+      }
+      
+      // Retourner true pour que l'UI continue le processus vers Stripe
+      return true;
     }
     
     // Définir les limites en fonction du plan
@@ -518,6 +569,7 @@ export const changePlanDev = async (userId: string, newPlanId: string, userEmail
       dateEnd: dateEnd,
       stripeSubscriptionId: "sim_" + Math.random().toString(36).substring(2, 11),
       stripeCustomerId: "cus_sim_" + Math.random().toString(36).substring(2, 11),
+      paymentVerified: isUserAdmin || newPlanId === "gratuit", // Seuls les plans gratuits et admins sont auto-vérifiés
       limites: limites,
       lastUpdated: new Date()
     };
@@ -590,6 +642,21 @@ export const changePlanDev = async (userId: string, newPlanId: string, userEmail
  */
 export const setAdminPlan = async (userId: string, userEmail?: string): Promise<boolean> => {
   try {
+    // Vérifier si l'utilisateur est déjà dans la liste des administrateurs ou a un email administrateur
+    const isAuthorizedAdmin = ADMIN_USERS.includes(userId) || (userEmail && isAdminEmail(userEmail));
+    
+    // En mode production, ne permettre l'élévation qu'aux utilisateurs déjà autorisés
+    if (process.env.NODE_ENV !== "development" && !isAuthorizedAdmin) {
+      console.error("Tentative non autorisée de définir un compte administrateur:", userId, userEmail);
+      return false;
+    }
+    
+    // En mode développement, n'autoriser que les emails d'administrateur
+    if (process.env.NODE_ENV === "development" && userEmail && !isAdminEmail(userEmail)) {
+      console.error("Email non autorisé pour devenir administrateur:", userEmail);
+      return false;
+    }
+    
     // Création d'une date d'expiration lointaine (10 ans)
     const today = new Date();
     const farFuture = new Date(today.getFullYear() + 10, today.getMonth(), today.getDate());
@@ -760,4 +827,30 @@ export const cancelSubscription = async (userId: string): Promise<boolean> => {
     console.error("Erreur lors de l'annulation de l'abonnement:", error);
     return false;
   }
+};
+
+/**
+ * Vérification spéciale pour l'email support@javachrist.fr
+ */
+export const isAdminEmail = (email: string | null | undefined): boolean => {
+  if (!email) return false;
+  
+  // Liste des emails d'administrateur autorisés
+  const adminEmails = [
+    "support@javachrist.fr", 
+    "admin@javachrist.fr",
+    "admin@facturation.javachrist.eu"
+  ];
+  
+  const lowercaseEmail = email.toLowerCase();
+  const isAdmin = adminEmails.includes(lowercaseEmail);
+  
+  // Journaliser les tentatives de vérification d'admin
+  if (isAdmin) {
+    console.log(`Email administrateur vérifié: ${lowercaseEmail}`);
+  } else if (lowercaseEmail.includes("javachrist") || lowercaseEmail.includes("admin")) {
+    console.warn(`Tentative de vérification avec un email non administrateur: ${lowercaseEmail}`);
+  }
+  
+  return isAdmin;
 };

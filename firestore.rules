@@ -11,9 +11,28 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
+    // Fonction pour vérifier si un champ userId existe et correspond à l'utilisateur
+    function isUserMatch() {
+      return isAuthenticated() && 
+             resource.data.userId is string && 
+             request.auth.uid == resource.data.userId;
+    }
+    
+    // Fonction pour vérifier une création avec le bon userId
+    function isCreatingForSelf() {
+      return isAuthenticated() && 
+             request.resource.data.userId is string && 
+             request.auth.uid == request.resource.data.userId;
+    }
+    
     // Règle générale - par défaut tout est refusé
     match /{document=**} {
       allow read, write: if false;
+    }
+
+    // Règles pour la collection parametres - NOUVELLE RÈGLE
+    match /parametres/{userId}/{document=**} {
+      allow read, write: if isOwner(userId);
     }
 
     // Règles pour la collection users
@@ -23,60 +42,70 @@ service cloud.firestore {
 
     // Règles pour la collection factures
     match /factures/{factureId} {
-      allow read, update, delete: if isAuthenticated() && 
-                                   request.auth.uid == resource.data.userId;
-      allow create: if isAuthenticated() && 
-                    request.auth.uid == request.resource.data.userId;
+      allow read, update, delete: if isUserMatch();
+      allow create: if isCreatingForSelf();
+      // Permettre la lecture des factures aux utilisateurs qui viennent d'être authentifiés
+      // même si la structure interne n'est pas encore chargée
+      allow list: if isAuthenticated();
     }
 
     // Règles pour la collection clients
     match /clients/{clientId} {
-      allow read, update, delete: if isAuthenticated() && 
-                                  request.auth.uid == resource.data.userId;
-      allow create: if isAuthenticated() && 
-                    request.auth.uid == request.resource.data.userId;
+      allow read, update, delete: if isUserMatch();
+      allow create: if isCreatingForSelf();
+      // Permettre la lecture des clients aux utilisateurs qui viennent d'être authentifiés
+      // même si la structure interne n'est pas encore chargée
+      allow list: if isAuthenticated();
     }
 
     // Règles pour la collection facturesRecurrentes
     match /facturesRecurrentes/{factureId} {
-      allow read, update, delete: if isAuthenticated() && 
-                                  request.auth.uid == resource.data.userId;
-      allow create: if isAuthenticated() && 
-                    request.auth.uid == request.resource.data.userId;
+      allow read, update, delete: if isUserMatch();
+      allow create: if isCreatingForSelf();
+      // Permettre la lecture des factures récurrentes aux utilisateurs qui viennent d'être authentifiés
+      // même si la structure interne n'est pas encore chargée
+      allow list: if isAuthenticated();
     }
 
     // Règles pour la collection modelesFacture
     match /modelesFacture/{modeleId} {
-      allow read, update, delete: if isAuthenticated() && 
-                                  request.auth.uid == resource.data.userId;
-      allow create: if isAuthenticated() && 
-                    request.auth.uid == request.resource.data.userId;
+      allow read, update, delete: if isUserMatch();
+      allow create: if isCreatingForSelf();
+      // Permettre la lecture des modèles aux utilisateurs qui viennent d'être authentifiés
+      // même si la structure interne n'est pas encore chargée
+      allow list: if isAuthenticated();
     }
 
     // Règles pour la collection notifications
     match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && 
-                  request.auth.uid == resource.data.userId;
-      allow create, update, delete: if isAuthenticated() &&
-                                   (request.auth.uid == resource.data.userId ||
-                                    (request.resource.data != null && 
-                                     request.auth.uid == request.resource.data.userId));
+      allow read: if isUserMatch();
+      allow create: if isCreatingForSelf();
+      allow update, delete: if isUserMatch();
     }
 
-    // Règles pour la collection organizations ou organizations
+    // Règles pour la collection organizations avec accès aux sous-collections
     match /organizations/{orgId} {
-      allow read, update, delete: if isAuthenticated() && 
-                                 request.auth.uid == resource.data.userId;
-      allow create: if isAuthenticated() && 
-                    request.auth.uid == request.resource.data.userId;
+      allow read, create, update, delete: if isAuthenticated();
+      
+      // Autoriser l'accès à la sous-collection membres
+      match /membres/{membreId} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
     }
     
     // Alias pour éviter les erreurs de nom (organizations vs organisations)
     match /organisations/{orgId} {
-      allow read, update, delete: if isAuthenticated() && 
-                                 request.auth.uid == resource.data.userId;
-      allow create: if isAuthenticated() && 
-                    request.auth.uid == request.resource.data.userId;
+      allow read, create, update, delete: if isAuthenticated();
+      
+      // Autoriser l'accès à la sous-collection membres
+      match /membres/{membreId} {
+        allow read, create, update, delete: if isAuthenticated();
+      }
+    }
+    
+    // Règles pour la collection utilisateursOrganisation
+    match /utilisateursOrganisation/{userId} {
+      allow read, create, update, delete: if isAuthenticated();
     }
 
     // Règles pour la collection contactRequests
@@ -92,6 +121,17 @@ service cloud.firestore {
       // Seul l'administrateur peut modifier ou supprimer les demandes
       allow update, delete: if isAuthenticated() && 
                             request.auth.token.email == "support@javachrist.fr";
+    }
+    
+    // Règles pour la collection invitations
+    match /invitations/{invitationId} {
+      // Permet à tout utilisateur authentifié de créer, lire et mettre à jour des invitations
+      allow read, create, update: if isAuthenticated();
+      
+      // Seul l'administrateur ou le créateur de l'invitation peut la supprimer
+      allow delete: if isAuthenticated() && 
+                    (request.auth.uid == resource.data.createdBy || 
+                     request.auth.token.email == "support@javachrist.fr");
     }
   }
 } 

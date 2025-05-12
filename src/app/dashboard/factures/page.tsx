@@ -729,12 +729,6 @@ export default function FacturesPage() {
     }
   };
 
-  // Fonction pour ouvrir la page de détails d'une facture
-  const handleViewDetails = (factureId: string) => {
-    // Méthode directe et simple
-    router.push(`/dashboard/factures/${factureId}`);
-  };
-
   return (
     <div className="p-6 bg-background-light dark:bg-background-dark">
       <div className="flex justify-between items-center mb-6">
@@ -855,16 +849,9 @@ export default function FacturesPage() {
                     className="border-b dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/70"
                   >
                     <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                      <a
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleViewDetails(facture.id);
-                        }}
-                        href="#"
-                        className="hover:text-blue-500 hover:underline cursor-pointer font-medium"
-                      >
+                      <span className="font-medium">
                         {facture.numero}
-                      </a>
+                      </span>
                     </td>
                     <td className="py-3 px-4 text-text-light dark:text-text-dark">
                       {facture.client.nom}
@@ -891,13 +878,6 @@ export default function FacturesPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <button
-                        onClick={() => handleViewDetails(facture.id)}
-                        className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white mx-1"
-                        title="Voir détails"
-                      >
-                        <FiEye size={18} />
-                      </button>
                       <button
                         onClick={() => openModelSelector(facture)}
                         className="text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white mx-1"
