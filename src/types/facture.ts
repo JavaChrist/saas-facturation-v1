@@ -42,4 +42,5 @@ export interface Facture {
   totalHT: number;
   totalTTC: number;
   dateCreation?: Date | string | FirestoreTimestamp;
+  updating?: boolean;
 }

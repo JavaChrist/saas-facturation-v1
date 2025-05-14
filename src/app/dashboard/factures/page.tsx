@@ -38,6 +38,8 @@ import { ModeleFacture } from "@/types/modeleFacture";
 import { getModelesFacture } from "@/services/modeleFactureService";
 import { getUserPlan, checkPlanLimit } from "@/services/subscriptionService";
 import { convertToDate } from "@/services/factureService";
+import { updateFactureStatus, deleteFacture as deleteFactureService } from "@/services/factureService";
+import { useFacture } from "@/lib/factureProvider";
 
 // Fonction pour générer un nouveau numéro de facture
 const generateNewInvoiceNumber = (factures: Facture[] = []): string => {
@@ -46,17 +48,28 @@ const generateNewInvoiceNumber = (factures: Facture[] = []): string => {
   
   // Compter combien de factures de l'année en cours existent déjà
   // et trouver le numéro de séquence le plus élevé
-  let maxSequence = 4; // Commencer à 4 pour que la prochaine facture soit 2025005
+  let maxSequence = 4; // Commencer à 4 pour que la prochaine facture soit FCT-2025005
   
-  const regex = new RegExp(`^${currentYear}(\\d{3})$`);
+  // Modification du regex pour prendre en compte le préfixe "FCT-"
+  const regex = new RegExp(`^FCT-${currentYear}(\\d{3})$`);
+  const oldRegex = new RegExp(`^${currentYear}(\\d{3})$`); // Pour la compatibilité avec les anciens numéros
   
   factures.forEach(facture => {
-    // Vérifier si le numéro suit notre format
+    // Vérifier si le numéro suit notre format avec le préfixe FCT-
     const match = facture.numero.match(regex);
     if (match) {
       const sequence = parseInt(match[1]);
       if (sequence > maxSequence) {
         maxSequence = sequence;
+      }
+    } else {
+      // Vérifier aussi l'ancien format sans préfixe pour assurer la compatibilité
+      const oldMatch = facture.numero.match(oldRegex);
+      if (oldMatch) {
+        const sequence = parseInt(oldMatch[1]);
+        if (sequence > maxSequence) {
+          maxSequence = sequence;
+        }
       }
     }
   });
@@ -67,8 +80,8 @@ const generateNewInvoiceNumber = (factures: Facture[] = []): string => {
   // Formater avec des zéros initiaux pour avoir 3 chiffres
   const sequenceStr = String(nextSequence).padStart(3, '0');
   
-  // Retourner le nouveau numéro au format YYYYXXX
-  return `${currentYear}${sequenceStr}`;
+  // Retourner le nouveau numéro au format FCT-YYYYXXX
+  return `FCT-${currentYear}${sequenceStr}`;
 };
 
 // Fonction utilitaire pour formater une date
@@ -84,6 +97,15 @@ const formatDate = (date: any): string => {
     console.error("Erreur de formatage de date:", e);
     return "-";
   }
+};
+
+// Nouvelle fonction utilitaire pour tronquer à 2 décimales et formater
+const truncateAndFormat = (num: number | null | undefined): string => {
+  if (num === null || num === undefined || isNaN(num)) {
+    return (0).toFixed(2); // Gérer null, undefined, et NaN
+  }
+  const truncatedNum = Math.trunc(num * 100) / 100;
+  return truncatedNum.toFixed(2);
 };
 
 export default function FacturesPage() {
@@ -130,6 +152,8 @@ export default function FacturesPage() {
   const [selectedModeleId, setSelectedModeleId] = useState<string | null>(null);
   const [factureForPDF, setFactureForPDF] = useState<Facture | null>(null);
   const [loadingModeles, setLoadingModeles] = useState(false);
+
+  const { updateCachedFacture } = useFacture();
 
   // Récupérer les paramètres de l'URL
   useEffect(() => {
@@ -546,108 +570,124 @@ export default function FacturesPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    // Vérifier que l'utilisateur est connecté
     if (!user) {
-      console.log("[DEBUG] Tentative de création de facture sans utilisateur");
-      alert("Vous devez être connecté pour effectuer cette action");
+      router.push("/login");
       return;
     }
 
     try {
-      console.log("[DEBUG] Début de la création/modification de facture");
-      const factureData = {
-        userId: user.uid,
-        numero: newFacture.numero,
-        client: newFacture.client,
-        statut: newFacture.statut,
-        articles: newFacture.articles,
-        totalHT: newFacture.totalHT,
-        totalTTC: newFacture.totalTTC,
-        dateCreation: Timestamp.fromDate(
-          newFacture.dateCreation instanceof Date 
-            ? newFacture.dateCreation 
-            : new Date()
-        ),
-      };
-      console.log("[DEBUG] Données de la facture à sauvegarder:", factureData);
-
-      if (selectedFacture && selectedFacture.id) {
-        // Modification d'une facture existante
-        console.log("[DEBUG] Modification de la facture existante:", selectedFacture.id);
-        const factureRef = doc(db, "factures", selectedFacture.id);
-        await updateDoc(factureRef, factureData);
-      } else {
-        // Vérifier à nouveau les limites avant la création
-        const isLimitReached = await checkPlanLimit(
-          user.uid,
-          "factures",
-          factures.length
-        );
-
-        if (isLimitReached) {
-          console.log("[DEBUG] Limite de factures atteinte");
-          alert(
-            `Vous avez atteint la limite de ${planInfo.currentFactures} facture(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de factures.`
-          );
-          return;
+      // Traitement des articles et calcul des totaux
+      const processedArticles = newFacture.articles.map((article) => {
+        if (article.isComment) {
+          return article;
         }
 
+        const prixHT = article.prixUnitaireHT * article.quantite;
+        const tvaAmount = (prixHT * article.tva) / 100;
+        return {
+          ...article,
+          totalTTC: prixHT + tvaAmount,
+        };
+      });
+
+      const totalHT = processedArticles
+        .filter((article) => !article.isComment)
+        .reduce(
+          (sum, article) => sum + article.prixUnitaireHT * article.quantite,
+          0
+        );
+      const totalTTC = processedArticles
+        .filter((article) => !article.isComment)
+        .reduce((sum, article) => sum + article.totalTTC, 0);
+
+      // Création d'un objet facture avec tous les champs nécessaires
+      const factureToSave = {
+        ...newFacture,
+        articles: processedArticles,
+        totalHT,
+        totalTTC,
+      };
+
+      // Mise à jour ou création selon le cas
+      if (selectedFacture) {
+        // Mise à jour d'une facture existante
+        const factureRef = doc(db, "factures", selectedFacture.id);
+        await updateDoc(factureRef, factureToSave);
+        
+        // Mettre à jour la liste des factures directement en mémoire
+        setFactures(prev => prev.map(facture => 
+          facture.id === selectedFacture.id 
+            ? { ...factureToSave, id: selectedFacture.id } as Facture
+            : facture
+        ));
+        
+        console.log("[DEBUG] Facture mise à jour avec succès:", {
+          id: selectedFacture.id,
+          numero: factureToSave.numero,
+          statut: factureToSave.statut
+        });
+      } else {
         // Création d'une nouvelle facture
-        console.log("[DEBUG] Création d'une nouvelle facture");
-        await addDoc(collection(db, "factures"), factureData);
+        const factureRef = collection(db, "factures");
+        const newFactureDoc = await addDoc(factureRef, factureToSave);
+        
+        // Ajouter la nouvelle facture directement à la liste en mémoire
+        const factureWithId = { 
+          ...factureToSave, 
+          id: newFactureDoc.id 
+        } as Facture;
+        
+        setFactures(prev => [factureWithId, ...prev]);
+        
+        console.log("[DEBUG] Nouvelle facture créée avec succès:", {
+          id: newFactureDoc.id,
+          numero: factureToSave.numero
+        });
       }
+
+      // Fermer le modal et réinitialiser les états
       closeModal();
     } catch (error) {
-      console.error("[DEBUG] Erreur lors de la sauvegarde de la facture:", error);
-      alert("Erreur lors de la sauvegarde de la facture");
+      console.error("Erreur lors de la sauvegarde de la facture:", error);
+      alert(
+        "Une erreur est survenue lors de la sauvegarde de la facture. Veuillez réessayer."
+      );
     }
   };
 
   // Suppression d'une facture
   const deleteFacture = async (id: string) => {
+    // Confirmer avant suppression
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette facture ?")) {
+      return;
+    }
+    
     try {
-      console.log("[DEBUG] Tentative de suppression de la facture:", id);
-      
-      // Vérifier d'abord si la facture existe et appartient à l'utilisateur
-      const factureRef = doc(db, "factures", id);
-      const factureDoc = await getDoc(factureRef);
-      
-      if (!factureDoc.exists()) {
-        console.error("[DEBUG] Facture introuvable:", id);
-        alert("Erreur: Cette facture n'existe pas ou a déjà été supprimée.");
-        return;
-      }
-      
-      const factureData = factureDoc.data();
-      if (factureData.userId !== user?.uid) {
-        console.error("[DEBUG] Tentative non autorisée de suppression d'une facture:", {
-          factureId: id,
-          factureUserId: factureData.userId,
-          currentUserId: user?.uid
-        });
-        alert("Erreur: Vous n'êtes pas autorisé à supprimer cette facture.");
-        return;
-      }
-      
-      // Confirmer avant suppression
-      if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette facture ?")) {
-        return;
-      }
-      
-      await deleteDoc(doc(db, "factures", id));
-      console.log("[DEBUG] Facture supprimée avec succès:", id);
-    } catch (error) {
-      console.error("[DEBUG] Erreur lors de la suppression de la facture:", error);
-      
-      // Afficher un message d'erreur plus spécifique
-      if (error instanceof Error) {
-        if (error.message.includes("permission")) {
-          alert("Erreur de permission: Vous n'avez pas les droits nécessaires pour supprimer cette facture. Veuillez contacter l'administrateur.");
-        } else {
-          alert(`Erreur lors de la suppression de la facture: ${error.message}`);
+      // Appeler le service centralisé
+      const result = await deleteFactureService(id, () => {
+        // Callback de mise à jour de l'UI
+        // Mettre à jour immédiatement la liste des factures en local
+        setFactures(prev => prev.filter(facture => facture.id !== id));
+        
+        // Invalider le cache si nécessaire
+        if (updateCachedFacture) {
+          try {
+            updateCachedFacture(id, { id: "" });
+          } catch (cacheError) {
+            console.error("[DEBUG] Erreur lors de l'invalidation du cache:", cacheError);
+            // Ne pas bloquer le flux pour une erreur de cache
+          }
         }
-      } else {
-        alert("Erreur lors de la suppression de la facture. Veuillez réessayer.");
+      });
+      
+      if (!result.success) {
+        // Si l'opération a échoué, afficher le message d'erreur
+        alert(result.message);
       }
+    } catch (error) {
+      console.error("[DEBUG] Erreur inattendue lors de la suppression:", error);
+      alert("Une erreur inattendue s'est produite lors de la suppression de la facture.");
     }
   };
 
@@ -726,6 +766,68 @@ export default function FacturesPage() {
         errorMessage += `: ${error.message}`;
       }
       alert(errorMessage);
+    }
+  };
+
+  // Fonction pour mettre à jour directement le statut d'une facture
+  const handleStatusChange = async (factureId: string, newStatus: "En attente" | "Envoyée" | "Payée" | "À relancer") => {
+    // Vérifier explicitement que l'utilisateur est connecté
+    if (!user || !user.uid) {
+      alert("Vous devez être connecté pour modifier une facture. La page va être rechargée.");
+      router.push("/login");
+      return;
+    }
+
+    try {
+      // Afficher un indicateur visuel que la mise à jour est en cours
+      const facturesToUpdate = factures.map(facture => 
+        facture.id === factureId ? { ...facture, updating: true } : facture
+      );
+      setFactures(facturesToUpdate);
+      
+      console.log("[DEBUG] Tentative de mise à jour du statut:", {
+        factureId,
+        newStatus,
+        currentUser: user.uid,
+        isAuthenticated: !!user
+      });
+
+      // Appeler le service de mise à jour
+      const result = await updateFactureStatus(factureId, newStatus, updateCachedFacture);
+      
+      if (result.success) {
+        // Mettre à jour la liste des factures en local directement
+        setFactures(prev => prev.map(facture => 
+          facture.id === factureId 
+            ? { ...facture, statut: newStatus, updating: false } 
+            : facture
+        ));
+      } else {
+        // Restaurer l'état précédent en cas d'erreur et afficher le message d'erreur
+        setFactures(prev => prev.map(facture => ({ ...facture, updating: false })));
+        
+        // Si l'erreur est liée à l'authentification, forcer le rafraîchissement de la page
+        if (result.message.toLowerCase().includes("permission") || 
+            result.message.toLowerCase().includes("authentifi") ||
+            result.message.toLowerCase().includes("connecté")) {
+          const reloadConfirmation = confirm(
+            "Problème d'authentification détecté. Voulez-vous recharger la page pour actualiser votre session ?"
+          );
+          
+          if (reloadConfirmation) {
+            // Recharger la page complètement pour forcer une réauthentification
+            window.location.reload();
+            return;
+          }
+        }
+        
+        alert(result.message || "Erreur lors de la mise à jour du statut de la facture. Veuillez réessayer.");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du statut:", error);
+      // Restaurer l'état précédent en cas d'erreur générale
+      setFactures(prev => prev.map(facture => ({ ...facture, updating: false })));
+      alert("Une erreur inattendue est survenue lors de la mise à jour du statut.");
     }
   };
 
@@ -860,22 +962,39 @@ export default function FacturesPage() {
                       {formatDate(facture.dateCreation)}
                     </td>
                     <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                      {facture.totalTTC.toFixed(2)} €
+                      {truncateAndFormat(facture.totalTTC)} €
                     </td>
                     <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                      <span
-                        className={`py-1 px-3 rounded-full text-white text-sm ${
-                          facture.statut === "Payée"
-                            ? "bg-green-500"
-                            : facture.statut === "En attente"
-                            ? "bg-yellow-500"
-                            : facture.statut === "Envoyée"
-                            ? "bg-blue-500"
-                            : "bg-red-500"
+                      <select
+                        value={facture.statut}
+                        onChange={(e) => handleStatusChange(
+                          facture.id, 
+                          e.target.value as "En attente" | "Envoyée" | "Payée" | "À relancer"
+                        )}
+                        className={`py-1 px-2 rounded text-white text-sm border-0 cursor-pointer ${
+                          facture.updating 
+                            ? "opacity-70"
+                            : facture.statut === "Payée"
+                              ? "bg-green-500"
+                              : facture.statut === "En attente"
+                                ? "bg-yellow-500"
+                                : facture.statut === "Envoyée"
+                                  ? "bg-blue-500"
+                                  : "bg-red-500"
                         }`}
+                        disabled={facture.updating}
                       >
-                        {facture.statut}
-                      </span>
+                        {facture.updating ? (
+                          <option value={facture.statut}>Mise à jour...</option>
+                        ) : (
+                          <>
+                            <option value="En attente">En attente</option>
+                            <option value="Envoyée">Envoyée</option>
+                            <option value="Payée">Payée</option>
+                            <option value="À relancer">À relancer</option>
+                          </>
+                        )}
+                      </select>
                     </td>
                     <td className="py-3 px-4 text-center">
                       <button

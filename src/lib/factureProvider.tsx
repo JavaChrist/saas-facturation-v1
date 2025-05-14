@@ -11,6 +11,8 @@ interface FactureContextType {
   loadFacture: (factureId: string) => Promise<Facture | null>;
   loading: boolean;
   error: string | null;
+  invalidateCache: () => void;
+  updateCachedFacture: (factureId: string, updates: Partial<Facture>) => void;
 }
 
 // Valeur par défaut du contexte
@@ -18,7 +20,9 @@ const defaultContext: FactureContextType = {
   factureData: {},
   loadFacture: async () => null,
   loading: false,
-  error: null
+  error: null,
+  invalidateCache: () => {},
+  updateCachedFacture: () => {}
 };
 
 // Créer le contexte
@@ -54,6 +58,31 @@ export const FactureProvider = ({ children }: { children: React.ReactNode }) => 
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+
+  // Fonction pour vider le cache
+  const invalidateCache = () => {
+    console.log("[PROVIDER] Vidage du cache des factures");
+    setFactureData({});
+  };
+
+  // Fonction pour mettre à jour une facture dans le cache
+  const updateCachedFacture = (factureId: string, updates: Partial<Facture>) => {
+    console.log("[PROVIDER] Mise à jour de la facture en cache:", factureId, updates);
+    
+    setFactureData(prev => {
+      // Si la facture n'est pas dans le cache, ne rien faire
+      if (!prev[factureId]) return prev;
+      
+      // Sinon, mettre à jour la facture avec les nouvelles valeurs
+      return {
+        ...prev,
+        [factureId]: {
+          ...prev[factureId],
+          ...updates
+        }
+      };
+    });
+  };
 
   // Fonction pour charger une facture
   const loadFacture = async (factureId: string): Promise<Facture | null> => {
@@ -193,7 +222,9 @@ export const FactureProvider = ({ children }: { children: React.ReactNode }) => 
     factureData,
     loadFacture,
     loading,
-    error
+    error,
+    invalidateCache,
+    updateCachedFacture
   };
 
   return (

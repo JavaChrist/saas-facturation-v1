@@ -43,12 +43,16 @@ export async function POST(req: NextRequest) {
     // Si c'est un paiement réussi et qu'on a l'ID de la facture
     if (result.status === "success" && result.factureId) {
       // Mettre à jour le statut de la facture
-      await updateFactureStatus(result.factureId, "Payée");
+      const updateResult = await updateFactureStatus(result.factureId, "Payée", undefined);
+      
+      if (!updateResult.success) {
+        console.error("Échec de mise à jour du statut de la facture:", updateResult.message);
+      }
 
       return NextResponse.json({
         received: true,
         factureId: result.factureId,
-        status: "Facture marquée comme payée",
+        status: updateResult.success ? "Facture marquée comme payée" : "Erreur: " + updateResult.message,
       });
     }
 

@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/lib/authContext";
 import { useRouter } from "next/navigation";
-import { FiArrowLeft, FiTrash2, FiCheck } from "react-icons/fi";
+import { FiArrowLeft, FiTrash2, FiCheck, FiRefreshCw } from "react-icons/fi";
 import { Notification } from "@/types/notification";
 import {
   getAllNotifications,
   marquerCommeLue,
   supprimerNotification,
+  verifierFacturesEnRetard,
 } from "@/services/notificationService";
 import Link from "next/link";
 
@@ -16,6 +17,34 @@ export default function NotificationsPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fonction pour rafraîchir manuellement les notifications
+  const refreshNotifications = async () => {
+    if (!user) return;
+
+    try {
+      setRefreshing(true);
+      console.log("Rafraîchissement manuel des notifications pour l'utilisateur:", user.uid);
+      
+      // Vérifier d'abord les factures en retard pour générer les notifications nécessaires
+      await verifierFacturesEnRetard(user.uid);
+      
+      // Puis récupérer toutes les notifications
+      const notifs = await getAllNotifications(user.uid);
+      console.log("Notifications récupérées après rafraîchissement:", notifs.map(n => ({
+        id: n.id,
+        factureId: n.factureId,
+        factureNumero: n.factureNumero,
+        type: n.type
+      })));
+      setNotifications(notifs);
+    } catch (error) {
+      console.error("Erreur lors du rafraîchissement des notifications:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) {
@@ -26,6 +55,11 @@ export default function NotificationsPage() {
     const fetchNotifications = async () => {
       try {
         setLoading(true);
+        
+        // Vérifier d'abord les factures en retard pour générer les notifications nécessaires
+        await verifierFacturesEnRetard(user.uid);
+        
+        // Puis récupérer toutes les notifications
         const notifs = await getAllNotifications(user.uid);
         setNotifications(notifs);
       } catch (error) {
@@ -115,12 +149,26 @@ export default function NotificationsPage() {
           <h1 className="text-3xl font-semibold text-gray-800 dark:text-white">
             🔔 Notifications
           </h1>
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
-          >
-            <FiArrowLeft size={18} className="mr-2" /> Retour
-          </button>
+          <div className="flex space-x-3">
+            <button
+              onClick={refreshNotifications}
+              disabled={refreshing || loading}
+              className={`${
+                refreshing || loading
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 transform hover:scale-105"
+              } text-white py-2 px-4 rounded-md flex items-center transition-transform duration-300`}
+            >
+              <FiRefreshCw size={18} className={`mr-2 ${refreshing ? "animate-spin" : ""}`} />
+              Actualiser
+            </button>
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
+            >
+              <FiArrowLeft size={18} className="mr-2" /> Retour
+            </button>
+          </div>
         </div>
 
         {loading ? (
