@@ -19,6 +19,7 @@ export default function CreerFactureRecurrentePage() {
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const dataLoadedRef = React.useRef(false); // Référence pour suivre si les données ont été chargées
 
   // Données nécessaires pour créer une facture récurrente
   const [clients, setClients] = useState<Client[]>([]);
@@ -46,6 +47,9 @@ export default function CreerFactureRecurrentePage() {
 
   // Chargement des données
   useEffect(() => {
+    // Éviter de charger les données plusieurs fois
+    if (dataLoadedRef.current) return;
+    
     const fetchData = async () => {
       if (!user) {
         router.push("/dashboard/factures");
@@ -65,31 +69,35 @@ export default function CreerFactureRecurrentePage() {
           id: doc.id,
           ...doc.data(),
         })) as Client[];
-        setClients(clientsData);
 
         // Charger les modèles de facture
         const modelesData = await getModelesFacture(user.uid);
-        setModeles(modelesData);
 
         // Initialiser avec des valeurs par défaut
+        let initialClientId = "";
+        let initialModeleId = "";
+        
         if (clientsData.length > 0) {
-          setFactureRecurrente((prev) => ({
-            ...prev,
-            clientId: clientsData[0].id,
-          }));
+          initialClientId = clientsData[0].id;
         }
 
         if (modelesData.length > 0) {
           const modeleActif =
             modelesData.find((m) => m.actif) || modelesData[0];
-          setFactureRecurrente((prev) => ({
-            ...prev,
-            modeleId: modeleActif.id,
-          }));
+          initialModeleId = modeleActif.id;
         }
 
-        // Le calcul de la prochaine émission se fera automatiquement
-        // dans le second useEffect quand factureRecurrente sera mis à jour
+        // Mise à jour de tous les états en une seule fois
+        setClients(clientsData);
+        setModeles(modelesData);
+        setFactureRecurrente(prev => ({
+          ...prev,
+          clientId: initialClientId,
+          modeleId: initialModeleId,
+          userId: user.uid
+        }));
+        
+        dataLoadedRef.current = true; // Marquer les données comme chargées
       } catch (err) {
         console.error("Erreur lors du chargement des données:", err);
         if (err instanceof Error) {
@@ -105,75 +113,92 @@ export default function CreerFactureRecurrentePage() {
     fetchData();
   }, [user, router]);
 
-  // UseEffect dédié au calcul de prochaine émission à chaque changement des propriétés pertinentes
-  useEffect(() => {
-    if (factureRecurrente.frequence && factureRecurrente.jourEmission) {
-      const prochaine = calculerProchaineEmission(
-        factureRecurrente.frequence,
-        factureRecurrente.jourEmission,
-        factureRecurrente.moisEmission
-      );
-      setFactureRecurrente((prev) => ({
-        ...prev,
-        prochaineEmission: prochaine,
-      }));
-    }
-  }, [
-    factureRecurrente.frequence,
-    factureRecurrente.jourEmission,
-    factureRecurrente.moisEmission,
-  ]);
-
   // Gestion des champs de base
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
 
+    // Création d'une copie de l'état actuel pour les modifications
+    let updatedFacture = { ...factureRecurrente };
+
     if (name === "jourEmission") {
       // Limiter le jour entre 1 et 28
       const jour = Math.min(Math.max(1, parseInt(value)), 28);
-      setFactureRecurrente({ ...factureRecurrente, [name]: jour });
+      updatedFacture.jourEmission = jour;
+      
+      // Recalculer la prochaine émission directement quand le jour change
+      updatedFacture.prochaineEmission = calculerProchaineEmission(
+        updatedFacture.frequence,
+        jour,
+        updatedFacture.moisEmission
+      );
+    } else if (name === "frequence") {
+      // Mise à jour de la fréquence (avec vérification de type)
+      if (value === "mensuelle" || value === "trimestrielle" || 
+          value === "semestrielle" || value === "annuelle") {
+        updatedFacture.frequence = value;
+        
+        // Recalculer la prochaine émission directement quand la fréquence change
+        updatedFacture.prochaineEmission = calculerProchaineEmission(
+          value,
+          updatedFacture.jourEmission,
+          updatedFacture.moisEmission
+        );
+      }
     } else if (name === "actif") {
-      setFactureRecurrente({
-        ...factureRecurrente,
-        actif: (e.target as HTMLInputElement).checked,
-      });
+      updatedFacture.actif = (e.target as HTMLInputElement).checked;
     } else if (name === "nombreRepetitions") {
-      const value =
-        e.target.value === "" ? undefined : parseInt(e.target.value);
-      setFactureRecurrente({
-        ...factureRecurrente,
-        nombreRepetitions: value,
-      });
-    } else {
-      setFactureRecurrente({ ...factureRecurrente, [name]: value });
+      // Cas spécial : nombreRepetitions peut être undefined
+      if (value === "") {
+        (updatedFacture as any).nombreRepetitions = undefined;
+      } else {
+        (updatedFacture as any).nombreRepetitions = parseInt(value);
+      }
+    } else if (name === "clientId" || name === "modeleId") {
+      // Traitement des autres propriétés connues
+      (updatedFacture as any)[name] = value;
     }
+    
+    // Mise à jour de l'état avec les modifications
+    setFactureRecurrente(updatedFacture);
   };
 
   // Gestion des mois d'émission pour les fréquences non mensuelles
   const handleMoisEmissionChange = (mois: number) => {
-    const currentMois = [...(factureRecurrente.moisEmission || [])];
+    // Créer une copie complète de l'objet pour la modification
+    const updatedFacture = { ...factureRecurrente };
+    const currentMois = [...(updatedFacture.moisEmission || [])];
 
+    // Modifier la liste des mois
+    let nouveauxMois: number[];
     if (currentMois.includes(mois)) {
       // Retirer le mois s'il est déjà présent
-      const nouveauxMois = currentMois.filter((m) => m !== mois);
-      setFactureRecurrente({
-        ...factureRecurrente,
-        moisEmission: nouveauxMois,
-      });
+      nouveauxMois = currentMois.filter((m) => m !== mois);
     } else {
       // Ajouter le mois s'il n'est pas présent
-      const nouveauxMois = [...currentMois, mois].sort((a, b) => a - b);
-      setFactureRecurrente({
-        ...factureRecurrente,
-        moisEmission: nouveauxMois,
-      });
+      nouveauxMois = [...currentMois, mois].sort((a, b) => a - b);
     }
+    
+    // Mettre à jour la liste des mois
+    updatedFacture.moisEmission = nouveauxMois;
+    
+    // Recalculer la prochaine émission avec les nouveaux mois
+    updatedFacture.prochaineEmission = calculerProchaineEmission(
+      updatedFacture.frequence,
+      updatedFacture.jourEmission,
+      nouveauxMois
+    );
+    
+    // Mettre à jour l'état une seule fois avec toutes les modifications
+    setFactureRecurrente(updatedFacture);
   };
 
   // Ajout d'un article à la facture
   const addArticle = () => {
+    // Créer une copie complète de l'état
+    const updatedFacture = { ...factureRecurrente };
+    
     const newArticle: Article = {
       id: Date.now(),
       description: "",
@@ -184,42 +209,60 @@ export default function CreerFactureRecurrentePage() {
       isComment: false,
     };
 
-    setFactureRecurrente({
-      ...factureRecurrente,
-      articles: [...factureRecurrente.articles, newArticle],
-    });
+    // Ajouter le nouvel article
+    updatedFacture.articles = [...updatedFacture.articles, newArticle];
+    
+    // Calculer les totaux directement ici plutôt que d'appeler calculerTotaux
+    const articlesValides = updatedFacture.articles.filter(a => !a.isComment);
+    
+    const totalHT = articlesValides.reduce(
+      (sum, article) => sum + article.prixUnitaireHT * article.quantite,
+      0
+    );
 
-    // Mettre à jour les montants
-    calculerTotaux([...factureRecurrente.articles, newArticle]);
+    const totalTVA = articlesValides.reduce((sum, article) => {
+      const articleHT = article.prixUnitaireHT * article.quantite;
+      const articleTVA = (articleHT * article.tva) / 100;
+      return sum + articleTVA;
+    }, 0);
+
+    updatedFacture.montantHT = Number(totalHT.toFixed(2));
+    updatedFacture.montantTTC = totalHT + totalTVA;
+    
+    // Mise à jour de l'état en une seule fois
+    setFactureRecurrente(updatedFacture);
   };
 
   // Mise à jour d'un article
   const handleArticleChange = (index: number, field: string, value: any) => {
-    const updatedArticles = [...factureRecurrente.articles];
+    // Créer une copie complète de l'état
+    const updatedFacture = { ...factureRecurrente };
+    const updatedArticles = [...updatedFacture.articles];
     const article = { ...updatedArticles[index] };
     
     // Cas spécial pour le champ totalTTC personnalisé qui n'existe pas dans le modèle Article standard
     if (field === "prixTTC") {
       // Calcul inverse: du TTC vers le HT
-      const prixTTC = value === "" ? 0 : parseFloat(Number(value).toFixed(2));
+      const prixTTC = value === "" ? 0 : parseFloat(value);
       const tva = article.tva || 20;
-      const prixHT = Number((prixTTC / (1 + (tva / 100))).toFixed(2));
+      // Calcul du prix HT arrondi à 2 décimales
+      const prixHT = parseFloat((prixTTC / (1 + (tva / 100))).toFixed(2));
       
       article.prixUnitaireHT = prixHT;
-      article.totalTTC = Number((prixTTC * article.quantite).toFixed(2));
+      // Utiliser exactement la valeur entrée par l'utilisateur pour le total TTC
+      article.totalTTC = prixTTC * article.quantite;
       
       updatedArticles[index] = article;
     } else if (field === "prixUnitaireHT") {
-      // Limiter à 2 décimales
-      const prixHT = value === "" ? 0 : parseFloat(Number(value).toFixed(2));
-      article.prixUnitaireHT = prixHT;
+      const prixHT = value === "" ? 0 : parseFloat(value);
+      article.prixUnitaireHT = Number(prixHT.toFixed(2)); // Arrondir le HT à 2 décimales
       
       // Ne pas calculer les totaux pour les lignes de commentaire
       if (!article.isComment) {
         const tva = article.tva || 20;
-        const totalHT = prixHT * article.quantite;
+        const totalHT = article.prixUnitaireHT * article.quantite;
         const tvaAmount = (totalHT * tva) / 100;
-        article.totalTTC = Number((totalHT + tvaAmount).toFixed(2));
+        article.totalTTC = Number((totalHT + tvaAmount).toFixed(2)); // Arrondir le TTC à 2 décimales
       }
       
       updatedArticles[index] = article;
@@ -234,32 +277,63 @@ export default function CreerFactureRecurrentePage() {
         if (field === "quantite" || field === "tva") {
           const prixHT = article.prixUnitaireHT * article.quantite;
           const tvaAmount = (prixHT * article.tva) / 100;
-          article.totalTTC = Number((prixHT + tvaAmount).toFixed(2));
+          article.totalTTC = Number((prixHT + tvaAmount).toFixed(2)); // Arrondir le TTC à 2 décimales
         }
       }
     }
     
-    setFactureRecurrente({
-      ...factureRecurrente,
-      articles: updatedArticles,
-    });
+    // Mise à jour des articles dans la facture
+    updatedFacture.articles = updatedArticles;
+    
+    // Calcul des totaux directement ici
+    const articlesValides = updatedArticles.filter(a => !a.isComment);
+    
+    const totalHT = articlesValides.reduce(
+      (sum, article) => sum + article.prixUnitaireHT * article.quantite,
+      0
+    );
 
-    // Mettre à jour les montants totaux
-    calculerTotaux(updatedArticles);
+    const totalTVA = articlesValides.reduce((sum, article) => {
+      const articleHT = article.prixUnitaireHT * article.quantite;
+      const articleTVA = (articleHT * article.tva) / 100;
+      return sum + articleTVA;
+    }, 0);
+
+    updatedFacture.montantHT = Number(totalHT.toFixed(2));
+    updatedFacture.montantTTC = totalHT + totalTVA;
+    
+    // Mise à jour de l'état en une seule fois
+    setFactureRecurrente(updatedFacture);
   };
 
   // Suppression d'un article
   const removeArticle = (index: number) => {
-    const updatedArticles = [...factureRecurrente.articles];
-    updatedArticles.splice(index, 1);
+    // Créer une copie complète de l'état
+    const updatedFacture = { ...factureRecurrente };
+    
+    // Supprimer l'article
+    updatedFacture.articles = [...updatedFacture.articles];
+    updatedFacture.articles.splice(index, 1);
+    
+    // Calculer les totaux directement ici plutôt que d'appeler calculerTotaux
+    const articlesValides = updatedFacture.articles.filter(a => !a.isComment);
+    
+    const totalHT = articlesValides.reduce(
+      (sum, article) => sum + article.prixUnitaireHT * article.quantite,
+      0
+    );
 
-    setFactureRecurrente({
-      ...factureRecurrente,
-      articles: updatedArticles,
-    });
+    const totalTVA = articlesValides.reduce((sum, article) => {
+      const articleHT = article.prixUnitaireHT * article.quantite;
+      const articleTVA = (articleHT * article.tva) / 100;
+      return sum + articleTVA;
+    }, 0);
 
-    // Mettre à jour les montants
-    calculerTotaux(updatedArticles);
+    updatedFacture.montantHT = Number(totalHT.toFixed(2));
+    updatedFacture.montantTTC = totalHT + totalTVA;
+    
+    // Mise à jour de l'état en une seule fois
+    setFactureRecurrente(updatedFacture);
   };
 
   // Calcul des totaux
@@ -278,12 +352,13 @@ export default function CreerFactureRecurrentePage() {
       return sum + articleTVA;
     }, 0);
 
-    const totalTTC = Number((totalHT + totalTVA).toFixed(2));
+    // Ne pas arrondir le montant TTC
+    const totalTTC = totalHT + totalTVA;
 
     setFactureRecurrente((prev) => ({
       ...prev,
       montantHT: Number(totalHT.toFixed(2)),
-      montantTTC: totalTTC,
+      montantTTC: totalTTC, // Valeur exacte sans arrondi
     }));
   };
 
@@ -767,7 +842,7 @@ export default function CreerFactureRecurrentePage() {
                             value={
                               article.prixUnitaireHT === 0
                                 ? ""
-                                : Number((article.prixUnitaireHT * (1 + article.tva / 100)).toFixed(2))
+                                : parseFloat((article.prixUnitaireHT * (1 + article.tva / 100)).toFixed(2))
                             }
                             onChange={(e) =>
                               handleArticleChange(

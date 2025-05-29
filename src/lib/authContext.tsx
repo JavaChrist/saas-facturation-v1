@@ -10,6 +10,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  getIdToken,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "./firebase";
@@ -24,6 +25,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   saveUserPlan: (planId: string) => void;
   preserveUserPlan: () => void;
+  refreshAuthToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -373,6 +375,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  /**
+   * Rafraîchit explicitement le token d'authentification
+   * Peut résoudre les problèmes de permissions
+   */
+  const refreshAuthToken = async (): Promise<string | null> => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.error("Impossible de rafraîchir le token: utilisateur non connecté");
+        return null;
+      }
+
+      console.log("[DEBUG-AUTH] Tentative de rafraîchissement du token pour", currentUser.email);
+      
+      // Force le rafraîchissement du token
+      const forceRefresh = true;
+      const token = await getIdToken(currentUser, forceRefresh);
+      
+      console.log("[DEBUG-AUTH] Token rafraîchi avec succès");
+      return token;
+    } catch (error) {
+      console.error("Erreur lors du rafraîchissement du token:", error);
+      return null;
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -383,6 +411,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     logout,
     saveUserPlan,
     preserveUserPlan,
+    refreshAuthToken,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

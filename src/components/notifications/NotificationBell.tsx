@@ -22,52 +22,76 @@ const NotificationBell: React.FC = () => {
   useEffect(() => {
     if (!user) return;
 
-    const fetchNotifications = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        console.log("NotificationBell: Vérification des factures en retard pour l'utilisateur:", user.uid);
+    // Petite pause pour permettre à l'authentification de se stabiliser
+    const timer = setTimeout(() => {
+      fetchNotificationsWithRetry();
+    }, 800);
 
-        // Vérifier les factures en retard
-        await verifierFacturesEnRetard(user.uid);
-        console.log("NotificationBell: Vérification des factures en retard terminée");
-
-        console.log(
-          "NotificationBell: Récupération des notifications non lues"
-        );
-        // Récupérer les notifications non lues
-        const notifs = await getNotificationsNonLues(user.uid);
-        console.log(
-          `NotificationBell: ${notifs.length} notifications récupérées`
-        );
-
-        setNotifications(notifs);
-      } catch (error) {
-        console.error(
-          "NotificationBell: Erreur lors de la récupération des notifications:",
-          error
-        );
-        setError(
-          "Impossible d'accéder aux notifications. Vérifiez les permissions Firestore."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchNotifications();
-
-    // Rafraîchir les notifications toutes les 5 minutes
+    // Rafraîchir les notifications toutes les 2 minutes au lieu de 5
     const intervalId = setInterval(() => {
       console.log(
         "NotificationBell: Rafraîchissement automatique des notifications pour l'utilisateur:",
         user.uid
       );
-      fetchNotifications();
-    }, 5 * 60 * 1000);
+      fetchNotificationsWithRetry();
+    }, 2 * 60 * 1000);
 
-    return () => clearInterval(intervalId);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(intervalId);
+    }
   }, [user]);
+
+  // Fonction pour récupérer les notifications avec plusieurs tentatives
+  const fetchNotificationsWithRetry = async (retryCount = 0) => {
+    try {
+      setLoading(true);
+      setError(null);
+      console.log("NotificationBell: Vérification des factures en retard pour l'utilisateur:", user?.uid);
+
+      if (!user) {
+        console.log("NotificationBell: Utilisateur non connecté, impossible de vérifier les factures");
+        setLoading(false);
+        return;
+      }
+
+      // Vérifier les factures en retard
+      await verifierFacturesEnRetard(user.uid);
+      console.log("NotificationBell: Vérification des factures en retard terminée");
+
+      console.log("NotificationBell: Récupération des notifications non lues");
+      // Récupérer les notifications non lues
+      const notifs = await getNotificationsNonLues(user.uid);
+      console.log(`NotificationBell: ${notifs.length} notifications récupérées:`, 
+        notifs.map(n => ({
+          id: n.id,
+          factureId: n.factureId,
+          factureNumero: n.factureNumero,
+          type: n.type
+        }))
+      );
+
+      setNotifications(notifs);
+    } catch (error) {
+      console.error(
+        "NotificationBell: Erreur lors de la récupération des notifications:",
+        error
+      );
+      
+      // Réessayer jusqu'à 3 fois en cas d'erreur
+      if (retryCount < 3) {
+        console.log(`NotificationBell: Nouvelle tentative ${retryCount + 1}/3 dans 1 seconde...`);
+        setTimeout(() => fetchNotificationsWithRetry(retryCount + 1), 1000);
+        return;
+      }
+      
+      setError(
+        "Impossible d'accéder aux notifications. Vérifiez les permissions Firestore."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Fermer le dropdown quand on clique en dehors
   useEffect(() => {
@@ -131,38 +155,9 @@ const NotificationBell: React.FC = () => {
   // Fonction de débogage pour forcer la vérification des factures en retard
   const forceCheckOverdueInvoices = async () => {
     if (!user) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      console.log(
-        "NotificationBell: Vérification forcée des factures en retard"
-      );
-
-      await verifierFacturesEnRetard(user.uid);
-
-      console.log(
-        "NotificationBell: Récupération des notifications après vérification forcée"
-      );
-      const notifs = await getNotificationsNonLues(user.uid);
-      
-      // Mettre à jour les notifications avec les nouvelles notifications
-      setNotifications(notifs);
-
-      console.log(
-        `NotificationBell: ${notifs.length} notifications après vérification forcée`
-      );
-    } catch (error) {
-      console.error(
-        "NotificationBell: Erreur lors de la vérification forcée:",
-        error
-      );
-      setError(
-        "Impossible d'accéder aux notifications. Vérifiez les permissions Firestore."
-      );
-    } finally {
-      setLoading(false);
-    }
+    
+    // Utiliser directement notre fonction avec retry
+    await fetchNotificationsWithRetry();
   };
 
   return (

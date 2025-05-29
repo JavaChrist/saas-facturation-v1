@@ -104,6 +104,15 @@ const formatDate = (date: any): string => {
   }
 };
 
+// Nouvelle fonction utilitaire pour tronquer à 2 décimales et formater
+const truncateAndFormat = (num: number | null | undefined): string => {
+  if (num === null || num === undefined || isNaN(num)) {
+    return (0).toFixed(2); // Gérer null, undefined, et NaN
+  }
+  const truncatedNum = Math.trunc(num * 100) / 100;
+  return truncatedNum.toFixed(2);
+};
+
 export default function FacturesPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -148,6 +157,8 @@ export default function FacturesPage() {
   const [selectedModeleId, setSelectedModeleId] = useState<string | null>(null);
   const [factureForPDF, setFactureForPDF] = useState<Facture | null>(null);
   const [loadingModeles, setLoadingModeles] = useState(false);
+
+  const { updateCachedFacture } = useFacture();
 
   // Récupérer les paramètres de l'URL
   useEffect(() => {
@@ -564,9 +575,9 @@ export default function FacturesPage() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    // Vérifier que l'utilisateur est connecté
     if (!user) {
-      console.log("[DEBUG] Tentative de création de facture sans utilisateur");
-      alert("Vous devez être connecté pour effectuer cette action");
+      router.push("/login");
       return;
     }
 
@@ -610,18 +621,40 @@ export default function FacturesPage() {
         }
 
         // Création d'une nouvelle facture
-        console.log("[DEBUG] Création d'une nouvelle facture");
-        await addDoc(collection(db, "factures"), factureData);
+        const factureRef = collection(db, "factures");
+        const newFactureDoc = await addDoc(factureRef, factureData);
+
+        // Ajouter la nouvelle facture directement à la liste en mémoire
+        const factureWithId = {
+          ...factureData,
+          id: newFactureDoc.id
+        } as Facture;
+
+        setFactures(prev => [factureWithId, ...prev]);
+
+        console.log("[DEBUG] Nouvelle facture créée avec succès:", {
+          id: newFactureDoc.id,
+          numero: factureData.numero
+        });
       }
+
+      // Fermer le modal et réinitialiser les états
       closeModal();
     } catch (error) {
-      console.error("[DEBUG] Erreur lors de la sauvegarde de la facture:", error);
-      alert("Erreur lors de la sauvegarde de la facture");
+      console.error("Erreur lors de la sauvegarde de la facture:", error);
+      alert(
+        "Une erreur est survenue lors de la sauvegarde de la facture. Veuillez réessayer."
+      );
     }
   };
 
   // Suppression d'une facture
   const deleteFacture = async (id: string) => {
+    // Confirmer avant suppression
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette facture ?")) {
+      return;
+    }
+
     try {
       console.log("[DEBUG] Tentative de suppression de la facture:", id);
       console.log("[DEBUG] Utilisateur actuel:", {
@@ -691,8 +724,6 @@ export default function FacturesPage() {
         } else {
           alert(`Erreur lors de la suppression de la facture: ${error.message}`);
         }
-      } else {
-        alert("Erreur lors de la suppression de la facture. Veuillez réessayer.");
       }
     }
   };

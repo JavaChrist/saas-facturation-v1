@@ -296,25 +296,70 @@ export const genererFactureDepuisRecurrente = async (
     // Récupérer le modèle associé
     const modele = await getModeleFacture(factureRecurrente.modeleId);
 
-    // Générer un numéro de facture basé sur la date
-    const now = new Date();
-    const numeroFacture = `FCT-${now.getFullYear()}${String(
-      now.getMonth() + 1
-    ).padStart(2, "0")}${String(Math.floor(Math.random() * 1000)).padStart(
-      3,
-      "0"
-    )}`;
+    // Récupérer toutes les factures pour générer un numéro séquentiel
+    const facturesQuery = query(
+      collection(db, "factures"),
+      where("userId", "==", factureRecurrente.userId)
+    );
+    
+    const facturesSnapshot = await getDocs(facturesQuery);
+    const factures = facturesSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        numero: data.numero
+      };
+    });
+    
+    // Générer un numéro de facture au format FCT-YYYYXXX
+    const currentYear = new Date().getFullYear();
+    
+    // Trouver le numéro de séquence le plus élevé
+    let maxSequence = 4; // Commencer à 4 pour que la prochaine facture soit FCT-2025005
+    
+    // Utiliser le même format que dans la page des factures
+    const regex = new RegExp(`^FCT-${currentYear}(\\d{3})$`);
+    const oldRegex = new RegExp(`^${currentYear}(\\d{3})$`);
+    
+    factures.forEach(facture => {
+      const match = facture.numero.match(regex);
+      if (match) {
+        const sequence = parseInt(match[1]);
+        if (sequence > maxSequence) {
+          maxSequence = sequence;
+        }
+      } else {
+        const oldMatch = facture.numero.match(oldRegex);
+        if (oldMatch) {
+          const sequence = parseInt(oldMatch[1]);
+          if (sequence > maxSequence) {
+            maxSequence = sequence;
+          }
+        }
+      }
+    });
+    
+    // Incrémenter le numéro de séquence
+    const nextSequence = maxSequence + 1;
+    
+    // Formater avec des zéros initiaux pour avoir 3 chiffres
+    const sequenceStr = String(nextSequence).padStart(3, '0');
+    
+    // Générer le numéro au format FCT-YYYYXXX
+    const numeroFacture = `FCT-${currentYear}${sequenceStr}`;
 
-    // Créer la facture
+    console.log(`Génération d'une facture récurrente avec numéro: ${numeroFacture}`);
+    
+    // Créer la facture - garder exactement le montant TTC de la facture récurrente sans arrondi
     const nouvelleFacture: Omit<Facture, "id"> = {
       numero: numeroFacture,
       client: client,
       statut: "En attente",
       articles: factureRecurrente.articles,
       totalHT: factureRecurrente.montantHT,
-      totalTTC: factureRecurrente.montantTTC,
+      totalTTC: factureRecurrente.montantTTC, // Conserver le montant exact sans arrondi
       userId: factureRecurrente.userId,
-      dateCreation: now,
+      dateCreation: new Date(),
     };
 
     // Enregistrer la facture dans Firestore
@@ -328,7 +373,7 @@ export const genererFactureDepuisRecurrente = async (
       factureRecurrente.frequence,
       factureRecurrente.jourEmission,
       factureRecurrente.moisEmission,
-      now
+      new Date()
     );
 
     // Mettre à jour le compteur de répétitions
@@ -336,7 +381,7 @@ export const genererFactureDepuisRecurrente = async (
       (factureRecurrente.repetitionsEffectuees || 0) + 1;
 
     const updateData: Partial<FactureRecurrente> = {
-      derniereEmission: now,
+      derniereEmission: new Date(),
       prochaineEmission: prochaineEmission,
       repetitionsEffectuees,
     };

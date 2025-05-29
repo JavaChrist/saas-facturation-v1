@@ -292,7 +292,7 @@ export default function FacturesRecurrentesPage() {
                     )}
                   </td>
                   <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
-                    {facture.montantTTC.toFixed(2)} €
+                    {(facture.montantTTC || 0).toFixed(2)} €
                   </td>
                   <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
                     {facture.prochaineEmission.toLocaleDateString()}

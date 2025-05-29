@@ -6,7 +6,7 @@ import { FiArrowLeft, FiSave, FiUpload, FiDatabase } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import Image from "next/image";
-import { Entreprise } from "@/types/entreprise";
+import { Entreprise, RIB } from "@/types/entreprise";
 
 export default function ParametresPage() {
   const router = useRouter();
@@ -36,6 +36,7 @@ export default function ParametresPage() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [saveStatus, setSaveStatus] = useState<"success" | "error" | "">("");
 
   useEffect(() => {
     const checkAuthAndFetchData = async () => {
@@ -171,18 +172,30 @@ export default function ParametresPage() {
 
     setIsSaving(true);
     setSaveMessage("");
+    setSaveStatus("");
     setError(null);
 
     try {
+      // Filtrer les mentions légales vides avant sauvegarde
+      const entrepriseToSave = {
+        ...entreprise,
+        mentionsLegales: entreprise.mentionsLegales?.filter(mention => mention.trim() !== "") || []
+      };
+
       await setDoc(
         doc(db, "parametres", user.uid, "entreprise", "default"),
-        entreprise
+        entrepriseToSave
       );
-      setSaveMessage("✅ Paramètres sauvegardés avec succès");
-      setTimeout(() => setSaveMessage(""), 3000);
+      setSaveMessage("Paramètres sauvegardés avec succès");
+      setSaveStatus("success");
+      setTimeout(() => {
+        setSaveMessage("");
+        setSaveStatus("");
+      }, 5000);
     } catch (error) {
       console.error("Erreur lors de la sauvegarde:", error);
       setError("Erreur lors de la sauvegarde. Veuillez réessayer.");
+      setSaveStatus("error");
     } finally {
       setIsSaving(false);
     }
@@ -193,14 +206,18 @@ export default function ParametresPage() {
   ) => {
     const { name, value } = e.target;
     if (name.startsWith("rib.")) {
-      const ribField = name.split(".")[1];
-      setEntreprise((prev) => ({
-        ...prev,
-        rib: {
-          ...prev.rib,
-          [ribField]: value,
-        },
-      }));
+      const ribField = name.split(".")[1] as keyof RIB;
+      setEntreprise((prev) => {
+        // On s'assure que rib est défini
+        const currentRib: RIB = prev.rib || { iban: "", bic: "", banque: "" };
+        return {
+          ...prev,
+          rib: {
+            ...currentRib,
+            [ribField]: value,
+          },
+        };
+      });
     } else {
       setEntreprise((prev) => ({
         ...prev,
@@ -215,6 +232,20 @@ export default function ParametresPage() {
       mentionsLegales: prev.mentionsLegales?.map((mention, i) =>
         i === index ? value : mention
       ),
+    }));
+  };
+
+  const ajouterMentionLegale = () => {
+    setEntreprise((prev) => ({
+      ...prev,
+      mentionsLegales: [...(prev.mentionsLegales || []), ""],
+    }));
+  };
+
+  const supprimerMentionLegale = (index: number) => {
+    setEntreprise((prev) => ({
+      ...prev,
+      mentionsLegales: prev.mentionsLegales?.filter((_, i) => i !== index),
     }));
   };
 
@@ -284,7 +315,12 @@ export default function ParametresPage() {
                             ...prev,
                             logo: "",
                           }));
-                          setSaveMessage("Logo supprimé");
+                          setSaveMessage("Logo supprimé (pensez à sauvegarder)");
+                          setSaveStatus("success");
+                          setTimeout(() => {
+                            setSaveMessage("");
+                            setSaveStatus("");
+                          }, 3000);
                         }}
                         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600"
                       >
@@ -310,10 +346,18 @@ export default function ParametresPage() {
                               );
                             }
 
-                            // Vérifier que l'image ne dépasse pas 1MB
-                            if (file.size > 1024 * 1024) {
+                            // Vérifier que l'image ne dépasse pas 500KB
+                            if (file.size > 500 * 1024) {
                               throw new Error(
-                                "L'image est trop volumineuse (max 1MB)"
+                                "L'image est trop volumineuse (max 500KB)"
+                              );
+                            }
+                            
+                            // Vérification des types d'images autorisés
+                            const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+                            if (!allowedTypes.includes(file.type)) {
+                              throw new Error(
+                                "Format d'image non supporté. Utilisez JPG, PNG, GIF ou WEBP."
                               );
                             }
 
@@ -328,9 +372,12 @@ export default function ParametresPage() {
                                   ...prev,
                                   logo: e.target?.result as string,
                                 }));
-                                setSaveMessage(
-                                  "✅ Logo chargé (prévisualisation uniquement)"
-                                );
+                                setSaveMessage("Logo chargé (à sauvegarder)");
+                                setSaveStatus("success");
+                                setTimeout(() => {
+                                  setSaveMessage("");
+                                  setSaveStatus("");
+                                }, 3000);
                               }
                             };
                             reader.readAsDataURL(file);
@@ -513,31 +560,48 @@ export default function ParametresPage() {
             </h2>
             <div className="space-y-4">
               {entreprise.mentionsLegales?.map((mention, index) => (
-                <div key={index}>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Mention {index + 1}
-                  </label>
+                <div key={index} className="flex items-center gap-2">
                   <input
                     type="text"
                     value={mention}
                     onChange={(e) =>
                       handleMentionsLegalesChange(index, e.target.value)
                     }
-                    className="mt-1 block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
+                    className="mt-1 flex-grow block w-full rounded-md border border-gray-300 p-2 bg-white text-black"
+                    placeholder="Saisissez une mention légale"
                   />
+                  <button
+                    type="button"
+                    onClick={() => supprimerMentionLegale(index)}
+                    className="bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600"
+                    title="Supprimer cette mention"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
+              <button
+                type="button"
+                onClick={ajouterMentionLegale}
+                className="mt-2 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 flex items-center justify-center w-full"
+              >
+                + Ajouter une mention légale
+              </button>
             </div>
           </div>
 
           <div className="flex justify-between items-center">
-            <span
-              className={`transition-opacity duration-300 text-gray-800 dark:text-gray-300 ${
-                saveMessage ? "opacity-100" : "opacity-0"
-              }`}
-            >
-              {saveMessage}
-            </span>
+            {saveMessage && (
+              <div className={`transition-all duration-300 py-2 px-4 rounded-md ${
+                saveStatus === "success" ? "bg-green-100 text-green-800 border border-green-300" :
+                saveStatus === "error" ? "bg-red-100 text-red-800 border border-red-300" : ""
+              }`}>
+                {saveStatus === "success" && "✅ "}
+                {saveStatus === "error" && "❌ "}
+                {saveMessage}
+              </div>
+            )}
+            {!saveMessage && <div></div>}
             <button
               type="submit"
               disabled={isSaving}
