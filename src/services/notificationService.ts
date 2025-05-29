@@ -225,11 +225,6 @@ export const verifierFacturesEnRetardDirectement = async (
         const existingRetardNotification = existingNotifications.find(n => n.type === "paiement_retard");
         const existingProcheNotification = existingNotifications.find(n => n.type === "paiement_proche");
 
-        // Vérifier si la facture est en retard
-        const estEnRetard = aujourdhui > dateEcheance;
-
-        console.log(`Facture ${facture.id} en retard: ${estEnRetard}, statut: ${facture.statut}, notification existante: ${!!existingRetardNotification}`);
-
         // Si la facture est marquée comme "À relancer", mais n'a pas de notification, créer une notification
         if (facture.statut === "À relancer" && !existingRetardNotification) {
           console.log(`Facture ${facture.id} marquée comme "À relancer" mais sans notification de retard`);

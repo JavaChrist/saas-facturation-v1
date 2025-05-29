@@ -41,6 +41,7 @@ import { convertToDate } from "@/services/factureService";
 import { DelaiPaiementType, calculerDateEcheance } from "@/services/delaisPaiementService";
 import { getCouleurStatut, mettreAJourMontantsFacture, formaterMontant, getTexteCourtStatut, getCouleurStatutInline } from "@/services/paiementService";
 import GestionPaiements from "@/components/GestionPaiements";
+import { useFacture } from "@/lib/factureProvider";
 
 // Classes Tailwind pour les statuts - à conserver pour le build
 // bg-green-500 bg-amber-500 bg-orange-500 bg-yellow-500 bg-blue-500 bg-red-500 bg-gray-500
