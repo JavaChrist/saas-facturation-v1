@@ -11,7 +11,9 @@ import {
   FiAward,
   FiShield,
   FiUserPlus,
-  FiMail
+  FiMail,
+  FiUser,
+  FiGrid
 } from "react-icons/fi";
 import Link from "next/link";
 import Image from "next/image";
@@ -230,7 +232,7 @@ export default function Dashboard() {
           }
         }
       }
-      
+
       console.log('[DEBUG-PRODUCTION] sessionStorage items:');
       for (let i = 0; i < sessionStorage.length; i++) {
         const key = sessionStorage.key(i);
@@ -243,7 +245,7 @@ export default function Dashboard() {
           }
         }
       }
-      
+
       console.log('[DEBUG-PRODUCTION] Plan actuel: ', userPlanInfo);
       console.log('[DEBUG-PRODUCTION] ---- FIN INFO PLANS ----');
 
@@ -352,45 +354,59 @@ export default function Dashboard() {
         <nav className="space-y-2">
           <Link
             href="/dashboard"
-            className="block py-2 px-4 rounded-md bg-gray-700 dark:bg-gray-800 hover:bg-gray-600 dark:hover:bg-gray-700"
+            className="flex items-center py-2 px-4 rounded-md bg-gray-700 dark:bg-gray-800 hover:bg-gray-600 dark:hover:bg-gray-700"
           >
+            <FiGrid className="mr-3 text-white" size={18} />
             Dashboard
           </Link>
           <Link
-            href="/dashboard/factures"
-            className="block py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
-          >
-            Factures
-          </Link>
-          <Link
             href="/dashboard/clients"
-            className="block py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
+            className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
+            <FiUsers className="mr-3 text-white" size={18} />
             Clients
           </Link>
           <Link
-            href="/dashboard/abonnement"
+            href="/dashboard/factures"
             className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
-            <FiCreditCard className="mr-2" /> Abonnement
+            <FiFileText className="mr-3 text-white" size={18} />
+            Factures
+          </Link>
+          <Link
+            href="/dashboard/notifications"
+            className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
+          >
+            <FiMail className="mr-3 text-white" size={18} />
+            Notifications
           </Link>
           <Link
             href="/dashboard/utilisateurs"
             className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
-            <FiUserPlus className="mr-2" /> Utilisateurs
+            <FiUserPlus className="mr-3 text-white" size={18} />
+            Utilisateurs
+          </Link>
+          <Link
+            href="/dashboard/profil"
+            className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
+          >
+            <FiUser className="mr-3 text-white" size={18} />
+            Mon Profil
           </Link>
           <Link
             href="/dashboard/parametres"
-            className="block py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
+            className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
+            <FiSettings className="mr-3 text-white" size={18} />
             Paramètres
           </Link>
           <Link
-            href="/dashboard/notifications"
-            className="block py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
+            href="/dashboard/abonnement"
+            className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
-            Notifications
+            <FiCreditCard className="mr-3 text-white" size={18} />
+            Abonnement
           </Link>
         </nav>
 
@@ -503,20 +519,20 @@ export default function Dashboard() {
           </Link>
 
           <Link
-            href="/dashboard/abonnement"
+            href="/dashboard/notifications"
             className="transform hover:scale-105 transition-transform duration-300"
           >
             <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
               <div className="flex items-center space-x-4">
-                <div className="bg-purple-100 dark:bg-purple-900 p-3 rounded-full">
-                  <FiCreditCard className="text-purple-500 dark:text-purple-400 text-xl" />
+                <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
+                  <FiMail className="text-indigo-500 dark:text-indigo-400 text-xl" />
                 </div>
-                <div>
+                <div className="flex flex-col">
                   <h3 className="text-xl font-semibold text-text-light dark:text-text-dark">
-                    Abonnement
+                    Notifications
                   </h3>
                   <p className="text-gray-500 dark:text-gray-400">
-                    Gérer votre plan SaaS
+                    Centre de notifications
                   </p>
                 </div>
               </div>
@@ -545,6 +561,27 @@ export default function Dashboard() {
           </Link>
 
           <Link
+            href="/dashboard/profil"
+            className="transform hover:scale-105 transition-transform duration-300"
+          >
+            <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
+              <div className="flex items-center space-x-4">
+                <div className="bg-orange-100 dark:bg-orange-900 p-3 rounded-full">
+                  <FiUser className="text-orange-500 dark:text-orange-400 text-xl" />
+                </div>
+                <div className="flex flex-col">
+                  <h3 className="text-xl font-semibold text-text-light dark:text-text-dark">
+                    Mon Profil
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Signature & informations
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          <Link
             href="/dashboard/parametres"
             className="transform hover:scale-105 transition-transform duration-300"
           >
@@ -559,6 +596,27 @@ export default function Dashboard() {
                   </h3>
                   <p className="text-gray-500 dark:text-gray-400">
                     Configurer votre compte
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/abonnement"
+            className="transform hover:scale-105 transition-transform duration-300"
+          >
+            <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
+              <div className="flex items-center space-x-4">
+                <div className="bg-pink-100 dark:bg-pink-900 p-3 rounded-full">
+                  <FiCreditCard className="text-pink-500 dark:text-pink-400 text-xl" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-text-light dark:text-text-dark">
+                    Abonnement
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Gérer votre plan SaaS
                   </p>
                 </div>
               </div>

@@ -21,6 +21,7 @@ export interface OrganizationUser {
   createdAt: Date;
   organizationId: string;
   isActive: boolean;
+  isDeleted?: boolean;
 }
 
 /**
@@ -41,17 +42,20 @@ export const getOrganizationUsers = async (
       const membersSnapshot = await getDocs(membersCollection);
 
       if (!membersSnapshot.empty) {
-        const members = membersSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          email: doc.data().email,
-          displayName: doc.data().nomAffichage,
-          role: mapRoleToEnglish(doc.data().role),
-          createdAt: doc.data().dateAjout?.toDate
-            ? doc.data().dateAjout.toDate()
-            : new Date(doc.data().dateAjout || Date.now()),
-          organizationId: organizationId,
-          isActive: doc.data().actif !== undefined ? doc.data().actif : true,
-        })) as OrganizationUser[];
+        const members = membersSnapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            email: doc.data().email,
+            displayName: doc.data().nomAffichage,
+            role: mapRoleToEnglish(doc.data().role),
+            createdAt: doc.data().dateAjout?.toDate
+              ? doc.data().dateAjout.toDate()
+              : new Date(doc.data().dateAjout || Date.now()),
+            organizationId: organizationId,
+            isActive: doc.data().actif !== undefined ? doc.data().actif : true,
+            isDeleted: doc.data().supprime === true,
+          }))
+          .filter((member) => !member.isDeleted) as OrganizationUser[]; // Exclure les utilisateurs supprimés
 
         return members;
       }
@@ -67,13 +71,16 @@ export const getOrganizationUsers = async (
 
     const snapshot = await getDocs(usersQuery);
 
-    const users = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().dateCreation?.toDate
-        ? doc.data().dateCreation.toDate()
-        : new Date(doc.data().dateCreation || Date.now()),
-    })) as OrganizationUser[];
+    const users = snapshot.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().dateCreation?.toDate
+          ? doc.data().dateCreation.toDate()
+          : new Date(doc.data().dateCreation || Date.now()),
+        isDeleted: doc.data().supprime === true,
+      }))
+      .filter((user) => !user.isDeleted) as OrganizationUser[]; // Exclure les utilisateurs supprimés
 
     return users;
   } catch (error) {
@@ -89,6 +96,7 @@ export const getOrganizationUsers = async (
           createdAt: new Date(),
           organizationId: organizationId,
           isActive: true,
+          isDeleted: false,
         },
       ];
     }
@@ -190,6 +198,90 @@ export const deactivateUser = async (userId: string): Promise<boolean> => {
     return true;
   } catch (error) {
     console.error("Erreur lors de la désactivation de l'utilisateur:", error);
+    return false;
+  }
+};
+
+/**
+ * Réactive un utilisateur de l'organisation
+ */
+export const activateUser = async (userId: string): Promise<boolean> => {
+  try {
+    // Récupérer l'utilisateur pour obtenir son organisationId
+    const userDoc = await getDoc(doc(db, "utilisateursOrganisation", userId));
+    if (!userDoc.exists()) return false;
+
+    const userData = userDoc.data();
+    const organizationId = userData.organisationId;
+
+    // Mettre à jour dans la collection utilisateursOrganisation
+    await updateDoc(doc(db, "utilisateursOrganisation", userId), {
+      actif: true,
+    });
+
+    // Mettre à jour dans la sous-collection membres si l'utilisateur existe
+    const memberRef = doc(
+      db,
+      "organizations",
+      organizationId,
+      "membres",
+      userId
+    );
+    const memberDoc = await getDoc(memberRef);
+
+    if (memberDoc.exists()) {
+      await updateDoc(memberRef, {
+        actif: true,
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Erreur lors de la réactivation de l'utilisateur:", error);
+    return false;
+  }
+};
+
+/**
+ * Supprime définitivement un utilisateur de l'organisation
+ */
+export const deleteUser = async (userId: string): Promise<boolean> => {
+  try {
+    // Récupérer l'utilisateur pour obtenir son organisationId
+    const userDoc = await getDoc(doc(db, "utilisateursOrganisation", userId));
+    if (!userDoc.exists()) return false;
+
+    const userData = userDoc.data();
+    const organizationId = userData.organisationId;
+
+    // Supprimer de la collection utilisateursOrganisation
+    await updateDoc(doc(db, "utilisateursOrganisation", userId), {
+      actif: false,
+      supprime: true,
+      dateSuppression: new Date(),
+    });
+
+    // Supprimer de la sous-collection membres si l'utilisateur existe
+    const memberRef = doc(
+      db,
+      "organizations",
+      organizationId,
+      "membres",
+      userId
+    );
+    const memberDoc = await getDoc(memberRef);
+
+    if (memberDoc.exists()) {
+      await updateDoc(memberRef, {
+        actif: false,
+        supprime: true,
+        dateSuppression: new Date(),
+      });
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Erreur lors de la suppression de l'utilisateur:", error);
     return false;
   }
 };

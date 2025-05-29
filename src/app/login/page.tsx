@@ -217,21 +217,21 @@ function LoginContent() {
 
       // Vérifier s'il y a une URL stockée dans localStorage
       const storedRedirectUrl = localStorage.getItem("authRedirectUrl");
-      
+
       // Si un chemin de redirection est présent dans l'URL, l'utiliser
       if (redirectPath) {
         console.log("LoginPage - Redirection vers URL du paramètre:", redirectPath);
         router.push(redirectPath);
         // Nettoyer le localStorage après utilisation
         localStorage.removeItem("authRedirectUrl");
-      } 
+      }
       // Sinon utiliser l'URL stockée dans localStorage si disponible
       else if (storedRedirectUrl) {
         console.log("LoginPage - Redirection vers URL stockée:", storedRedirectUrl);
         router.push(storedRedirectUrl);
         // Nettoyer le localStorage après utilisation
         localStorage.removeItem("authRedirectUrl");
-      } 
+      }
       // Redirection par défaut au dashboard
       else {
         console.log("LoginPage - Redirection vers dashboard (par défaut)");
@@ -271,7 +271,7 @@ function LoginContent() {
   // Affichage de la redirection si l'utilisateur est connecté
   if (user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100">
+      <div className="flex min-h-screen items-center justify-center bg-gray-100 light">
         <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
           <h1 className="mb-6 text-center text-3xl font-bold text-gray-800">
             Connexion
@@ -293,7 +293,7 @@ function LoginContent() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
+    <div className="flex min-h-screen items-center justify-center bg-gray-100 light">
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
         <h1 className="mb-6 text-center text-3xl font-bold text-gray-800">
           Connexion
@@ -338,7 +338,7 @@ function LoginContent() {
                   type="email"
                   id="email"
                   name="email"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
                   required
                   autoComplete="email"
                 />
@@ -364,7 +364,7 @@ function LoginContent() {
             <div className="mb-6">
               <button
                 onClick={handleGoogleLogin}
-                className="flex w-full items-center justify-center rounded-md bg-white px-4 py-2 text-gray-800 shadow-md hover:bg-gray-50"
+                className="flex w-full items-center justify-center rounded-md bg-white px-4 py-2 text-gray-800 shadow-md hover:bg-gray-50 border border-gray-300"
                 disabled={isLoading}
               >
                 <svg
@@ -429,7 +429,7 @@ function LoginContent() {
                   type="email"
                   id="email"
                   name="email"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
                   required
                   autoComplete="email"
                 />
@@ -446,7 +446,7 @@ function LoginContent() {
                     type={showLoginPassword ? "text" : "password"}
                     id="password"
                     name="password"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
                     required
                     autoComplete="off"
                   />
@@ -552,7 +552,7 @@ function LoginContent() {
                   type="email"
                   id="register-email"
                   name="email"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
                   required
                   autoComplete="email"
                 />
@@ -569,7 +569,7 @@ function LoginContent() {
                     type={showRegisterPassword ? "text" : "password"}
                     id="register-password"
                     name="password"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
                     required
                     autoComplete="off"
                   />
@@ -643,7 +643,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gray-100">
+        <div className="flex min-h-screen items-center justify-center bg-gray-100 light">
           <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md">
             <h1 className="mb-6 text-center text-3xl font-bold text-gray-800">
               Connexion

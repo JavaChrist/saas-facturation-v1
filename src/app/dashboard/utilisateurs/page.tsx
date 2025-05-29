@@ -15,6 +15,8 @@ import {
   getOrganizationUsers,
   addOrganizationUser,
   deactivateUser,
+  activateUser,
+  deleteUser,
   canAddUser,
   OrganizationUser,
   getOrganizationId
@@ -48,12 +50,86 @@ export default function UtilisateursPage() {
     currentUsers: number;
   }>({ planId: "", maxUsers: 0, currentUsers: 0 });
 
+  // États pour les modales modernes
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    type: 'deactivate' | 'activate' | 'delete' | null;
+    user: OrganizationUser | null;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    type: null,
+    user: null,
+    onConfirm: () => { },
+  });
+
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
+
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
+
   const [newUser, setNewUser] = useState({
     email: "",
     displayName: "",
     role: "viewer" as OrganizationUser["role"],
     isActive: true,
   });
+
+  // Fonctions utilitaires pour les modales
+  const showSuccessModal = (title: string, message: string) => {
+    setSuccessModal({ isOpen: true, title, message });
+  };
+
+  const showErrorModal = (title: string, message: string) => {
+    setErrorModal({ isOpen: true, title, message });
+  };
+
+  const showConfirmModal = (
+    type: 'deactivate' | 'activate' | 'delete',
+    user: OrganizationUser,
+    onConfirm: () => void
+  ) => {
+    setConfirmModal({ isOpen: true, type, user, onConfirm });
+  };
+
+  const closeAllModals = () => {
+    setConfirmModal({ isOpen: false, type: null, user: null, onConfirm: () => { } });
+    setSuccessModal({ isOpen: false, title: '', message: '' });
+    setErrorModal({ isOpen: false, title: '', message: '' });
+  };
+
+  // Fonction pour actualiser le décompte des utilisateurs
+  const updateUserCount = (newUsersList: OrganizationUser[]) => {
+    const newCurrentUsers = newUsersList.length;
+
+    setPlanInfo(prev => {
+      const updatedInfo = {
+        ...prev,
+        currentUsers: newCurrentUsers
+      };
+
+      // Vérifier si l'utilisateur peut encore ajouter des utilisateurs
+      const canAdd = updatedInfo.maxUsers === Infinity || newCurrentUsers < updatedInfo.maxUsers;
+      setCanAddMoreUsers(canAdd);
+
+      return updatedInfo;
+    });
+  };
 
   // Simuler l'ID de l'organisation
   useEffect(() => {
@@ -279,7 +355,8 @@ export default function UtilisateursPage() {
   // Ouvrir le modal pour ajouter un utilisateur
   const openAddUserModal = () => {
     if (!canAddMoreUsers) {
-      alert(
+      showErrorModal(
+        "Limite d'utilisateurs atteinte",
         `Vous avez atteint la limite de ${planInfo.currentUsers} utilisateur(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus d'utilisateurs.`
       );
       return;
@@ -299,7 +376,7 @@ export default function UtilisateursPage() {
     e.preventDefault();
 
     if (!user || !organizationId) {
-      alert("Vous devez être connecté pour effectuer cette action");
+      showErrorModal("Erreur d'authentification", "Vous devez être connecté pour effectuer cette action");
       return;
     }
 
@@ -307,7 +384,8 @@ export default function UtilisateursPage() {
       // Vérifier une dernière fois si l'utilisateur peut ajouter d'autres utilisateurs
       const canAdd = await canAddUser(user.uid);
       if (!canAdd) {
-        alert(
+        showErrorModal(
+          "Limite d'utilisateurs atteinte",
           `Vous avez atteint la limite de ${planInfo.currentUsers} utilisateur(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus d'utilisateurs.`
         );
         return;
@@ -330,15 +408,19 @@ export default function UtilisateursPage() {
 
       if (invitationResult.success) {
         console.log(`Invitation envoyée à ${newUser.email} (ID: ${userId})`);
-        alert(`Utilisateur ajouté et invitation envoyée à ${newUser.email}`);
+        showSuccessModal(
+          "Utilisateur ajouté avec succès",
+          `L'utilisateur ${newUser.displayName} (${newUser.email}) a été ajouté et l'invitation a été envoyée.`
+        );
       } else {
         // L'utilisateur a été ajouté mais l'email n'a pas été envoyé
         console.warn(
           "Utilisateur ajouté mais erreur lors de l'envoi de l'email:",
           invitationResult.message
         );
-        alert(
-          `Utilisateur ajouté, mais l'email n'a pas pu être envoyé: ${invitationResult.message}`
+        showErrorModal(
+          "Utilisateur ajouté mais email non envoyé",
+          `L'utilisateur ${newUser.displayName} a été ajouté, mais l'email n'a pas pu être envoyé: ${invitationResult.message}`
         );
       }
 
@@ -347,43 +429,106 @@ export default function UtilisateursPage() {
       const mappedUsers = updatedUsers.map(mapUserDataForDisplay);
       setUsers(mappedUsers);
 
+      // Mettre à jour le décompte des utilisateurs
+      updateUserCount(mappedUsers);
+
       // Fermer le modal
       setIsModalOpen(false);
     } catch (err) {
       console.error("Erreur lors de l'ajout de l'utilisateur:", err);
-      alert(
-        err instanceof Error
-          ? err.message
-          : "Erreur lors de l'ajout de l'utilisateur"
+      showErrorModal(
+        "Erreur lors de l'ajout",
+        err instanceof Error ? err.message : "Une erreur inattendue s'est produite lors de l'ajout de l'utilisateur"
       );
     }
   };
 
   // Désactiver un utilisateur
-  const handleDeactivateUser = async (userId: string) => {
-    if (!confirm("Êtes-vous sûr de vouloir désactiver cet utilisateur ?")) {
-      return;
-    }
+  const handleDeactivateUser = async (userToDeactivate: OrganizationUser) => {
+    showConfirmModal('deactivate', userToDeactivate, async () => {
+      try {
+        await deactivateUser(userToDeactivate.id);
 
-    try {
-      await deactivateUser(userId);
+        // Mettre à jour la liste des utilisateurs
+        const updatedUsersList = users.map((u) => (u.id === userToDeactivate.id ? { ...u, isActive: false } : u));
+        setUsers(updatedUsersList);
 
-      // Mettre à jour la liste des utilisateurs
-      setUsers(
-        users.map((u) => (u.id === userId ? { ...u, isActive: false } : u))
-      );
+        // Mettre à jour le décompte des utilisateurs  
+        updateUserCount(updatedUsersList);
 
-      alert("Utilisateur désactivé avec succès");
-    } catch (err) {
-      console.error("Erreur lors de la désactivation de l'utilisateur:", err);
-      alert("Erreur lors de la désactivation de l'utilisateur");
-    }
+        showSuccessModal(
+          "Utilisateur désactivé",
+          `L'utilisateur ${userToDeactivate.displayName} a été désactivé avec succès.`
+        );
+      } catch (err) {
+        console.error("Erreur lors de la désactivation de l'utilisateur:", err);
+        showErrorModal(
+          "Erreur lors de la désactivation",
+          "Une erreur s'est produite lors de la désactivation de l'utilisateur."
+        );
+      }
+    });
+  };
+
+  // Réactiver un utilisateur
+  const handleActivateUser = async (userToActivate: OrganizationUser) => {
+    showConfirmModal('activate', userToActivate, async () => {
+      try {
+        await activateUser(userToActivate.id);
+
+        // Mettre à jour la liste des utilisateurs
+        const updatedUsersList = users.map((u) => (u.id === userToActivate.id ? { ...u, isActive: true } : u));
+        setUsers(updatedUsersList);
+
+        // Mettre à jour le décompte des utilisateurs
+        updateUserCount(updatedUsersList);
+
+        showSuccessModal(
+          "Utilisateur réactivé",
+          `L'utilisateur ${userToActivate.displayName} a été réactivé avec succès.`
+        );
+      } catch (err) {
+        console.error("Erreur lors de la réactivation de l'utilisateur:", err);
+        showErrorModal(
+          "Erreur lors de la réactivation",
+          "Une erreur s'est produite lors de la réactivation de l'utilisateur."
+        );
+      }
+    });
+  };
+
+  // Supprimer un utilisateur
+  const handleDeleteUser = async (userToDelete: OrganizationUser) => {
+    showConfirmModal('delete', userToDelete, async () => {
+      try {
+        await deleteUser(userToDelete.id);
+
+        // Mettre à jour la liste des utilisateurs en retirant l'utilisateur supprimé
+        const newUsersList = users.filter((u) => u.id !== userToDelete.id);
+        setUsers(newUsersList);
+
+        // Mettre à jour le décompte des utilisateurs
+        updateUserCount(newUsersList);
+
+        showSuccessModal(
+          "Utilisateur supprimé",
+          `L'utilisateur ${userToDelete.displayName} a été supprimé définitivement.`
+        );
+      } catch (err) {
+        console.error("Erreur lors de la suppression de l'utilisateur:", err);
+        showErrorModal(
+          "Erreur lors de la suppression",
+          "Une erreur s'est produite lors de la suppression de l'utilisateur."
+        );
+      }
+    });
   };
 
   // Envoyer une invitation par email
   const handleSendInvitation = async (email: string) => {
     if (!organizationId) {
-      alert(
+      showErrorModal(
+        "Erreur d'organisation",
         "ID de l'organisation non disponible. Impossible d'envoyer l'invitation."
       );
       return;
@@ -401,13 +546,22 @@ export default function UtilisateursPage() {
       );
 
       if (result.success) {
-        alert("Invitation envoyée avec succès à " + email);
+        showSuccessModal(
+          "Invitation envoyée",
+          `L'invitation a été envoyée avec succès à ${email}.`
+        );
       } else {
-        alert("Erreur lors de l'envoi : " + result.message);
+        showErrorModal(
+          "Erreur lors de l'envoi",
+          `Erreur lors de l'envoi de l'invitation : ${result.message}`
+        );
       }
     } catch (error) {
       console.error("Erreur lors de l'envoi de l'invitation:", error);
-      alert("Une erreur est survenue lors de l'envoi de l'invitation.");
+      showErrorModal(
+        "Erreur inattendue",
+        "Une erreur est survenue lors de l'envoi de l'invitation."
+      );
     } finally {
       setLoading(false);
     }
@@ -437,11 +591,10 @@ export default function UtilisateursPage() {
           <button
             onClick={openAddUserModal}
             disabled={!canAddMoreUsers}
-            className={`${
-              canAddMoreUsers
-                ? "bg-green-600 hover:bg-green-700 transform hover:scale-105"
-                : "bg-gray-400 cursor-not-allowed"
-            } text-white py-2 px-4 rounded-md flex items-center transition-transform duration-300`}
+            className={`${canAddMoreUsers
+              ? "bg-green-600 hover:bg-green-700 transform hover:scale-105"
+              : "bg-gray-400 cursor-not-allowed"
+              } text-white py-2 px-4 rounded-md flex items-center transition-transform duration-300`}
           >
             <FiUserPlus size={18} className="mr-2" /> Ajouter un utilisateur
           </button>
@@ -529,11 +682,10 @@ export default function UtilisateursPage() {
                   </td>
                   <td className="py-3 px-4">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        user.isActive
-                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                          : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                      }`}
+                      className={`px-2 py-1 rounded-full text-xs ${user.isActive
+                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                        : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                        }`}
                     >
                       {user.isActive ? "Actif" : "Inactif"}
                     </span>
@@ -554,7 +706,7 @@ export default function UtilisateursPage() {
                       </button>
                       {user.isActive ? (
                         <button
-                          onClick={() => handleDeactivateUser(user.id)}
+                          onClick={() => handleDeactivateUser(user)}
                           className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                           title="Désactiver"
                         >
@@ -562,15 +714,20 @@ export default function UtilisateursPage() {
                         </button>
                       ) : (
                         <button
-                          onClick={() =>
-                            alert("Fonctionnalité non implémentée")
-                          }
+                          onClick={() => handleActivateUser(user)}
                           className="text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
                           title="Réactiver"
                         >
                           <FiUserCheck size={18} />
                         </button>
                       )}
+                      <button
+                        onClick={() => handleDeleteUser(user)}
+                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        title="Supprimer"
+                      >
+                        <FiTrash2 size={18} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -663,6 +820,152 @@ export default function UtilisateursPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modale de confirmation */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-[500px]">
+            <div className="flex items-center mb-4">
+              {confirmModal.type === 'delete' ? (
+                <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full mr-4">
+                  <FiTrash2 className="text-red-600 dark:text-red-400" size={24} />
+                </div>
+              ) : confirmModal.type === 'deactivate' ? (
+                <div className="bg-orange-100 dark:bg-orange-900 p-3 rounded-full mr-4">
+                  <FiUserX className="text-orange-600 dark:text-orange-400" size={24} />
+                </div>
+              ) : (
+                <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full mr-4">
+                  <FiUserCheck className="text-green-600 dark:text-green-400" size={24} />
+                </div>
+              )}
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                {confirmModal.type === 'delete'
+                  ? '⚠️ Supprimer définitivement'
+                  : confirmModal.type === 'deactivate'
+                    ? 'Désactiver l\'utilisateur'
+                    : 'Réactiver l\'utilisateur'
+                }
+              </h2>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-600 dark:text-gray-300 mb-2">
+                {confirmModal.type === 'delete'
+                  ? `Êtes-vous absolument sûr de vouloir supprimer définitivement l'utilisateur :`
+                  : confirmModal.type === 'deactivate'
+                    ? `Êtes-vous sûr de vouloir désactiver l'utilisateur :`
+                    : `Êtes-vous sûr de vouloir réactiver l'utilisateur :`
+                }
+              </p>
+              <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
+                <p className="font-medium text-gray-800 dark:text-white">
+                  {confirmModal.user?.displayName}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {confirmModal.user?.email}
+                </p>
+              </div>
+              {confirmModal.type === 'delete' && (
+                <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                  <p className="text-sm text-red-700 dark:text-red-300 font-medium">
+                    ⚠️ Cette action est IRRÉVERSIBLE
+                  </p>
+                  <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                    L'utilisateur perdra définitivement tout accès à l'organisation et ses données ne pourront pas être récupérées.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={closeAllModals}
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-400 dark:hover:bg-gray-500"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  closeAllModals();
+                }}
+                className={`px-4 py-2 rounded font-medium ${confirmModal.type === 'delete'
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : confirmModal.type === 'deactivate'
+                    ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                  }`}
+              >
+                {confirmModal.type === 'delete'
+                  ? 'Supprimer définitivement'
+                  : confirmModal.type === 'deactivate'
+                    ? 'Désactiver'
+                    : 'Réactiver'
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale de succès */}
+      {successModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-[500px]">
+            <div className="flex items-center mb-4">
+              <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full mr-4">
+                <FiUserCheck className="text-green-600 dark:text-green-400" size={24} />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                {successModal.title}
+              </h2>
+            </div>
+
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              {successModal.message}
+            </p>
+
+            <div className="flex justify-end">
+              <button
+                onClick={closeAllModals}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-medium"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale d'erreur */}
+      {errorModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-[500px]">
+            <div className="flex items-center mb-4">
+              <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full mr-4">
+                <FiUserX className="text-red-600 dark:text-red-400" size={24} />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                {errorModal.title}
+              </h2>
+            </div>
+
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              {errorModal.message}
+            </p>
+
+            <div className="flex justify-end">
+              <button
+                onClick={closeAllModals}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded font-medium"
+              >
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}

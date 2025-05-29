@@ -17,7 +17,8 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { DateRange } from "./DateFilter";
-import { useTheme } from "@/lib/themeContext";
+import { useTheme } from "next-themes";
+import { formatCurrency } from "@/lib/utils";
 
 // Enregistrement des composants nécessaires pour Chart.js
 ChartJS.register(
@@ -50,6 +51,7 @@ interface RevenueChartProps {
 const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [revenueData, setRevenueData] = useState<RevenueData>({
     labels: [],
@@ -63,6 +65,11 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
     },
   });
   const [debugData, setDebugData] = useState<any[]>([]);
+
+  // Évite les problèmes d'hydratation
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const fetchRevenueData = async () => {
@@ -193,8 +200,8 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
                 typeof facture.totalTTC === "number"
                   ? facture.totalTTC
                   : typeof facture.totalTTC === "string"
-                  ? parseFloat(facture.totalTTC) || 0
-                  : 0;
+                    ? parseFloat(facture.totalTTC) || 0
+                    : 0;
 
               if (isNaN(amount)) {
                 console.warn(
@@ -212,18 +219,15 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
             }
 
             console.log(
-              `Facture ${
-                doc.id
-              }: Date=${date.toLocaleDateString()}, Année=${factureYear}, Mois=${factureMonth} (${
-                months[factureMonth]
+              `Facture ${doc.id
+              }: Date=${date.toLocaleDateString()}, Année=${factureYear}, Mois=${factureMonth} (${months[factureMonth]
               }), Montant=${amount.toFixed(2)}€`
             );
 
             if (factureYear === currentYear) {
               thisYearData[factureMonth] += amount;
               console.log(
-                `Ajouté à l'année en cours (${
-                  months[factureMonth]
+                `Ajouté à l'année en cours (${months[factureMonth]
                 } ${currentYear}): +${amount.toFixed(
                   2
                 )}€, Nouveau total: ${thisYearData[factureMonth].toFixed(2)}€`
@@ -231,8 +235,7 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
             } else if (factureYear === lastYear) {
               lastYearData[factureMonth] += amount;
               console.log(
-                `Ajouté à l'année précédente (${
-                  months[factureMonth]
+                `Ajouté à l'année précédente (${months[factureMonth]
                 } ${lastYear}): +${amount.toFixed(
                   2
                 )}€, Nouveau total: ${lastYearData[factureMonth].toFixed(2)}€`
@@ -240,8 +243,7 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
             }
           } else {
             console.warn(
-              `Facture ${doc.id} ignorée: dateCreation=${
-                facture.dateCreation ? "présent" : "absent"
+              `Facture ${doc.id} ignorée: dateCreation=${facture.dateCreation ? "présent" : "absent"
               }, totalTTC=${facture.totalTTC ? facture.totalTTC : "absent"}`
             );
           }
@@ -402,9 +404,8 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
         callbacks: {
           label: function (context) {
             const value = Number(context.raw);
-            return `${context.dataset.label}: ${
-              value > 0 ? "+" : ""
-            }${value.toFixed(2)}%`;
+            return `${context.dataset.label}: ${value > 0 ? "+" : ""
+              }${value.toFixed(2)}%`;
           },
         },
       },
@@ -467,21 +468,19 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
               </p>
             </div>
             <div
-              className={`p-4 rounded-lg ${
-                revenueData.total.variation >= 0
+              className={`p-4 rounded-lg ${revenueData.total.variation >= 0
                   ? "bg-green-50 dark:bg-green-900/30"
                   : "bg-red-50 dark:bg-red-900/30"
-              }`}
+                }`}
             >
               <p className="text-sm text-gray-600 dark:text-gray-300">
                 Évolution
               </p>
               <p
-                className={`text-2xl font-bold ${
-                  revenueData.total.variation >= 0
+                className={`text-2xl font-bold ${revenueData.total.variation >= 0
                     ? "text-green-600 dark:text-green-400"
                     : "text-red-600 dark:text-red-400"
-                }`}
+                  }`}
               >
                 {revenueData.total.variation > 0 ? "+" : ""}
                 {revenueData.total.variation.toFixed(2)} %
@@ -626,11 +625,10 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
                       {revenueData.lastYear[index].toFixed(2)} €
                     </td>
                     <td
-                      className={`px-4 py-2 border-b dark:border-gray-700 text-right ${
-                        revenueData.monthlyVariation[index] >= 0
+                      className={`px-4 py-2 border-b dark:border-gray-700 text-right ${revenueData.monthlyVariation[index] >= 0
                           ? "text-green-600 dark:text-green-400"
                           : "text-red-600 dark:text-red-400"
-                      }`}
+                        }`}
                     >
                       {revenueData.monthlyVariation[index] > 0 ? "+" : ""}
                       {revenueData.monthlyVariation[index].toFixed(2)} %

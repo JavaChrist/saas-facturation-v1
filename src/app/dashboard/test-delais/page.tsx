@@ -1,191 +1,314 @@
 "use client";
-import React, { useState } from "react";
-import { FiArrowLeft, FiCalendar } from "react-icons/fi";
-import { useRouter } from "next/navigation";
-import { calculerDateEcheance, DELAIS_PAIEMENT_OPTIONS, DelaiPaiementType } from "@/services/delaisPaiementService";
-import DelaiPaiementSelector from "@/components/DelaiPaiementSelector";
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { FiArrowLeft, FiCalendar, FiClock, FiCheck } from 'react-icons/fi';
 
-export default function TestDelaisPage() {
+const TestDelaisPage = () => {
   const router = useRouter();
-  const [dateCreation, setDateCreation] = useState(new Date().toISOString().split('T')[0]);
-  const [delaiSelectionne, setDelaiSelectionne] = useState<DelaiPaiementType>("30 jours fin de mois le 10");
+  const [dateFacture, setDateFacture] = useState<Date>(new Date());
+  const [delaiSelectionne, setDelaiSelectionne] = useState<string>('30 jours');
 
-  const dateCreationObj = new Date(dateCreation);
-  const dateEcheance = calculerDateEcheance(dateCreationObj, delaiSelectionne);
-  const joursEcart = Math.floor((dateEcheance.getTime() - dateCreationObj.getTime()) / (1000 * 60 * 60 * 24));
-
-  // Exemples prédéfinis
-  const exemples = [
-    { date: "2024-01-15", delai: "30 jours fin de mois le 10" as DelaiPaiementType },
-    { date: "2024-02-28", delai: "60 jours fin de mois le 10" as DelaiPaiementType },
-    { date: "2024-03-31", delai: "30 jours fin de mois le 15" as DelaiPaiementType },
-    { date: "2024-06-15", delai: "45 jours fin de mois" as DelaiPaiementType },
+  // Liste complète des délais de paiement disponibles
+  const delaisDisponibles: string[] = [
+    '30 jours',
+    '60 jours',
+    '90 jours',
+    '15 jours',
+    '45 jours',
+    '30 jours fin de mois',
+    '60 jours fin de mois',
+    '30 jours fin de mois le 10',
+    '60 jours fin de mois le 10',
+    '30 jours fin de mois le 15',
+    '60 jours fin de mois le 15',
+    'Fin de mois',
+    'Fin de mois le 10',
+    'Fin de mois le 15',
+    'Comptant',
+    'À réception'
   ];
 
+  // Fonction simplifiée de calcul de date d'échéance
+  const calculerDateEcheance = (dateFacture: Date, delai: string): Date => {
+    const date = new Date(dateFacture);
+
+    switch (delai) {
+      case 'Comptant':
+      case 'À réception':
+        return date;
+
+      case '15 jours':
+        date.setDate(date.getDate() + 15);
+        return date;
+
+      case '30 jours':
+        date.setDate(date.getDate() + 30);
+        return date;
+
+      case '45 jours':
+        date.setDate(date.getDate() + 45);
+        return date;
+
+      case '60 jours':
+        date.setDate(date.getDate() + 60);
+        return date;
+
+      case '90 jours':
+        date.setDate(date.getDate() + 90);
+        return date;
+
+      case 'Fin de mois':
+        return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+      case 'Fin de mois le 10':
+        const finMois10 = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        finMois10.setDate(finMois10.getDate() + 10);
+        return finMois10;
+
+      case 'Fin de mois le 15':
+        const finMois15 = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        finMois15.setDate(finMois15.getDate() + 15);
+        return finMois15;
+
+      case '30 jours fin de mois':
+        const finMois30j = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        finMois30j.setDate(finMois30j.getDate() + 30);
+        return finMois30j;
+
+      case '60 jours fin de mois':
+        const finMois60j = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        finMois60j.setDate(finMois60j.getDate() + 60);
+        return finMois60j;
+
+      case '30 jours fin de mois le 10':
+        const finMois30j10 = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        finMois30j10.setDate(finMois30j10.getDate() + 40); // +30 jours +10
+        return finMois30j10;
+
+      case '60 jours fin de mois le 10':
+        const finMois60j10 = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        finMois60j10.setDate(finMois60j10.getDate() + 70); // +60 jours +10
+        return finMois60j10;
+
+      case '30 jours fin de mois le 15':
+        const finMois30j15 = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        finMois30j15.setDate(finMois30j15.getDate() + 45); // +30 jours +15
+        return finMois30j15;
+
+      case '60 jours fin de mois le 15':
+        const finMois60j15 = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        finMois60j15.setDate(finMois60j15.getDate() + 75); // +60 jours +15
+        return finMois60j15;
+
+      default:
+        date.setDate(date.getDate() + 30);
+        return date;
+    }
+  };
+
+  // Calculer la date d'échéance
+  const dateEcheance = calculerDateEcheance(dateFacture, delaiSelectionne);
+
+  // Calculer le nombre de jours
+  const nombreJours = Math.ceil((dateEcheance.getTime() - dateFacture.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Exemples de dates pour test
+  const exemplesDate = [
+    { label: "Aujourd'hui", date: new Date() },
+    { label: "1er du mois", date: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
+    { label: "15 du mois", date: new Date(new Date().getFullYear(), new Date().getMonth(), 15) },
+    { label: "Fin du mois", date: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0) },
+    { label: "Début mois prochain", date: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1) },
+  ];
+
+  const formatDate = (date: Date): string => {
+    return date.toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  const formatDateShort = (date: Date): string => {
+    return date.toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4">
+    <div className="p-6 bg-background-light dark:bg-background-dark min-h-screen">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 mr-4 transform hover:scale-105 transition-transform duration-300"
-            >
-              <FiArrowLeft className="mr-2" />
-              Retour
-            </button>
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-              🧪 Test des délais de paiement
-            </h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-4xl font-semibold text-text-light dark:text-text-dark">
+            🗓️ Test des Délais de Paiement
+          </h1>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
+          >
+            <FiArrowLeft size={18} className="mr-2" /> Retour
+          </button>
+        </div>
+
+        <div className="bg-white dark:bg-card-dark rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-2xl font-semibold mb-4 text-text-light dark:text-text-dark flex items-center">
+            <FiCalendar className="mr-2" />
+            Configuration du Test
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Sélection de la date de facture */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Date de la facture
+              </label>
+              <input
+                type="date"
+                value={dateFacture.toISOString().split('T')[0]}
+                onChange={(e) => setDateFacture(new Date(e.target.value))}
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {formatDate(dateFacture)}
+              </p>
+            </div>
+
+            {/* Sélection du délai */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Délai de paiement
+              </label>
+              <select
+                value={delaiSelectionne}
+                onChange={(e) => setDelaiSelectionne(e.target.value)}
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                {delaisDisponibles.map((delai) => (
+                  <option key={delai} value={delai}>
+                    {delai}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => router.push("/dashboard/clients")}
-              className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center transform hover:scale-105 transition-transform duration-300"
-            >
-              👥 Clients
-            </button>
-            <button
-              onClick={() => router.push("/dashboard/factures")}
-              className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 flex items-center transform hover:scale-105 transition-transform duration-300"
-            >
-              📜 Factures
-            </button>
+
+          {/* Exemples de dates rapides */}
+          <div className="mt-6">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Exemples rapides
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {exemplesDate.map((exemple) => (
+                <button
+                  key={exemple.label}
+                  onClick={() => setDateFacture(exemple.date)}
+                  className="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                >
+                  {exemple.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Note explicative */}
-        <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 p-4 rounded-md">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <span className="text-blue-500 text-xl">💡</span>
+        {/* Résultat du calcul */}
+        <div className="bg-white dark:bg-card-dark rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-2xl font-semibold mb-4 text-text-light dark:text-text-dark flex items-center">
+            <FiClock className="mr-2" />
+            Résultat du Calcul
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg">
+              <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">Date de facture</h3>
+              <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                {formatDateShort(dateFacture)}
+              </p>
+              <p className="text-sm text-blue-600 dark:text-blue-300">
+                {formatDate(dateFacture).split(',')[0]}
+              </p>
             </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                À quoi sert cette page ?
-              </h3>
-              <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
-                Cette page vous permet de tester et comprendre comment fonctionnent les différents délais de paiement
-                avant de les appliquer à vos clients. Vous pouvez voir exactement quand une facture sera due selon
-                la date de création et le délai choisi.
+
+            <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
+              <h3 className="font-semibold text-green-800 dark:text-green-200 mb-2">Date d'échéance</h3>
+              <p className="text-2xl font-bold text-green-900 dark:text-green-100">
+                {formatDateShort(dateEcheance)}
+              </p>
+              <p className="text-sm text-green-600 dark:text-green-300">
+                {formatDate(dateEcheance).split(',')[0]}
+              </p>
+            </div>
+
+            <div className="bg-amber-50 dark:bg-amber-900/30 p-4 rounded-lg">
+              <h3 className="font-semibold text-amber-800 dark:text-amber-200 mb-2">Nombre de jours</h3>
+              <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
+                {nombreJours} jour{nombreJours > 1 ? 's' : ''}
+              </p>
+              <p className="text-sm text-amber-600 dark:text-amber-300">
+                {delaiSelectionne}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Calculateur interactif */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white flex items-center">
-              <FiCalendar className="mr-2" />
-              Calculateur de délai
-            </h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Date de création de la facture
-                </label>
-                <input
-                  type="date"
-                  value={dateCreation}
-                  onChange={(e) => setDateCreation(e.target.value)}
-                  className="w-full p-2 border rounded-md bg-white text-black"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Délai de paiement
-                </label>
-                <DelaiPaiementSelector
-                  value={delaiSelectionne}
-                  onChange={setDelaiSelectionne}
-                  showDescription={true}
-                  showExample={false}
-                />
-              </div>
-
-              {/* Résultat */}
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md">
-                <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-2">
-                  Résultat du calcul
-                </h3>
-                <div className="space-y-1 text-sm">
-                  <p className="text-gray-700 dark:text-gray-300">
-                    <span className="font-medium">Date de création :</span> {dateCreationObj.toLocaleDateString('fr-FR')}
-                  </p>
-                  <p className="text-gray-700 dark:text-gray-300">
-                    <span className="font-medium">Date d'échéance :</span> {dateEcheance.toLocaleDateString('fr-FR')}
-                  </p>
-                  <p className="text-gray-700 dark:text-gray-300">
-                    <span className="font-medium">Nombre de jours :</span> {joursEcart} jours
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Exemples prédéfinis */}
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
-              Exemples de calculs
-            </h2>
-
-            <div className="space-y-4">
-              {exemples.map((exemple, index) => {
-                const dateEx = new Date(exemple.date);
-                const echeanceEx = calculerDateEcheance(dateEx, exemple.delai);
-                const joursEx = Math.floor((echeanceEx.getTime() - dateEx.getTime()) / (1000 * 60 * 60 * 24));
-
-                return (
-                  <div key={index} className="border border-gray-200 dark:border-gray-600 p-3 rounded-md">
-                    <div className="text-sm font-medium text-gray-800 dark:text-white mb-1">
-                      {exemple.delai}
-                    </div>
-                    <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                      <div>Création : {dateEx.toLocaleDateString('fr-FR')}</div>
-                      <div>Échéance : {echeanceEx.toLocaleDateString('fr-FR')}</div>
-                      <div>Durée : {joursEx} jours</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Tableau récapitulatif */}
-        <div className="mt-6 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
-            Tous les délais disponibles
+        {/* Tableau de test pour tous les délais */}
+        <div className="bg-white dark:bg-card-dark rounded-lg shadow-md p-6">
+          <h2 className="text-2xl font-semibold mb-4 text-text-light dark:text-text-dark flex items-center">
+            <FiCheck className="mr-2" />
+            Test Complet - Tous les Délais
           </h2>
 
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+            <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-600">
-                  <th className="text-left py-2 px-3 text-gray-800 dark:text-white">Délai</th>
-                  <th className="text-left py-2 px-3 text-gray-800 dark:text-white">Description</th>
-                  <th className="text-left py-2 px-3 text-gray-800 dark:text-white">Exemple (depuis aujourd'hui)</th>
+                <tr className="bg-gray-100 dark:bg-gray-800">
+                  <th className="text-left p-3 font-semibold text-gray-700 dark:text-gray-300">
+                    Délai de paiement
+                  </th>
+                  <th className="text-left p-3 font-semibold text-gray-700 dark:text-gray-300">
+                    Date d'échéance
+                  </th>
+                  <th className="text-right p-3 font-semibold text-gray-700 dark:text-gray-300">
+                    Jours
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {DELAIS_PAIEMENT_OPTIONS.map((option) => {
-                  const exempleEcheance = calculerDateEcheance(new Date(), option.value);
-                  const exempleJours = Math.floor((exempleEcheance.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                {delaisDisponibles.map((delai) => {
+                  const echeance = calculerDateEcheance(dateFacture, delai);
+                  const jours = Math.ceil((echeance.getTime() - dateFacture.getTime()) / (1000 * 60 * 60 * 24));
 
                   return (
-                    <tr key={option.value} className="border-b border-gray-100 dark:border-gray-700">
-                      <td className="py-2 px-3 text-gray-800 dark:text-white font-medium">
-                        {option.label}
+                    <tr
+                      key={delai}
+                      className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 ${delai === delaiSelectionne ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                        }`}
+                    >
+                      <td className="p-3 text-gray-900 dark:text-gray-100">
+                        <span className={`${delai === delaiSelectionne ? 'font-bold text-blue-600 dark:text-blue-400' : ''}`}>
+                          {delai}
+                        </span>
                       </td>
-                      <td className="py-2 px-3 text-gray-600 dark:text-gray-400 text-sm">
-                        {option.description}
+                      <td className="p-3 text-gray-900 dark:text-gray-100">
+                        {formatDateShort(echeance)}
+                        <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                          ({formatDate(echeance).split(',')[0]})
+                        </span>
                       </td>
-                      <td className="py-2 px-3 text-gray-600 dark:text-gray-400 text-sm">
-                        {exempleEcheance.toLocaleDateString('fr-FR')} ({exempleJours} jours)
+                      <td className="p-3 text-right text-gray-900 dark:text-gray-100">
+                        <span className={`px-2 py-1 rounded-full text-sm ${jours === 0
+                          ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
+                          : jours <= 30
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200'
+                            : jours <= 60
+                              ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200'
+                              : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200'
+                          }`}>
+                          {jours} jour{jours > 1 ? 's' : ''}
+                        </span>
                       </td>
                     </tr>
                   );
@@ -194,7 +317,17 @@ export default function TestDelaisPage() {
             </table>
           </div>
         </div>
+
+        <div className="mt-6 text-center">
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
+            💡 Cette page vous permet de tester le système de calcul des délais de paiement.
+            <br />
+            Modifiez la date de facture et le délai pour voir comment les dates d'échéance sont calculées.
+          </p>
+        </div>
       </div>
     </div>
   );
-} 
+};
+
+export default TestDelaisPage; 

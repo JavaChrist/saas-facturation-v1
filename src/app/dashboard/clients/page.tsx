@@ -10,6 +10,8 @@ import { getUserPlan, checkPlanLimit } from "@/services/subscriptionService";
 import { EmailContact } from "@/types/facture";
 import { DELAIS_PAIEMENT_OPTIONS, DelaiPaiementType } from "@/services/delaisPaiementService";
 import DelaiPaiementSelector from "@/components/DelaiPaiementSelector";
+import { useModal } from "@/hooks/useModal";
+import ModalManager from "@/components/ui/ModalManager";
 
 interface Client {
   id: string;
@@ -26,6 +28,7 @@ interface Client {
 export default function ClientsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const modal = useModal(); // Hook pour les modales modernes
   const [clients, setClients] = useState<Client[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -35,18 +38,6 @@ export default function ClientsPage() {
     maxClients: number;
     currentClients: number;
   }>({ planId: "", maxClients: 0, currentClients: 0 });
-
-  // Définir fetchClients en dehors du useEffect
-  const fetchClients = async () => {
-    const querySnapshot = await getDocs(collection(db, "clients"));
-    const clientsData = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Client[];
-
-    console.log("Clients récupérés:", clientsData);
-    setClients(clientsData);
-  };
 
   // Fonction pour migrer les clients existants
   const migrateClientsEmailField = async (clientsData: Client[]) => {
@@ -141,8 +132,9 @@ export default function ClientsPage() {
   const openNewClientModal = async () => {
     // Vérifier si l'utilisateur a atteint sa limite de clients
     if (limitReached) {
-      alert(
-        `Vous avez atteint la limite de ${planInfo.currentClients} client(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de clients.`
+      modal.showWarning(
+        `Vous avez atteint la limite de ${planInfo.currentClients} client(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de clients.`,
+        'Limite atteinte'
       );
       return;
     }
@@ -247,7 +239,7 @@ export default function ClientsPage() {
     e.preventDefault();
 
     if (!user) {
-      alert("Vous devez être connecté pour effectuer cette action");
+      modal.showError("Vous devez être connecté pour effectuer cette action");
       return;
     }
 
@@ -278,6 +270,7 @@ export default function ClientsPage() {
       if (selectedClient.id) {
         // Modification d'un client existant
         await updateDoc(doc(db, "clients", selectedClient.id), clientData);
+        modal.showSuccess("Client modifié avec succès");
       } else {
         // Vérifier à nouveau les limites avant la création
         const isLimitReached = await checkPlanLimit(
@@ -287,26 +280,44 @@ export default function ClientsPage() {
         );
 
         if (isLimitReached) {
-          alert(
-            `Vous avez atteint la limite de ${planInfo.currentClients} client(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de clients.`
+          modal.showWarning(
+            `Vous avez atteint la limite de ${planInfo.currentClients} client(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de clients.`,
+            'Limite atteinte'
           );
           return;
         }
 
         // Création d'un nouveau client
         await addDoc(collection(db, "clients"), clientData);
+        modal.showSuccess("Client créé avec succès");
       }
       closeModal();
     } catch (error) {
       console.error("Erreur lors de la sauvegarde du client:", error);
-      alert("Erreur lors de la sauvegarde du client");
+      modal.showError("Erreur lors de la sauvegarde du client");
     }
   };
 
   // ✅ Supprimer un client
-  const deleteClient = async (id: string) => {
-    await deleteDoc(doc(db, "clients", id));
-    fetchClients();
+  const deleteClient = (id: string) => {
+    const clientToDelete = clients.find(c => c.id === id);
+    if (!clientToDelete) {
+      modal.showError("Ce client n'existe pas ou a déjà été supprimé.");
+      return;
+    }
+
+    modal.showDeleteConfirmation(
+      `le client ${clientToDelete.nom}`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, "clients", id));
+          modal.showSuccess("Client supprimé avec succès");
+        } catch (error) {
+          console.error("Erreur lors de la suppression:", error);
+          modal.showError("Erreur lors de la suppression du client");
+        }
+      }
+    );
   };
 
   return (
@@ -617,6 +628,16 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
+
+      {/* Gestionnaire de modales */}
+      <ModalManager
+        isOpen={modal.isOpen}
+        onClose={modal.closeModal}
+        onConfirm={modal.handleConfirm}
+        modalType={modal.modalType}
+        modalData={modal.modalData}
+        isLoading={modal.isLoading}
+      />
     </div>
   );
 }

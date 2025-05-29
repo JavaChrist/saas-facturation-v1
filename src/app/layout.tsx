@@ -2,8 +2,6 @@ import "./globals.css";
 import { Providers } from "./providers";
 import type { Metadata } from "next";
 import Image from "next/image";
-import { AuthProvider } from "@/lib/authContext";
-import { ThemeProvider } from "@/lib/themeContext";
 
 // Si vous rencontrez des erreurs "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT",
 // c'est probablement à cause d'un bloqueur de publicités (comme uBlock Origin) qui bloque Firebase.
@@ -35,8 +33,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `window.ENV = { 
               NODE_ENV: "${process.env.NODE_ENV || "development"}", 
-              IS_DEV: ${
-                process.env.NODE_ENV === "development" ? "true" : "false"
+              IS_DEV: ${process.env.NODE_ENV === "development" ? "true" : "false"
               }
             };`,
           }}

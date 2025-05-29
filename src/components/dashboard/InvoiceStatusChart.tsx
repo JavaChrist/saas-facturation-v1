@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { db } from "@/lib/firebase";
+import { useEffect, useState } from "react";
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
+import { Doughnut } from "react-chartjs-2";
 import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
+import { useTheme } from "next-themes";
 import { DateRange } from "./DateFilter";
 import { FiClock, FiCheckCircle, FiXCircle, FiSend } from "react-icons/fi";
-import { useTheme } from "@/lib/themeContext";
 import { Facture } from "@/types/facture";
 
 interface InvoiceStatusChartProps {

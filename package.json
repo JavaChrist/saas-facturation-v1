@@ -9,7 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@emailjs/browser": "^4.4.1",
     "@firebase/app": "^0.11.4",
     "@firebase/auth": "^1.10.0",
     "@firebase/firestore": "^4.7.10",
@@ -25,6 +24,7 @@
     "jspdf-autotable": "^5.0.2",
     "next": "^14.2.24",
     "next-auth": "4.24.11",
+    "next-themes": "^0.4.6",
     "react": "18.2.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "18.2.0",

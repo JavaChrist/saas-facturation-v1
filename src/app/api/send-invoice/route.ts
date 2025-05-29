@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sendInvoiceEmail, validateResendConfig } from '@/lib/email/sendInvoiceEmail';
 import { generateInvoicePDFForEmail } from '@/services/pdfGenerator';
 import { Facture } from '@/types/facture';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +21,8 @@ export async function POST(request: NextRequest) {
       emailType = 'invoice',
       customMessage,
       senderEmail,
-      userSignature
+      userSignature,
+      userId
     } = body;
 
     if (!facture || !facture.id) {
@@ -42,6 +45,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 🔧 GESTION DE LA SIGNATURE UTILISATEUR - Version simplifiée
+    let finalUserSignature = userSignature;
+
+    console.log(`[EMAIL] 🔧 Gestion des signatures (version simplifiée):`);
+    console.log(`[EMAIL] - userSignature fourni depuis le client:`, !!userSignature);
+    console.log(`[EMAIL] - Type de signature:`, typeof userSignature);
+
+    if (userSignature) {
+      console.log(`[EMAIL] ✅ Signature utilisateur fournie depuis le client`);
+      if (typeof userSignature === 'object' && userSignature.nom) {
+        console.log(`[EMAIL] 📝 Signature reçue:`, {
+          nom: userSignature.nom,
+          fonction: userSignature.fonction || 'Non définie',
+          hasAvatar: !!userSignature.avatar,
+          hasReseauxSociaux: !!(userSignature.reseauxSociaux && userSignature.reseauxSociaux.length > 0)
+        });
+      }
+    } else {
+      console.log(`[EMAIL] ⚠️ Aucune signature fournie - utilisation de la signature par défaut`);
+    }
+
+    // Note: Plus besoin de récupérer depuis Firebase côté serveur
+    // La signature est maintenant fournie directement depuis le client authentifié
+
     console.log(`[EMAIL] Génération du PDF pour la facture ${facture.numero}`);
 
     // Générer le PDF de la facture avec la fonction dédiée pour l'email
@@ -56,14 +83,14 @@ export async function POST(request: NextRequest) {
 
     console.log(`[EMAIL] Envoi de l'email pour la facture ${facture.numero}`);
 
-    // Envoyer l'email
+    // Envoyer l'email avec la signature personnalisée
     const result = await sendInvoiceEmail({
       facture,
       pdfBuffer,
       emailType,
       customMessage,
       senderEmail,
-      userSignature,
+      userSignature: finalUserSignature,
     });
 
     console.log(`[EMAIL] ✅ Email envoyé avec succès pour la facture ${facture.numero}`);
@@ -75,7 +102,11 @@ export async function POST(request: NextRequest) {
         factureNumero: result.factureNumero,
         sentTo: result.sentTo,
         emailType,
-        resendId: result.data?.data?.id
+        resendId: result.data?.data?.id || result.data?.id,
+        userSignatureUsed: !!finalUserSignature,
+        signatureSource: finalUserSignature ?
+          (typeof finalUserSignature === 'object' && finalUserSignature.nom ? 'Client (personnalisée)' : 'Client (format inconnu)') :
+          'Signature par défaut'
       }
     });
 

@@ -17,7 +17,7 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/authContext";
 import { DateRange } from "./DateFilter";
-import { useTheme } from "@/lib/themeContext";
+import { useTheme } from "next-themes";
 
 // Enregistrement des composants nécessaires pour Chart.js
 ChartJS.register(

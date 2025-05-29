@@ -43,6 +43,8 @@ import { DelaiPaiementType, calculerDateEcheance } from "@/services/delaisPaieme
 import { getCouleurStatut, mettreAJourMontantsFacture, formaterMontant, getTexteCourtStatut, getCouleurStatutInline } from "@/services/paiementService";
 import GestionPaiements from "@/components/GestionPaiements";
 import { useFacture } from "@/lib/factureProvider";
+import { useModal } from "@/hooks/useModal";
+import ModalManager from "@/components/ui/ModalManager";
 
 // Classes Tailwind pour les statuts - à conserver pour le build
 // bg-green-500 bg-amber-500 bg-orange-500 bg-yellow-500 bg-blue-500 bg-red-500 bg-gray-500
@@ -118,6 +120,10 @@ const truncateAndFormat = (num: number | null | undefined): string => {
 export default function FacturesPage() {
   const router = useRouter();
   const { user } = useAuth();
+
+  // Hook pour les modales
+  const modal = useModal();
+
   const [factures, setFactures] = useState<Facture[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -166,6 +172,7 @@ export default function FacturesPage() {
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailType, setEmailType] = useState<'invoice' | 'reminder' | 'overdue'>('invoice');
   const [customMessage, setCustomMessage] = useState('');
+  const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
 
   const { updateCachedFacture } = useFacture();
 
@@ -343,7 +350,7 @@ export default function FacturesPage() {
 
   // Utiliser useCallback pour la fonction openEditModal
   const openEditModal = useCallback(
-    (facture: Facture) => {
+    async (facture: Facture) => {
       setSelectedFacture(facture);
 
       // Gestion de la date de création en prenant en compte les différents types possibles
@@ -366,14 +373,34 @@ export default function FacturesPage() {
         dateCreation = new Date();
       }
 
+      // 🔄 NOUVEAU : Récupérer les informations fraîches du client depuis la base de données
+      let clientFrais = facture.client;
+      if (facture.client.id && user) {
+        try {
+          const clientDoc = await getDoc(doc(db, "clients", facture.client.id));
+          if (clientDoc.exists()) {
+            const clientData = clientDoc.data();
+            clientFrais = {
+              ...clientData,
+              id: facture.client.id,
+              emails: clientData.emails || []
+            } as typeof facture.client;
+            console.log('📊 [DEBUG] Client mis à jour depuis Firebase:', clientFrais);
+          }
+        } catch (error) {
+          console.warn('⚠️ Impossible de récupérer les infos fraîches du client:', error);
+          // On garde les infos de la facture en cas d'erreur
+        }
+      }
+
       setNewFacture({
         userId: facture.userId || user?.uid || "",
         numero: facture.numero,
-        client: facture.client,
+        client: clientFrais, // Utiliser les infos fraîches
         statut: facture.statut,
-        articles: facture.articles,
-        totalHT: facture.totalHT,
-        totalTTC: facture.totalTTC,
+        articles: facture.articles || [], // S'assurer qu'on a toujours un tableau
+        totalHT: facture.totalHT || 0,
+        totalTTC: facture.totalTTC || 0,
         dateCreation: dateCreation,
       });
       setIsModalOpen(true);
@@ -416,8 +443,9 @@ export default function FacturesPage() {
   const openModal = () => {
     // Vérifier si l'utilisateur a atteint sa limite de factures
     if (limitReached) {
-      alert(
-        `Vous avez atteint la limite de ${planInfo.currentFactures} facture(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de factures.`
+      modal.showWarning(
+        `Vous avez atteint la limite de ${planInfo.currentFactures} facture(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de factures.`,
+        'Limite atteinte'
       );
       return;
     }
@@ -476,7 +504,7 @@ export default function FacturesPage() {
     setNewFacture({
       ...newFacture,
       articles: [
-        ...newFacture.articles,
+        ...(newFacture.articles || []), // S'assurer qu'on a un tableau
         {
           id: Date.now(),
           description: "",
@@ -495,7 +523,7 @@ export default function FacturesPage() {
     setNewFacture({
       ...newFacture,
       articles: [
-        ...newFacture.articles,
+        ...(newFacture.articles || []), // S'assurer qu'on a un tableau
         {
           id: Date.now(),
           description: "",
@@ -511,7 +539,7 @@ export default function FacturesPage() {
 
   // Mise à jour d'un article
   const handleArticleChange = (index: number, field: string, value: any) => {
-    const updatedArticles = [...newFacture.articles];
+    const updatedArticles = [...(newFacture.articles || [])]; // S'assurer qu'on a un tableau
     updatedArticles[index] = { ...updatedArticles[index], [field]: value };
 
     // Ne pas calculer les totaux pour les lignes de commentaire
@@ -544,7 +572,7 @@ export default function FacturesPage() {
 
   // Suppression d'un article
   const removeArticle = (id: number) => {
-    const updatedArticles = newFacture.articles.filter(
+    const updatedArticles = (newFacture.articles || []).filter( // S'assurer qu'on a un tableau
       (article) => article.id !== id
     );
     const totalHT = updatedArticles.reduce(
@@ -623,8 +651,9 @@ export default function FacturesPage() {
 
         if (isLimitReached) {
           console.log("[DEBUG] Limite de factures atteinte");
-          alert(
-            `Vous avez atteint la limite de ${planInfo.currentFactures} facture(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de factures.`
+          modal.showWarning(
+            `Vous avez atteint la limite de ${planInfo.currentFactures} facture(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de factures.`,
+            'Limite atteinte'
           );
           return;
         }
@@ -649,9 +678,14 @@ export default function FacturesPage() {
 
       // Fermer le modal et réinitialiser les états
       closeModal();
+
+      // Afficher un message de succès
+      modal.showSuccess(
+        selectedFacture ? 'Facture modifiée avec succès' : 'Facture créée avec succès'
+      );
     } catch (error) {
       console.error("Erreur lors de la sauvegarde de la facture:", error);
-      alert(
+      modal.showError(
         "Une erreur est survenue lors de la sauvegarde de la facture. Veuillez réessayer."
       );
     }
@@ -659,82 +693,88 @@ export default function FacturesPage() {
 
   // Suppression d'une facture
   const deleteFacture = async (id: string) => {
-    // Confirmer avant suppression
-    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette facture ?")) {
+    const factureToDelete = factures.find(f => f.id === id);
+    if (!factureToDelete) {
+      modal.showError("Cette facture n'existe pas ou a déjà été supprimée.");
       return;
     }
 
-    try {
-      console.log("[DEBUG] Tentative de suppression de la facture:", id);
-      console.log("[DEBUG] Utilisateur actuel:", {
-        uid: user?.uid,
-        email: user?.email,
-        isAnonymous: user?.isAnonymous
-      });
+    modal.showDeleteConfirmation(
+      `la facture ${factureToDelete.numero}`,
+      async () => {
+        try {
+          console.log("[DEBUG] Tentative de suppression de la facture:", id);
+          console.log("[DEBUG] Utilisateur actuel:", {
+            uid: user?.uid,
+            email: user?.email,
+            isAnonymous: user?.isAnonymous
+          });
 
-      // Vérifier d'abord si la facture existe et appartient à l'utilisateur
-      const factureRef = doc(db, "factures", id);
-      const factureDoc = await getDoc(factureRef);
+          // Vérifier d'abord si la facture existe et appartient à l'utilisateur
+          const factureRef = doc(db, "factures", id);
+          const factureDoc = await getDoc(factureRef);
 
-      if (!factureDoc.exists()) {
-        console.error("[DEBUG] Facture introuvable:", id);
-        alert("Erreur: Cette facture n'existe pas ou a déjà été supprimée.");
-        return;
-      }
+          if (!factureDoc.exists()) {
+            console.error("[DEBUG] Facture introuvable:", id);
+            modal.showError("Cette facture n'existe pas ou a déjà été supprimée.");
+            return;
+          }
 
-      const factureData = factureDoc.data();
-      console.log("[DEBUG] Données de la facture:", {
-        factureId: id,
-        factureUserId: factureData.userId,
-        currentUserId: user?.uid,
-        factureData: factureData
-      });
+          const factureData = factureDoc.data();
+          console.log("[DEBUG] Données de la facture:", {
+            factureId: id,
+            factureUserId: factureData.userId,
+            currentUserId: user?.uid,
+            factureData: factureData
+          });
 
-      // Vérification de propriété avec logs détaillés
-      if (factureData.userId !== user?.uid) {
-        console.error("[DEBUG] Tentative non autorisée de suppression d'une facture:", {
-          factureId: id,
-          factureUserId: factureData.userId,
-          currentUserId: user?.uid,
-          userIdType: typeof factureData.userId,
-          currentUserIdType: typeof user?.uid,
-          areEqual: factureData.userId === user?.uid,
-          strictEqual: factureData.userId === user?.uid
-        });
-        alert("Erreur: Vous n'êtes pas autorisé à supprimer cette facture.");
-        return;
-      }
+          // Vérification de propriété avec logs détaillés
+          if (factureData.userId !== user?.uid) {
+            console.error("[DEBUG] Tentative non autorisée de suppression d'une facture:", {
+              factureId: id,
+              factureUserId: factureData.userId,
+              currentUserId: user?.uid,
+              userIdType: typeof factureData.userId,
+              currentUserIdType: typeof user?.uid,
+              areEqual: factureData.userId === user?.uid,
+              strictEqual: factureData.userId === user?.uid
+            });
+            modal.showError("Vous n'êtes pas autorisé à supprimer cette facture.");
+            return;
+          }
 
-      // Confirmer avant suppression
-      if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette facture ?")) {
-        return;
-      }
+          console.log("[DEBUG] Tentative de suppression Firestore pour la facture:", id);
+          await deleteDoc(doc(db, "factures", id));
+          console.log("[DEBUG] Facture supprimée avec succès:", id);
 
-      console.log("[DEBUG] Tentative de suppression Firestore pour la facture:", id);
-      await deleteDoc(doc(db, "factures", id));
-      console.log("[DEBUG] Facture supprimée avec succès:", id);
+          // Afficher un message de succès
+          modal.showSuccess("Facture supprimée avec succès");
 
-      // Recharger les factures après suppression
-      setRetryCount(prev => prev + 1);
-    } catch (error) {
-      console.error("[DEBUG] Erreur lors de la suppression de la facture:", error);
-      console.error("[DEBUG] Type d'erreur:", typeof error);
-      console.error("[DEBUG] Erreur complète:", JSON.stringify(error, null, 2));
+          // Recharger les factures après suppression
+          setRetryCount(prev => prev + 1);
+        } catch (error) {
+          console.error("[DEBUG] Erreur lors de la suppression de la facture:", error);
+          console.error("[DEBUG] Type d'erreur:", typeof error);
+          console.error("[DEBUG] Erreur complète:", JSON.stringify(error, null, 2));
 
-      // Afficher un message d'erreur plus spécifique
-      if (error instanceof Error) {
-        console.error("[DEBUG] Message d'erreur:", error.message);
-        console.error("[DEBUG] Stack trace:", error.stack);
+          // Afficher un message d'erreur plus spécifique
+          if (error instanceof Error) {
+            console.error("[DEBUG] Message d'erreur:", error.message);
+            console.error("[DEBUG] Stack trace:", error.stack);
 
-        if (error.message.includes("permission") || error.message.includes("Permission") || error.message.includes("PERMISSION")) {
-          alert("Erreur de permission: Vous n'avez pas les droits nécessaires pour supprimer cette facture. Veuillez contacter l'administrateur.");
-        } else if (error.message.includes("Missing or insufficient permissions")) {
-          alert("Erreur Firestore: Permissions insuffisantes. Vérifiez vos règles de sécurité Firestore.");
-        } else {
-          alert(`Erreur lors de la suppression de la facture: ${error.message}`);
+            if (error.message.includes("permission") || error.message.includes("Permission") || error.message.includes("PERMISSION")) {
+              modal.showError("Vous n'avez pas les droits nécessaires pour supprimer cette facture. Veuillez contacter l'administrateur.");
+            } else if (error.message.includes("Missing or insufficient permissions")) {
+              modal.showError("Permissions insuffisantes. Vérifiez vos règles de sécurité Firestore.");
+            } else {
+              modal.showError(`Erreur lors de la suppression de la facture: ${error.message}`);
+            }
+          } else {
+            modal.showError("Une erreur inattendue s'est produite lors de la suppression.");
+          }
         }
       }
-    }
+    );
   };
 
   // Fonction pour charger les modèles de facture
@@ -772,20 +812,21 @@ export default function FacturesPage() {
       console.log("Début de la génération du PDF pour la facture:", facture.numero);
       await generateInvoicePDF(facture);
       console.log("Génération du PDF réussie");
+      modal.showSuccess("PDF généré avec succès");
     } catch (error) {
       console.error("Erreur lors de la génération du PDF:", error);
       let errorMessage = "Erreur lors de la génération du PDF";
       if (error instanceof Error) {
         errorMessage += `: ${error.message}`;
       }
-      alert(errorMessage);
+      modal.showError(errorMessage);
     }
   };
 
   // Fonction pour générer le PDF avec un modèle spécifique ou par défaut
   const generatePDFWithSelectedTemplate = async () => {
     if (!factureForPDF) {
-      alert("Aucune facture sélectionnée");
+      modal.showError("Aucune facture sélectionnée");
       return;
     }
 
@@ -804,6 +845,7 @@ export default function FacturesPage() {
       }
 
       console.log("Génération du PDF réussie");
+      modal.showSuccess("PDF généré avec succès");
       closeModelSelector();
     } catch (error) {
       console.error("Erreur détaillée lors de la génération du PDF:", error);
@@ -811,22 +853,79 @@ export default function FacturesPage() {
       if (error instanceof Error) {
         errorMessage += `: ${error.message}`;
       }
-      alert(errorMessage);
+      modal.showError(errorMessage);
     }
   };
 
   // Fonction pour ouvrir le modal d'envoi d'email
-  const openEmailModal = (facture: Facture) => {
+  const openEmailModal = async (facture: Facture) => {
+    // 🔄 NOUVEAU : Récupérer les informations fraîches du client depuis la base de données
+    let factureAvecClientFrais = facture;
+    if (facture.client.id && user) {
+      try {
+        const clientDoc = await getDoc(doc(db, "clients", facture.client.id));
+        if (clientDoc.exists()) {
+          const clientData = clientDoc.data();
+          const clientFrais = {
+            ...clientData,
+            id: facture.client.id,
+            emails: clientData.emails || []
+          } as typeof facture.client;
+
+          factureAvecClientFrais = {
+            ...facture,
+            client: clientFrais
+          };
+
+          console.log('📧 [DEBUG] Client mis à jour pour l\'email depuis Firebase:', clientFrais);
+        }
+      } catch (error) {
+        console.warn('⚠️ Impossible de récupérer les infos fraîches du client pour l\'email:', error);
+        // On garde les infos de la facture en cas d'erreur
+      }
+    }
+
     // Vérifier que le client a au moins un email
-    const hasEmail = (facture.client.emails && facture.client.emails.length > 0) ||
-      facture.client.email;
+    const hasEmail = (factureAvecClientFrais.client.emails && factureAvecClientFrais.client.emails.length > 0) ||
+      factureAvecClientFrais.client.email;
 
     if (!hasEmail) {
-      alert('Aucun email configuré pour ce client. Veuillez d\'abord ajouter un email dans les informations du client.');
+      modal.showWarning(
+        'Veuillez d\'abord ajouter un email dans les informations du client.',
+        'Aucun email configuré'
+      );
       return;
     }
 
-    setFactureForEmail(facture);
+    // Récupérer tous les emails disponibles avec les infos fraîches
+    const allEmails: { email: string; isDefault?: boolean; label?: string }[] = [];
+
+    // Ajouter les emails de la nouvelle structure
+    if (factureAvecClientFrais.client.emails && factureAvecClientFrais.client.emails.length > 0) {
+      factureAvecClientFrais.client.emails.forEach(e => {
+        if (e.email && e.email.trim()) {
+          allEmails.push({
+            email: e.email.trim(),
+            isDefault: e.isDefault,
+            label: e.label || 'Contact'
+          });
+        }
+      });
+    }
+
+    // Ajouter l'email de l'ancienne structure si il n'est pas déjà présent
+    if (factureAvecClientFrais.client.email && factureAvecClientFrais.client.email.trim() &&
+      !allEmails.some(e => e.email === factureAvecClientFrais.client.email?.trim())) {
+      allEmails.push({
+        email: factureAvecClientFrais.client.email.trim(),
+        label: 'Principal'
+      });
+    }
+
+    // Sélectionner tous les emails par défaut
+    setSelectedEmails(allEmails.map(e => e.email));
+
+    setFactureForEmail(factureAvecClientFrais); // Utiliser la facture avec client frais
     setEmailType('invoice');
     setCustomMessage('');
     setIsEmailModalOpen(true);
@@ -838,19 +937,79 @@ export default function FacturesPage() {
     setFactureForEmail(null);
     setEmailType('invoice');
     setCustomMessage('');
+    setSelectedEmails([]); // Réinitialiser la sélection d'emails
   };
 
   // Fonction pour envoyer l'email
   const sendInvoiceEmail = async () => {
     if (!factureForEmail || !user) {
-      alert('Erreur: Facture ou utilisateur non trouvé');
+      modal.showError('Facture ou utilisateur non trouvé');
+      return;
+    }
+
+    // Vérifier qu'au moins un email est sélectionné
+    if (selectedEmails.length === 0) {
+      modal.showWarning('Veuillez sélectionner au moins un email pour l\'envoi.');
       return;
     }
 
     setEmailLoading(true);
 
     try {
-      console.log(`[EMAIL] Envoi de l'email pour la facture ${factureForEmail.numero}`);
+      console.log(`[EMAIL] 🚀 Début envoi facture ${factureForEmail.numero}`);
+      console.log(`[EMAIL] 📧 Emails sélectionnés:`, selectedEmails);
+      console.log(`[EMAIL] 👤 Client:`, factureForEmail.client.nom);
+
+      // 🔧 NOUVEAU : Récupérer la signature utilisateur depuis Firebase CÔTÉ CLIENT
+      let userSignature = null;
+      try {
+        console.log(`[EMAIL] 🔍 Récupération de la signature utilisateur côté client`);
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.signature) {
+            userSignature = userData.signature;
+            console.log(`[EMAIL] ✅ Signature utilisateur récupérée côté client:`, {
+              nom: userSignature.nom || 'Non défini',
+              fonction: userSignature.fonction || 'Non définie',
+              hasAvatar: !!userSignature.avatar
+            });
+          } else {
+            console.log(`[EMAIL] ⚠️ Pas de signature trouvée pour l'utilisateur`);
+          }
+        } else {
+          console.log(`[EMAIL] ⚠️ Document utilisateur non trouvé`);
+        }
+      } catch (signatureError) {
+        console.warn(`[EMAIL] ⚠️ Erreur lors de la récupération de la signature:`, signatureError);
+        // Continuer sans signature personnalisée
+      }
+
+      // Créer une facture temporaire avec seulement les emails sélectionnés
+      const factureWithSelectedEmails = {
+        ...factureForEmail,
+        client: {
+          ...factureForEmail.client,
+          // 🔧 CORRECTION : Mettre le premier email sélectionné comme email principal
+          email: selectedEmails[0] || '', // Premier email sélectionné devient le principal
+          // Créer une nouvelle structure emails[] avec seulement les emails sélectionnés
+          emails: selectedEmails.map((email, index) => ({
+            email: email,
+            label: index === 0 ? 'Principal (sélectionné)' : 'Sélectionné',
+            isDefault: index === 0 // Le premier email sélectionné devient le principal
+          }))
+        }
+      };
+
+      // Log pour débogage
+      console.log('[EMAIL] 📦 Structure envoyée au serveur:', {
+        emails: factureWithSelectedEmails.client.emails,
+        emailPrincipal: factureWithSelectedEmails.client.email,
+        selectedEmails: selectedEmails,
+        nombreEmails: selectedEmails.length,
+        hasUserSignature: !!userSignature
+      });
 
       const response = await fetch('/api/send-invoice', {
         method: 'POST',
@@ -858,16 +1017,18 @@ export default function FacturesPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          facture: factureForEmail,
+          facture: factureWithSelectedEmails,
           emailType,
           customMessage: customMessage.trim() || undefined,
+          userSignature: userSignature, // 🔧 NOUVEAU : Passer la signature depuis le client
+          userId: user.uid, // Garder pour compatibilité
         }),
       });
 
       const result = await response.json();
 
       if (response.ok && result.success) {
-        alert(`✅ Email envoyé avec succès à ${result.data.sentTo.join(', ')}`);
+        modal.showSuccess(`Email envoyé avec succès à ${selectedEmails.join(', ')}`);
 
         // Mettre à jour le statut de la facture côté client
         try {
@@ -898,7 +1059,7 @@ export default function FacturesPage() {
       }
     } catch (error) {
       console.error('[EMAIL] Erreur lors de l\'envoi:', error);
-      alert(`❌ Erreur lors de l'envoi de l'email: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      modal.showError(`Erreur lors de l'envoi de l'email: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
     } finally {
       setEmailLoading(false);
     }
@@ -1307,7 +1468,7 @@ export default function FacturesPage() {
               <h3 className="font-semibold text-gray-800 dark:text-white mt-4 mb-2">
                 Articles
               </h3>
-              {newFacture.articles.map((article, index) => (
+              {(newFacture.articles || []).map((article, index) => (
                 <div
                   key={article.id}
                   className="flex space-x-2 mb-2 items-center"
@@ -1533,21 +1694,115 @@ export default function FacturesPage() {
             </h2>
 
             {factureForEmail && (
-              <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-700 rounded">
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  <strong>Client:</strong> {factureForEmail.client.nom}
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  <strong>Email(s):</strong> {
-                    factureForEmail.client.emails && factureForEmail.client.emails.length > 0
-                      ? factureForEmail.client.emails.map(e => e.email).join(', ')
-                      : factureForEmail.client.email
-                  }
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  <strong>Montant:</strong> {formaterMontant(factureForEmail.totalTTC)}
-                </p>
-              </div>
+              <>
+                <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-700 rounded">
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <strong>Client:</strong> {factureForEmail.client.nom}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    <strong>Montant:</strong> {formaterMontant(factureForEmail.totalTTC)}
+                  </p>
+                </div>
+
+                {/* Section de sélection des emails */}
+                <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
+                  <h3 className="font-semibold text-blue-800 dark:text-blue-200 mb-3 flex items-center">
+                    <FiMail className="mr-2" />
+                    Sélectionner les destinataires
+                  </h3>
+
+                  {(() => {
+                    // Récupérer tous les emails disponibles
+                    const allEmails: { email: string; isDefault?: boolean; label?: string }[] = [];
+
+                    // Ajouter les emails de la nouvelle structure
+                    if (factureForEmail.client.emails && factureForEmail.client.emails.length > 0) {
+                      factureForEmail.client.emails.forEach(e => {
+                        if (e.email && e.email.trim()) {
+                          allEmails.push({
+                            email: e.email.trim(),
+                            isDefault: e.isDefault,
+                            label: e.label || 'Contact'
+                          });
+                        }
+                      });
+                    }
+
+                    // Ajouter l'email de l'ancienne structure si il n'est pas déjà présent
+                    if (factureForEmail.client.email && factureForEmail.client.email.trim() &&
+                      !allEmails.some(e => e.email === factureForEmail.client.email?.trim())) {
+                      allEmails.push({
+                        email: factureForEmail.client.email.trim(),
+                        label: 'Principal'
+                      });
+                    }
+
+                    return allEmails.length > 0 ? (
+                      <div className="space-y-2">
+                        {allEmails.map((emailObj, index) => (
+                          <label key={index} className="flex items-center space-x-3 p-2 hover:bg-blue-100 dark:hover:bg-blue-800/50 rounded cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedEmails.includes(emailObj.email)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedEmails([...selectedEmails, emailObj.email]);
+                                } else {
+                                  setSelectedEmails(selectedEmails.filter(email => email !== emailObj.email));
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                            />
+                            <div className="flex-1">
+                              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                                {emailObj.email}
+                              </span>
+                              <div className="flex items-center space-x-2">
+                                {emailObj.label && (
+                                  <span className="text-xs bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded">
+                                    {emailObj.label}
+                                  </span>
+                                )}
+                                {emailObj.isDefault && (
+                                  <span className="text-xs bg-blue-200 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
+                                    Principal
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </label>
+                        ))}
+
+                        <div className="mt-3 pt-2 border-t border-blue-200 dark:border-blue-700">
+                          <div className="flex justify-between text-xs">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedEmails(allEmails.map(e => e.email))}
+                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                              Tout sélectionner
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedEmails([])}
+                              className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-300"
+                            >
+                              Tout désélectionner
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            {selectedEmails.length} email(s) sélectionné(s)
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Aucun email disponible pour ce client
+                      </p>
+                    );
+                  })()}
+                </div>
+              </>
             )}
 
             <div className="space-y-4">
@@ -1616,6 +1871,16 @@ export default function FacturesPage() {
           </div>
         </div>
       )}
+
+      {/* Gestionnaire de modales */}
+      <ModalManager
+        isOpen={modal.isOpen}
+        onClose={modal.closeModal}
+        onConfirm={modal.handleConfirm}
+        modalType={modal.modalType}
+        modalData={modal.modalData}
+        isLoading={modal.isLoading}
+      />
     </div>
   );
 }
