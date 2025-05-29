@@ -6,6 +6,7 @@ import {
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { Facture, FirestoreTimestamp } from "@/types/facture";
+import { calculerDateEcheance } from "@/services/delaisPaiementService";
 
 // Exporter une configuration pour définir cette route comme dynamique
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     const facturesQuery = query(
       collection(db, "factures"),
       where("userId", "==", userId),
-      where("statut", "in", ["Envoyée", "En attente", "À relancer"])
+      where("statut", "in", ["Envoyée", "En attente", "À relancer", "Partiellement payée"])
     );
 
     const facturesSnapshot = await getDocs(facturesQuery);
@@ -43,31 +44,15 @@ export async function GET(request: NextRequest) {
       } else if (
         facture.dateCreation &&
         typeof (facture.dateCreation as FirestoreTimestamp).toDate ===
-          "function"
+        "function"
       ) {
         dateCreation = (facture.dateCreation as FirestoreTimestamp).toDate();
       } else {
         dateCreation = new Date(); // Fallback
       }
 
-      // Calculer la date d'échéance
-      let dateEcheance = new Date(dateCreation);
-      switch (facture.client.delaisPaiement) {
-        case "À réception":
-          dateEcheance.setDate(dateCreation.getDate() + 0);
-          break;
-        case "8 jours":
-          dateEcheance.setDate(dateCreation.getDate() + 8);
-          break;
-        case "30 jours":
-          dateEcheance.setDate(dateCreation.getDate() + 30);
-          break;
-        case "60 jours":
-          dateEcheance.setDate(dateCreation.getDate() + 60);
-          break;
-        default:
-          dateEcheance.setDate(dateCreation.getDate() + 30);
-      }
+      // Calculer la date d'échéance en utilisant le nouveau service
+      const dateEcheance = calculerDateEcheance(dateCreation, facture.client.delaisPaiement);
 
       const estEnRetard = aujourdhui > dateEcheance;
       const diffJours = Math.floor(

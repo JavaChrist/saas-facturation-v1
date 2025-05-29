@@ -38,37 +38,55 @@ import { ModeleFacture } from "@/types/modeleFacture";
 import { getModelesFacture } from "@/services/modeleFactureService";
 import { getUserPlan, checkPlanLimit } from "@/services/subscriptionService";
 import { convertToDate } from "@/services/factureService";
+import { DelaiPaiementType, calculerDateEcheance } from "@/services/delaisPaiementService";
+import { getCouleurStatut, mettreAJourMontantsFacture, formaterMontant, getTexteCourtStatut, getCouleurStatutInline } from "@/services/paiementService";
+import GestionPaiements from "@/components/GestionPaiements";
+
+// Classes Tailwind pour les statuts - à conserver pour le build
+// bg-green-500 bg-amber-500 bg-orange-500 bg-yellow-500 bg-blue-500 bg-red-500 bg-gray-500
 
 // Fonction pour générer un nouveau numéro de facture
 const generateNewInvoiceNumber = (factures: Facture[] = []): string => {
   // Obtenir l'année courante
   const currentYear = new Date().getFullYear();
-  
-  // Compter combien de factures de l'année en cours existent déjà
-  // et trouver le numéro de séquence le plus élevé
-  let maxSequence = 4; // Commencer à 4 pour que la prochaine facture soit 2025005
-  
-  const regex = new RegExp(`^${currentYear}(\\d{3})$`);
-  
+
+  // Trouver le numéro de séquence le plus élevé en analysant tous les formats existants
+  let maxSequence = 0;
+
+  // Regex pour les deux formats possibles :
+  // Format 1: FCT-YYYYXXX (ex: FCT-2025005)
+  // Format 2: YYYYXXX (ex: 2025005)
+  const regexWithPrefix = new RegExp(`^FCT-${currentYear}(\\d{3})$`);
+  const regexWithoutPrefix = new RegExp(`^${currentYear}(\\d{3})$`);
+
   factures.forEach(facture => {
-    // Vérifier si le numéro suit notre format
-    const match = facture.numero.match(regex);
-    if (match) {
-      const sequence = parseInt(match[1]);
-      if (sequence > maxSequence) {
-        maxSequence = sequence;
+    let sequence = 0;
+
+    // Vérifier le format avec préfixe FCT-
+    const matchWithPrefix = facture.numero.match(regexWithPrefix);
+    if (matchWithPrefix) {
+      sequence = parseInt(matchWithPrefix[1]);
+    } else {
+      // Vérifier le format sans préfixe
+      const matchWithoutPrefix = facture.numero.match(regexWithoutPrefix);
+      if (matchWithoutPrefix) {
+        sequence = parseInt(matchWithoutPrefix[1]);
       }
     }
+
+    if (sequence > maxSequence) {
+      maxSequence = sequence;
+    }
   });
-  
+
   // Incrémenter le numéro de séquence
   const nextSequence = maxSequence + 1;
-  
+
   // Formater avec des zéros initiaux pour avoir 3 chiffres
   const sequenceStr = String(nextSequence).padStart(3, '0');
-  
-  // Retourner le nouveau numéro au format YYYYXXX
-  return `${currentYear}${sequenceStr}`;
+
+  // Retourner le nouveau numéro au format FCT-YYYYXXX (format unifié)
+  return `FCT-${currentYear}${sequenceStr}`;
 };
 
 // Fonction utilitaire pour formater une date
@@ -104,7 +122,7 @@ export default function FacturesPage() {
       ville: "",
       email: "",
       emails: [],
-      delaisPaiement: "30 jours",
+      delaisPaiement: "30 jours" as DelaiPaiementType,
     },
     statut: "En attente",
     articles: [],
@@ -164,7 +182,7 @@ export default function FacturesPage() {
     const MAX_BATCH_SIZE = 10; // Charger les factures par groupes de 10
     let totalFactures: Facture[] = [];
     let loadingError = false;
-    
+
     // Fonction pour récupérer les informations utilisateur
     const getUserInfo = async () => {
       try {
@@ -191,18 +209,18 @@ export default function FacturesPage() {
     const loadFactures = async () => {
       try {
         console.log("[DEBUG] Chargement des factures");
-        
+
         // Requête simplifiée sans orderBy pour éviter les problèmes d'index
         const facturesQuery = query(
           collection(db, "factures"),
           where("userId", "==", user.uid),
           limit(100) // Limiter à 100 factures maximum pour la version actuelle
         );
-        
+
         const snapshot = await getDocs(facturesQuery);
-        
+
         console.log(`[DEBUG] ${snapshot.docs.length} factures récupérées`);
-        
+
         const facturesData = snapshot.docs.map((doc) => {
           const data = doc.data();
           return {
@@ -217,17 +235,17 @@ export default function FacturesPage() {
           // S'assurer que les dates existent, sinon utiliser Date.now()
           const dateA = a.dateCreation instanceof Date ? a.dateCreation : new Date();
           const dateB = b.dateCreation instanceof Date ? b.dateCreation : new Date();
-          
+
           // Comparer les dates (des plus récentes aux plus anciennes)
           return dateB.getTime() - dateA.getTime();
         });
-        
+
         setFactures(facturesData);
         setPlanInfo(prev => ({
           ...prev,
           currentFactures: facturesData.length
         }));
-        
+
         // Vérifier si nous avons atteint la limite du plan
         const isLimitReached = await checkPlanLimit(
           user.uid,
@@ -235,10 +253,10 @@ export default function FacturesPage() {
           facturesData.length
         );
         setLimitReached(isLimitReached);
-        
+
         // Générer un numéro de facture
         setNewFacture(prev => {
-          if (!prev.numero || prev.numero.startsWith('FCT-')) {
+          if (!prev.numero) {
             return {
               ...prev,
               numero: generateNewInvoiceNumber(facturesData)
@@ -246,9 +264,9 @@ export default function FacturesPage() {
           }
           return prev;
         });
-        
+
         setIsLoading(false);
-        
+
       } catch (error) {
         console.error("[DEBUG] Erreur lors du chargement des factures:", error);
         setErrorMessage("Impossible de charger vos factures. Veuillez réessayer plus tard.");
@@ -267,8 +285,8 @@ export default function FacturesPage() {
     loadData();
 
     // Chargement des clients avec gestion d'erreur
-    let clientsUnsubscribe = () => {};
-    
+    let clientsUnsubscribe = () => { };
+
     try {
       console.log("[DEBUG] Chargement des clients...");
       const clientsQuery = query(
@@ -398,7 +416,7 @@ export default function FacturesPage() {
         ville: "",
         email: "",
         emails: [],
-        delaisPaiement: "30 jours",
+        delaisPaiement: "30 jours" as DelaiPaiementType,
       },
       articles: [],
       totalHT: 0,
@@ -422,7 +440,7 @@ export default function FacturesPage() {
         ville: "",
         email: "",
         emails: [],
-        delaisPaiement: "30 jours",
+        delaisPaiement: "30 jours" as DelaiPaiementType,
       },
       statut: "En attente",
       articles: [],
@@ -534,7 +552,7 @@ export default function FacturesPage() {
         ...selectedClient,
         emails: selectedClient.emails || []
       };
-      
+
       setNewFacture({
         ...newFacture,
         client: clientWithEmails
@@ -563,8 +581,8 @@ export default function FacturesPage() {
         totalHT: newFacture.totalHT,
         totalTTC: newFacture.totalTTC,
         dateCreation: Timestamp.fromDate(
-          newFacture.dateCreation instanceof Date 
-            ? newFacture.dateCreation 
+          newFacture.dateCreation instanceof Date
+            ? newFacture.dateCreation
             : new Date()
         ),
       };
@@ -606,42 +624,70 @@ export default function FacturesPage() {
   const deleteFacture = async (id: string) => {
     try {
       console.log("[DEBUG] Tentative de suppression de la facture:", id);
-      
+      console.log("[DEBUG] Utilisateur actuel:", {
+        uid: user?.uid,
+        email: user?.email,
+        isAnonymous: user?.isAnonymous
+      });
+
       // Vérifier d'abord si la facture existe et appartient à l'utilisateur
       const factureRef = doc(db, "factures", id);
       const factureDoc = await getDoc(factureRef);
-      
+
       if (!factureDoc.exists()) {
         console.error("[DEBUG] Facture introuvable:", id);
         alert("Erreur: Cette facture n'existe pas ou a déjà été supprimée.");
         return;
       }
-      
+
       const factureData = factureDoc.data();
+      console.log("[DEBUG] Données de la facture:", {
+        factureId: id,
+        factureUserId: factureData.userId,
+        currentUserId: user?.uid,
+        factureData: factureData
+      });
+
+      // Vérification de propriété avec logs détaillés
       if (factureData.userId !== user?.uid) {
         console.error("[DEBUG] Tentative non autorisée de suppression d'une facture:", {
           factureId: id,
           factureUserId: factureData.userId,
-          currentUserId: user?.uid
+          currentUserId: user?.uid,
+          userIdType: typeof factureData.userId,
+          currentUserIdType: typeof user?.uid,
+          areEqual: factureData.userId === user?.uid,
+          strictEqual: factureData.userId === user?.uid
         });
         alert("Erreur: Vous n'êtes pas autorisé à supprimer cette facture.");
         return;
       }
-      
+
       // Confirmer avant suppression
       if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette facture ?")) {
         return;
       }
-      
+
+      console.log("[DEBUG] Tentative de suppression Firestore pour la facture:", id);
       await deleteDoc(doc(db, "factures", id));
       console.log("[DEBUG] Facture supprimée avec succès:", id);
+
+      // Recharger les factures après suppression
+      setRetryCount(prev => prev + 1);
     } catch (error) {
       console.error("[DEBUG] Erreur lors de la suppression de la facture:", error);
-      
+      console.error("[DEBUG] Type d'erreur:", typeof error);
+      console.error("[DEBUG] Erreur complète:", JSON.stringify(error, null, 2));
+
       // Afficher un message d'erreur plus spécifique
       if (error instanceof Error) {
-        if (error.message.includes("permission")) {
+        console.error("[DEBUG] Message d'erreur:", error.message);
+        console.error("[DEBUG] Stack trace:", error.stack);
+
+        if (error.message.includes("permission") || error.message.includes("Permission") || error.message.includes("PERMISSION")) {
           alert("Erreur de permission: Vous n'avez pas les droits nécessaires pour supprimer cette facture. Veuillez contacter l'administrateur.");
+        } else if (error.message.includes("Missing or insufficient permissions")) {
+          alert("Erreur Firestore: Permissions insuffisantes. Vérifiez vos règles de sécurité Firestore.");
         } else {
           alert(`Erreur lors de la suppression de la facture: ${error.message}`);
         }
@@ -707,7 +753,7 @@ export default function FacturesPage() {
       console.log("Début de la génération du PDF avec modèle spécifique");
       console.log("Facture:", factureForPDF.numero);
       console.log("Modèle sélectionné:", selectedModeleId || "par défaut");
-      
+
       if (selectedModeleId) {
         await generateInvoicePDFWithSelectedTemplate(
           factureForPDF,
@@ -716,7 +762,7 @@ export default function FacturesPage() {
       } else {
         await generateInvoicePDF(factureForPDF);
       }
-      
+
       console.log("Génération du PDF réussie");
       closeModelSelector();
     } catch (error) {
@@ -728,6 +774,64 @@ export default function FacturesPage() {
       alert(errorMessage);
     }
   };
+
+  // Fonction pour recharger les données de factures
+  const rechargerFactures = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      console.log("[DEBUG] Rechargement des factures après paiement");
+
+      // Requête pour récupérer les factures mises à jour
+      const facturesQuery = query(
+        collection(db, "factures"),
+        where("userId", "==", user.uid),
+        limit(100)
+      );
+
+      const snapshot = await getDocs(facturesQuery);
+      const facturesData = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          dateCreation: data.dateCreation ? convertToDate(data.dateCreation) : new Date(),
+        };
+      }) as Facture[];
+
+      // Trier côté client
+      facturesData.sort((a, b) => {
+        const dateA = a.dateCreation instanceof Date ? a.dateCreation : new Date();
+        const dateB = b.dateCreation instanceof Date ? b.dateCreation : new Date();
+        return dateB.getTime() - dateA.getTime();
+      });
+
+      setFactures(facturesData);
+
+      // Mettre à jour la facture sélectionnée si elle existe
+      if (selectedFacture) {
+        const factureUpdated = facturesData.find(f => f.id === selectedFacture.id);
+        if (factureUpdated) {
+          setSelectedFacture(factureUpdated);
+          // Mettre à jour aussi newFacture pour la cohérence
+          setNewFacture({
+            userId: factureUpdated.userId || user.uid,
+            numero: factureUpdated.numero,
+            client: factureUpdated.client,
+            statut: factureUpdated.statut,
+            articles: factureUpdated.articles,
+            totalHT: factureUpdated.totalHT,
+            totalTTC: factureUpdated.totalTTC,
+            dateCreation: factureUpdated.dateCreation instanceof Date ? factureUpdated.dateCreation : new Date(),
+          });
+        }
+      }
+
+      console.log("[DEBUG] Factures rechargées avec succès");
+    } catch (error) {
+      console.error("[DEBUG] Erreur lors du rechargement des factures:", error);
+    }
+  }, [user, selectedFacture]);
 
   return (
     <div className="p-6 bg-background-light dark:bg-background-dark">
@@ -757,11 +861,10 @@ export default function FacturesPage() {
           <button
             onClick={openModal}
             disabled={limitReached}
-            className={`${
-              limitReached
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-gray-800 hover:bg-gray-600 transform hover:scale-105"
-            } text-white py-2 px-4 rounded-md transition-transform duration-300`}
+            className={`${limitReached
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-gray-800 hover:bg-gray-600 transform hover:scale-105"
+              } text-white py-2 px-4 rounded-md transition-transform duration-300`}
           >
             Ajouter une facture
           </button>
@@ -775,7 +878,7 @@ export default function FacturesPage() {
             <p className="font-medium">Erreur</p>
             <p>{errorMessage}</p>
           </div>
-          <button 
+          <button
             onClick={handleRetryLoading}
             className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 flex items-center"
           >
@@ -860,21 +963,27 @@ export default function FacturesPage() {
                       {formatDate(facture.dateCreation)}
                     </td>
                     <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                      {facture.totalTTC.toFixed(2)} €
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {formaterMontant(facture.totalTTC)}
+                        </span>
+                        {facture.montantPaye && facture.montantPaye > 0 && (
+                          <div className="text-xs text-gray-500">
+                            <span className="text-green-600">Payé: {formaterMontant(facture.montantPaye)}</span>
+                            {facture.resteAPayer && facture.resteAPayer > 0 && (
+                              <span className="text-red-600 ml-2">Reste: {formaterMontant(facture.resteAPayer)}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-text-light dark:text-text-dark">
                       <span
-                        className={`py-1 px-3 rounded-full text-white text-sm ${
-                          facture.statut === "Payée"
-                            ? "bg-green-500"
-                            : facture.statut === "En attente"
-                            ? "bg-yellow-500"
-                            : facture.statut === "Envoyée"
-                            ? "bg-blue-500"
-                            : "bg-red-500"
-                        }`}
+                        className={`py-1 px-3 rounded-full text-white text-sm ${getCouleurStatut(facture.statut)}`}
+                        style={getCouleurStatutInline(facture.statut)}
+                        title={`Statut: ${facture.statut} - Classe: ${getCouleurStatut(facture.statut)}`}
                       >
-                        {facture.statut}
+                        {getTexteCourtStatut(facture.statut)}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-center">
@@ -914,11 +1023,10 @@ export default function FacturesPage() {
           <button
             onClick={openModal}
             disabled={limitReached}
-            className={`${
-              limitReached
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-gray-800 hover:bg-gray-600"
-            } text-white py-2 px-4 rounded-md transition-colors duration-300`}
+            className={`${limitReached
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-gray-800 hover:bg-gray-600"
+              } text-white py-2 px-4 rounded-md transition-colors duration-300`}
           >
             Créer votre première facture
           </button>
@@ -967,6 +1075,7 @@ export default function FacturesPage() {
                   <option value="En attente">En attente</option>
                   <option value="Envoyée">Envoyée</option>
                   <option value="Payée">Payée</option>
+                  <option value="Partiellement payée">Partiellement payée</option>
                   <option value="À relancer">À relancer</option>
                 </select>
               </div>
@@ -995,7 +1104,32 @@ export default function FacturesPage() {
                     required
                   />
                 </div>
-                <div></div>
+                <div className="flex flex-col">
+                  <label className="block font-semibold text-gray-800 dark:text-white mb-2">
+                    Date d'échéance
+                  </label>
+                  <div className="w-full p-2 border rounded bg-gray-50 text-gray-700 flex items-center min-h-[40px]">
+                    {newFacture.client.id && newFacture.client.delaisPaiement ? (
+                      <span className="font-medium">
+                        {calculerDateEcheance(
+                          newFacture.dateCreation instanceof Date
+                            ? newFacture.dateCreation
+                            : new Date(newFacture.dateCreation || Date.now()),
+                          newFacture.client.delaisPaiement
+                        ).toLocaleDateString('fr-FR')}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 italic">
+                        Sélectionnez un client
+                      </span>
+                    )}
+                  </div>
+                  {newFacture.client.id && newFacture.client.delaisPaiement && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Délai : {newFacture.client.delaisPaiement}
+                    </p>
+                  )}
+                </div>
               </div>
 
               <select
@@ -1051,9 +1185,8 @@ export default function FacturesPage() {
                     onChange={(e) =>
                       handleArticleChange(index, "description", e.target.value)
                     }
-                    className={`flex-1 p-2 border text-gray-800 ${
-                      article.isComment ? "bg-gray-50" : "bg-white"
-                    }`}
+                    className={`flex-1 p-2 border text-gray-800 ${article.isComment ? "bg-gray-50" : "bg-white"
+                      }`}
                   />
                   {!article.isComment && (
                     <>
@@ -1142,6 +1275,16 @@ export default function FacturesPage() {
                 </button>
               </div>
             </form>
+
+            {/* Section Paiements - uniquement en mode édition */}
+            {selectedFacture && (
+              <div className="mt-6">
+                <GestionPaiements
+                  facture={selectedFacture}
+                  onPaiementChange={rechargerFactures}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1168,11 +1311,10 @@ export default function FacturesPage() {
               <>
                 <div className="space-y-4">
                   <div
-                    className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                      selectedModeleId === null
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
-                        : "hover:border-gray-400"
-                    }`}
+                    className={`p-4 border rounded-lg cursor-pointer transition-all ${selectedModeleId === null
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                      : "hover:border-gray-400"
+                      }`}
                     onClick={() => setSelectedModeleId(null)}
                   >
                     <div className="font-semibold">Modèle par défaut</div>
@@ -1184,11 +1326,10 @@ export default function FacturesPage() {
                   {modeles.map((modele) => (
                     <div
                       key={modele.id}
-                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                        selectedModeleId === modele.id
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
-                          : "hover:border-gray-400"
-                      }`}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all ${selectedModeleId === modele.id
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                        : "hover:border-gray-400"
+                        }`}
                       onClick={() => setSelectedModeleId(modele.id)}
                     >
                       <div className="font-semibold">{modele.nom}</div>

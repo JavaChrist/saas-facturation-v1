@@ -10,6 +10,7 @@ interface Facture {
   id: string;
   dateCreation: any; // Accepte différents formats de date
   totalTTC: number;
+  totalHT: number; // Ajout du montant HT
   statut: string;
   userId: string;
 }
@@ -22,13 +23,17 @@ interface Client {
 
 interface Stats {
   totalMontantFactures: number;
+  totalMontantFacturesHT: number; // Ajout du total HT
   totalClients: number;
   facturesEnAttente: number;
   moyenneFacture: number;
+  moyenneFactureHT: number; // Ajout de la moyenne HT
   caTotal: number;
+  caTotalHT: number; // Ajout du CA HT
   clientCount: number;
   invoiceCount: number;
   caTotalVariation: number | null;
+  caTotalHTVariation: number | null; // Ajout de la variation HT
   clientCountVariation: number | null;
   invoiceCountVariation: number | null;
 }
@@ -41,13 +46,17 @@ interface DashboardStatsProps {
 const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
   const [stats, setStats] = useState<Stats>({
     totalMontantFactures: 0,
+    totalMontantFacturesHT: 0,
     totalClients: 0,
     facturesEnAttente: 0,
     moyenneFacture: 0,
+    moyenneFactureHT: 0,
     caTotal: 0,
+    caTotalHT: 0,
     clientCount: 0,
     invoiceCount: 0,
     caTotalVariation: null,
+    caTotalHTVariation: null,
     clientCountVariation: null,
     invoiceCountVariation: null,
   });
@@ -72,6 +81,7 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
         const facturesInRange: Facture[] = [];
         let facturesEnAttente = 0;
         let totalMontant = 0;
+        let totalMontantHT = 0;
 
         facturesSnapshot.forEach((doc) => {
           const facture = doc.data() as Facture;
@@ -119,10 +129,20 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
               typeof facture.totalTTC === "number"
                 ? facture.totalTTC
                 : typeof facture.totalTTC === "string"
-                ? parseFloat(facture.totalTTC) || 0
-                : 0;
+                  ? parseFloat(facture.totalTTC) || 0
+                  : 0;
 
             totalMontant += montant;
+
+            // Calculer le montant HT
+            const montantHT =
+              typeof facture.totalHT === "number"
+                ? facture.totalHT
+                : typeof facture.totalHT === "string"
+                  ? parseFloat(facture.totalHT) || 0
+                  : 0;
+
+            totalMontantHT += montantHT;
           }
         });
 
@@ -183,16 +203,26 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
             ? totalMontant / facturesInRange.length
             : 0;
 
+        // Calculer la moyenne par facture HT
+        const moyenneFactureHT =
+          facturesInRange.length > 0
+            ? totalMontantHT / facturesInRange.length
+            : 0;
+
         // Mettre à jour les statistiques
         setStats({
           totalMontantFactures: totalMontant,
+          totalMontantFacturesHT: totalMontantHT,
           totalClients: clientsInRange.length,
           facturesEnAttente: facturesEnAttente,
           moyenneFacture: moyenneFacture,
+          moyenneFactureHT: moyenneFactureHT,
           caTotal: totalMontant,
+          caTotalHT: totalMontantHT,
           clientCount: clientsInRange.length,
           invoiceCount: facturesInRange.length,
           caTotalVariation: null,
+          caTotalHTVariation: null,
           clientCountVariation: null,
           invoiceCountVariation: null,
         });
@@ -213,41 +243,66 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
     <div>
       <h2 className="text-xl font-semibold mb-4 text-text-light dark:text-text-dark">
         Statistiques
-                </h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* CA total */}
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* CA total TTC */}
         <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
           <div className="bg-green-100 dark:bg-green-900 p-4 rounded-lg mr-4">
             <TbCash className="text-green-500 dark:text-green-400 text-2xl" />
           </div>
-              <div>
+          <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
-              Chiffre d'affaires total
+              CA Total TTC
             </p>
             <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
               {loading ? "Chargement..." : `${stats.caTotal.toFixed(2)} €`}
             </p>
             {stats.caTotalVariation !== null && (
               <p
-                className={`text-sm ${
-                  stats.caTotalVariation >= 0
+                className={`text-sm ${stats.caTotalVariation >= 0
                     ? "text-green-500"
                     : "text-red-500"
-                }`}
+                  }`}
               >
                 {stats.caTotalVariation > 0 ? "+" : ""}
                 {stats.caTotalVariation.toFixed(2)}% vs période précédente
               </p>
             )}
-              </div>
-            </div>
+          </div>
+        </div>
+
+        {/* CA total HT */}
+        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
+          <div className="bg-emerald-100 dark:bg-emerald-900 p-4 rounded-lg mr-4">
+            <TbCash className="text-emerald-500 dark:text-emerald-400 text-2xl" />
+          </div>
+          <div>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
+              CA Total HT
+            </p>
+            <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+              {loading ? "Chargement..." : `${stats.caTotalHT.toFixed(2)} €`}
+            </p>
+            {stats.caTotalHTVariation !== null && (
+              <p
+                className={`text-sm ${stats.caTotalHTVariation >= 0
+                    ? "text-green-500"
+                    : "text-red-500"
+                  }`}
+              >
+                {stats.caTotalHTVariation > 0 ? "+" : ""}
+                {stats.caTotalHTVariation.toFixed(2)}% vs période précédente
+              </p>
+            )}
+          </div>
+        </div>
 
         {/* Nombre clients */}
         <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
           <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-lg mr-4">
             <TbUsers className="text-blue-500 dark:text-blue-400 text-2xl" />
           </div>
-              <div>
+          <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
               Nombre de clients
             </p>
@@ -256,25 +311,24 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
             </p>
             {stats.clientCountVariation !== null && (
               <p
-                className={`text-sm ${
-                  stats.clientCountVariation >= 0
+                className={`text-sm ${stats.clientCountVariation >= 0
                     ? "text-green-500"
                     : "text-red-500"
-                }`}
+                  }`}
               >
                 {stats.clientCountVariation > 0 ? "+" : ""}
                 {stats.clientCountVariation.toFixed(2)}% vs période précédente
               </p>
             )}
-              </div>
-            </div>
+          </div>
+        </div>
 
         {/* Nombre factures */}
         <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
           <div className="bg-purple-100 dark:bg-purple-900 p-4 rounded-lg mr-4">
             <TbFileInvoice className="text-purple-500 dark:text-purple-400 text-2xl" />
           </div>
-              <div>
+          <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
               Nombre de factures
             </p>
@@ -283,11 +337,10 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
             </p>
             {stats.invoiceCountVariation !== null && (
               <p
-                className={`text-sm ${
-                  stats.invoiceCountVariation >= 0
+                className={`text-sm ${stats.invoiceCountVariation >= 0
                     ? "text-green-500"
                     : "text-red-500"
-                }`}
+                  }`}
               >
                 {stats.invoiceCountVariation > 0 ? "+" : ""}
                 {stats.invoiceCountVariation.toFixed(2)}% vs période précédente

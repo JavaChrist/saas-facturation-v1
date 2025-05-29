@@ -4,6 +4,8 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { Facture, Article } from '@/types/facture';
 import { useAuth } from './authContext';
+import { DelaiPaiementType } from "@/services/delaisPaiementService";
+import { mettreAJourMontantsFacture } from "@/services/paiementService";
 
 // Type pour le contexte
 interface FactureContextType {
@@ -32,19 +34,19 @@ export const useFacture = () => {
 // Fonction utilitaire pour convertir une date Firestore
 const convertDate = (date: any): Date => {
   if (!date) return new Date();
-  
+
   if (date instanceof Date) {
     return date;
   }
-  
+
   if (typeof date === 'string') {
     return new Date(date);
   }
-  
+
   if (date && typeof date.toDate === 'function') {
     return date.toDate();
   }
-  
+
   return new Date();
 };
 
@@ -74,28 +76,28 @@ export const FactureProvider = ({ children }: { children: React.ReactNode }) => 
 
     try {
       console.log("[PROVIDER] Chargement de la facture:", factureId);
-      
+
       const factureRef = doc(db, "factures", factureId);
       const factureDoc = await getDoc(factureRef);
-      
+
       if (!factureDoc.exists()) {
         setError("Facture introuvable");
         setLoading(false);
         return null;
       }
-      
+
       const data = factureDoc.data();
-      
+
       // Vérifier que l'utilisateur est le propriétaire
       if (data.userId !== user.uid) {
         setError("Vous n'êtes pas autorisé à consulter cette facture");
         setLoading(false);
         return null;
       }
-      
+
       // Convertir et normaliser les données
       let dateCreation = convertDate(data.dateCreation);
-      
+
       // Normaliser le client
       const defaultClient = {
         id: "",
@@ -106,59 +108,59 @@ export const FactureProvider = ({ children }: { children: React.ReactNode }) => 
         ville: "",
         email: "",
         emails: [],
-        delaisPaiement: "30 jours"
+        delaisPaiement: "30 jours" as DelaiPaiementType
       };
-      
+
       const client = data.client ? {
         ...defaultClient,
         ...data.client,
         emails: Array.isArray(data.client.emails) ? data.client.emails : []
       } : defaultClient;
-      
+
       // Normaliser les articles
-      const articles = !data.articles || !Array.isArray(data.articles) 
-        ? [] 
+      const articles = !data.articles || !Array.isArray(data.articles)
+        ? []
         : data.articles.map((article: any, index: number) => {
-            if (article.isComment) {
-              return {
-                id: article.id || Date.now() + index,
-                description: article.description || "Commentaire",
-                quantite: 0,
-                prixUnitaireHT: 0,
-                tva: 0,
-                totalTTC: 0,
-                isComment: true
-              };
-            }
-            
-            const prixUnitaireHT = typeof article.prixUnitaireHT === 'number' ? article.prixUnitaireHT : 0;
-            const quantite = typeof article.quantite === 'number' ? article.quantite : 0;
-            const tva = typeof article.tva === 'number' ? article.tva : 20;
-            
-            const totalHT = prixUnitaireHT * quantite;
-            const totalTVA = (totalHT * tva) / 100;
-            const totalTTC = totalHT + totalTVA;
-            
+          if (article.isComment) {
             return {
               id: article.id || Date.now() + index,
-              description: article.description || `Article ${index + 1}`,
-              quantite: quantite,
-              prixUnitaireHT: prixUnitaireHT,
-              tva: tva,
-              totalTTC: totalTTC,
-              isComment: false
+              description: article.description || "Commentaire",
+              quantite: 0,
+              prixUnitaireHT: 0,
+              tva: 0,
+              totalTTC: 0,
+              isComment: true
             };
-          });
-      
+          }
+
+          const prixUnitaireHT = typeof article.prixUnitaireHT === 'number' ? article.prixUnitaireHT : 0;
+          const quantite = typeof article.quantite === 'number' ? article.quantite : 0;
+          const tva = typeof article.tva === 'number' ? article.tva : 20;
+
+          const totalHT = prixUnitaireHT * quantite;
+          const totalTVA = (totalHT * tva) / 100;
+          const totalTTC = totalHT + totalTVA;
+
+          return {
+            id: article.id || Date.now() + index,
+            description: article.description || `Article ${index + 1}`,
+            quantite: quantite,
+            prixUnitaireHT: prixUnitaireHT,
+            tva: tva,
+            totalTTC: totalTTC,
+            isComment: false
+          };
+        });
+
       // Calculer les totaux
       const totalHT = articles
         .filter((a: Article) => !a.isComment)
         .reduce((sum: number, article: Article) => sum + (article.prixUnitaireHT * article.quantite), 0);
-      
+
       const totalTTC = articles
         .filter((a: Article) => !a.isComment)
         .reduce((sum: number, article: Article) => sum + article.totalTTC, 0);
-      
+
       // Construire l'objet facture
       const facture: Facture = {
         id: factureDoc.id,
@@ -169,17 +171,26 @@ export const FactureProvider = ({ children }: { children: React.ReactNode }) => 
         articles,
         totalHT: data.totalHT || totalHT,
         totalTTC: data.totalTTC || totalTTC,
-        dateCreation
+        dateCreation,
+        paiements: data.paiements ? data.paiements.map((p: any) => ({
+          ...p,
+          datePaiement: p.datePaiement?.toDate ? p.datePaiement.toDate() : new Date(p.datePaiement || Date.now())
+        })) : [],
+        montantPaye: data.montantPaye || 0,
+        resteAPayer: data.resteAPayer || data.totalTTC || totalTTC
       };
-      
+
+      // Mettre à jour les montants calculés
+      const factureAvecMontants = mettreAJourMontantsFacture(facture);
+
       // Mettre à jour le cache
       setFactureData(prev => ({
         ...prev,
-        [factureId]: facture
+        [factureId]: factureAvecMontants
       }));
-      
+
       setLoading(false);
-      return facture;
+      return factureAvecMontants;
     } catch (error) {
       console.error("[PROVIDER] Erreur lors du chargement de la facture:", error);
       setError("Erreur lors du chargement de la facture");

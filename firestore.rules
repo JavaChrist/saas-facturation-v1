@@ -42,11 +42,18 @@ service cloud.firestore {
 
     // Règles pour la collection factures
     match /factures/{factureId} {
-      allow read, update, delete: if isUserMatch();
-      allow create: if isCreatingForSelf();
-      // Permettre la lecture des factures aux utilisateurs qui viennent d'être authentifiés
-      // même si la structure interne n'est pas encore chargée
-      allow list: if isAuthenticated();
+      // Permettre la lecture à tous les utilisateurs authentifiés
+      allow read, list: if isAuthenticated();
+      // Permettre la création avec le bon userId
+      allow create: if isAuthenticated() && 
+                    request.resource.data.userId == request.auth.uid;
+      // Permettre la mise à jour si l'utilisateur est propriétaire
+      allow update: if isAuthenticated() && 
+                    resource.data.userId == request.auth.uid;
+      // Permettre la suppression si l'utilisateur est propriétaire ou admin
+      allow delete: if isAuthenticated() && 
+                    (resource.data.userId == request.auth.uid || 
+                     request.auth.token.email == "support@javachrist.fr");
     }
 
     // Règles pour la collection clients

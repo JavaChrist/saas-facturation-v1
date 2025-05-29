@@ -8,6 +8,8 @@ import { addDoc, getDocs, doc, deleteDoc, updateDoc } from "firebase/firestore";
 import { useAuth } from "@/lib/authContext";
 import { getUserPlan, checkPlanLimit } from "@/services/subscriptionService";
 import { EmailContact } from "@/types/facture";
+import { DELAIS_PAIEMENT_OPTIONS, DelaiPaiementType } from "@/services/delaisPaiementService";
+import DelaiPaiementSelector from "@/components/DelaiPaiementSelector";
 
 interface Client {
   id: string;
@@ -18,7 +20,7 @@ interface Client {
   ville: string;
   email: string;
   emails: EmailContact[];
-  delaisPaiement: "À réception" | "8 jours" | "30 jours" | "60 jours";
+  delaisPaiement: DelaiPaiementType;
 }
 
 export default function ClientsPage() {
@@ -49,27 +51,27 @@ export default function ClientsPage() {
   // Fonction pour migrer les clients existants
   const migrateClientsEmailField = async (clientsData: Client[]) => {
     if (!user) return;
-    
+
     try {
       // Filtrer les clients qui n'ont pas le champ emails correctement configuré
       const clientsToMigrate = clientsData.filter(
         client => !client.emails || !Array.isArray(client.emails) || client.emails.length === 0
       );
-      
+
       console.log(`Migration des emails pour ${clientsToMigrate.length} clients`);
-      
+
       // Mettre à jour chaque client dans Firestore
       for (const client of clientsToMigrate) {
         const clientRef = doc(db, "clients", client.id);
-        
+
         // Créer un tableau emails avec l'email existant
         const emails = client.email ? [{ email: client.email, isDefault: true }] : [];
-        
+
         // Mettre à jour uniquement le champ emails
         await updateDoc(clientRef, { emails });
         console.log(`Client ${client.id} migré avec succès`);
       }
-      
+
       console.log("Migration des emails terminée");
     } catch (error) {
       console.error("Erreur lors de la migration des emails:", error);
@@ -88,7 +90,7 @@ export default function ClientsPage() {
     const unsubscribe = onSnapshot(clientsQuery, async (snapshot) => {
       const clientsData = snapshot.docs.map((doc) => {
         const data = doc.data();
-        
+
         // Migration pour les clients qui n'ont pas encore le champ emails
         if (!data.emails || !Array.isArray(data.emails)) {
           return {
@@ -97,13 +99,13 @@ export default function ClientsPage() {
             emails: data.email ? [{ email: data.email, isDefault: true }] : []
           } as Client;
         }
-        
+
         return {
           id: doc.id,
           ...data,
         } as Client;
       });
-      
+
       setClients(clientsData);
 
       // Lancer la migration des clients en arrière-plan
@@ -174,10 +176,10 @@ export default function ClientsPage() {
   // Ajouter un nouvel email
   const addEmail = () => {
     if (!selectedClient) return;
-    
+
     // Par défaut, si c'est le premier email, il devient l'email par défaut
     const isDefault = selectedClient.emails.length === 0;
-    
+
     setSelectedClient({
       ...selectedClient,
       emails: [
@@ -190,17 +192,17 @@ export default function ClientsPage() {
   // Supprimer un email
   const removeEmail = (index: number) => {
     if (!selectedClient) return;
-    
+
     const newEmails = [...selectedClient.emails];
     const removedEmail = newEmails[index];
     newEmails.splice(index, 1);
-    
+
     // Si l'email supprimé était l'email par défaut et qu'il reste des emails, 
     // définir le premier comme étant par défaut
     if (removedEmail.isDefault && newEmails.length > 0) {
       newEmails[0].isDefault = true;
     }
-    
+
     setSelectedClient({
       ...selectedClient,
       emails: newEmails
@@ -210,10 +212,10 @@ export default function ClientsPage() {
   // Mettre à jour un email
   const updateEmail = (index: number, value: string) => {
     if (!selectedClient) return;
-    
+
     const newEmails = [...selectedClient.emails];
     newEmails[index] = { ...newEmails[index], email: value };
-    
+
     setSelectedClient({
       ...selectedClient,
       emails: newEmails
@@ -223,15 +225,15 @@ export default function ClientsPage() {
   // Définir un email comme étant par défaut
   const setDefaultEmail = (index: number) => {
     if (!selectedClient) return;
-    
+
     const newEmails = [...selectedClient.emails];
-    
+
     // Désactiver l'email par défaut actuel
     newEmails.forEach(email => email.isDefault = false);
-    
+
     // Définir le nouvel email par défaut
     newEmails[index].isDefault = true;
-    
+
     setSelectedClient({
       ...selectedClient,
       emails: newEmails,
@@ -251,16 +253,16 @@ export default function ClientsPage() {
 
     try {
       if (!selectedClient) return;
-      
+
       // S'assurer qu'il y a au moins un email par défaut si des emails existent
       if (selectedClient.emails.length > 0 && !selectedClient.emails.some(e => e.isDefault)) {
         selectedClient.emails[0].isDefault = true;
       }
-      
+
       // Mettre à jour l'email principal pour la rétrocompatibilité
       const defaultEmail = selectedClient.emails.find(e => e.isDefault);
       const emailForBackwardCompatibility = defaultEmail ? defaultEmail.email : (selectedClient.emails[0]?.email || "");
-      
+
       const clientData = {
         refClient: selectedClient.refClient,
         nom: selectedClient.nom,
@@ -319,11 +321,10 @@ export default function ClientsPage() {
         <button
           onClick={openNewClientModal}
           disabled={limitReached}
-          className={`${
-            limitReached
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-green-500 hover:bg-green-700 transform hover:scale-105"
-          } text-white py-2 px-4 rounded-md flex items-center transition-transform duration-300`}
+          className={`${limitReached
+            ? "bg-gray-400 cursor-not-allowed"
+            : "bg-green-500 hover:bg-green-700 transform hover:scale-105"
+            } text-white py-2 px-4 rounded-md flex items-center transition-transform duration-300`}
         >
           <FiPlusCircle size={18} className="mr-2" /> Ajouter un client
         </button>
@@ -399,12 +400,12 @@ export default function ClientsPage() {
                     {client.ville}
                   </td>
                   <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
-                    {client.emails && client.emails.length > 0 
+                    {client.emails && client.emails.length > 0
                       ? client.emails.map((e, i) => (
-                          <div key={i} className={e.isDefault ? "font-bold" : ""}>
-                            {e.email} {e.isDefault && "(Défaut)"}
-                          </div>
-                        ))
+                        <div key={i} className={e.isDefault ? "font-bold" : ""}>
+                          {e.email} {e.isDefault && "(Défaut)"}
+                        </div>
+                      ))
                       : client.email}
                   </td>
                   <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
@@ -575,38 +576,42 @@ export default function ClientsPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Délai de paiement
                 </label>
-                <select
+                <DelaiPaiementSelector
                   value={selectedClient.delaisPaiement}
-                  onChange={(e) =>
+                  onChange={(delai) =>
                     setSelectedClient({
                       ...selectedClient,
-                      delaisPaiement: e.target
-                        .value as Client["delaisPaiement"],
+                      delaisPaiement: delai,
                     })
                   }
-                  className="w-full p-2 border rounded-md bg-white text-black"
-                >
-                  <option value="À réception">À réception</option>
-                  <option value="8 jours">8 jours</option>
-                  <option value="30 jours">30 jours</option>
-                  <option value="60 jours">60 jours</option>
-                </select>
+                  showDescription={true}
+                  showExample={true}
+                />
               </div>
 
-              <div className="flex justify-end space-x-2 mt-6">
+              <div className="flex justify-between space-x-2 mt-6">
                 <button
                   type="button"
-                  onClick={closeModal}
-                  className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+                  onClick={() => router.push("/dashboard/test-delais")}
+                  className="bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-700 flex items-center"
                 >
-                  Annuler
+                  🧪 Test délais
                 </button>
-                <button
-                  type="submit"
-                  className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-                >
-                  Enregistrer
-                </button>
+                <div className="flex space-x-2">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                  >
+                    Enregistrer
+                  </button>
+                </div>
               </div>
             </form>
           </div>
