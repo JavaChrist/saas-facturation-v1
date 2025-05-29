@@ -32,92 +32,94 @@ export default function ProfilPage() {
 
   console.log("[PROFIL] Début du rendu, user:", user);
 
-  // Charger le profil utilisateur
+  // Chargement du profil au montage
   useEffect(() => {
     if (!user) {
-      console.log("[PROFIL] Pas d'utilisateur, redirection vers login");
-      router.push("/login");
+      router.push('/login');
       return;
     }
 
-    const loadUserProfile = async () => {
+    const loadProfile = async () => {
       try {
         setIsLoading(true);
-        setError(null);
-        console.log("[PROFIL] Chargement du profil pour l'utilisateur:", user.uid);
 
-        const userDoc = await getDoc(doc(db, "users", user.uid));
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
 
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          console.log("[PROFIL] Document utilisateur trouvé:", userData);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          setSignature({
+            nom: userData.nomAffichage || user.displayName || '',
+            fonction: '',
+            adresse: '',
+            telephone: userData.telephone || '',
+            email: userData.email || user.email || '',
+            siteWeb: '',
+            avatar: user.photoURL || '',
+            reseauxSociaux: []
+          });
 
           if (userData.signature) {
             setSignature(userData.signature);
-            console.log("[PROFIL] Signature chargée depuis Firebase");
           } else {
-            // Pré-remplir avec les infos du compte
-            const defaultSignature = {
-              nom: user.displayName || user.email || '',
+            // Créer une signature par défaut
+            const defaultSignature: UserSignature = {
+              nom: userData.nomAffichage || user.displayName || '',
               fonction: '',
               adresse: '',
-              telephone: '',
-              email: user.email || '',
+              telephone: userData.telephone || '',
+              email: userData.email || user.email || '',
               siteWeb: '',
-              avatar: '',
+              avatar: user.photoURL || '',
               reseauxSociaux: []
             };
             setSignature(defaultSignature);
-            console.log("[PROFIL] Signature par défaut créée");
           }
         } else {
-          console.log("[PROFIL] Document utilisateur non trouvé, création d'un profil par défaut");
-
-          // Créer une signature par défaut
-          const defaultSignature = {
-            nom: user.displayName || user.email || '',
+          // Créer un profil par défaut si aucun n'existe
+          const defaultProfile: UserSignature = {
+            nom: user.displayName || '',
             fonction: '',
             adresse: '',
             telephone: '',
             email: user.email || '',
             siteWeb: '',
-            avatar: '',
+            avatar: user.photoURL || '',
             reseauxSociaux: []
           };
 
-          // Créer le document utilisateur avec une signature par défaut
-          const defaultProfile = {
-            nom: user.displayName || user.email || '',
+          setSignature(defaultProfile);
+
+          const defaultSignature: UserSignature = {
+            nom: user.displayName || '',
+            fonction: '',
+            adresse: '',
+            telephone: '',
             email: user.email || '',
-            dateCreation: new Date(),
-            signature: defaultSignature
+            siteWeb: '',
+            avatar: user.photoURL || '',
+            reseauxSociaux: []
           };
 
-          await setDoc(doc(db, "users", user.uid), defaultProfile);
           setSignature(defaultSignature);
-          console.log("[PROFIL] Profil utilisateur créé avec succès");
+
+          // Sauvegarder le profil par défaut
+          await setDoc(userRef, {
+            ...defaultProfile,
+            signature: defaultSignature,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
         }
       } catch (error) {
-        console.error("[PROFIL] Erreur lors du chargement du profil:", error);
-        setError(`Erreur lors du chargement: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
-
-        // En cas d'erreur, créer une signature par défaut pour éviter le crash
-        setSignature({
-          nom: user?.displayName || user?.email || 'Utilisateur',
-          fonction: '',
-          adresse: '',
-          telephone: '',
-          email: user?.email || '',
-          siteWeb: '',
-          avatar: '',
-          reseauxSociaux: []
-        });
+        console.error('Erreur chargement profil:', error);
+        setError('Erreur lors du chargement du profil');
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadUserProfile();
+    loadProfile();
   }, [user, router]);
 
   const handleSave = async () => {

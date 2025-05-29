@@ -1,31 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirestore } from "firebase-admin/firestore";
+import { getAdminFirestore } from "@/lib/firebase-admin";
 import Stripe from "stripe";
-import { initAdmin } from "@/lib/firebase-admin";
 import { SITE_URL } from "@/config/stripe";
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+// Configuration Stripe et Firebase
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2024-10-28.acacia",
+});
 
-// Initialiser Firebase Admin si ce n'est pas déjà fait
-// Cela nous permet d'accéder à Firestore avec des privilèges admin
+let db: any;
 try {
-  const app = initAdmin();
+  db = getAdminFirestore();
 } catch (error) {
-  console.error("Erreur lors de l'initialisation de Firebase Admin:", error);
+  db = null;
 }
-
-// Initialisation de Firestore
-let db;
-try {
-  db = getFirestore();
-} catch (error) {
-  console.error("Erreur lors de l'initialisation de Firestore:", error);
-}
-
-// Initialisation de l'instance Stripe
-const stripe = stripeSecretKey
-  ? new Stripe(stripeSecretKey, { apiVersion: "2025-03-31.basil" })
-  : null;
 
 // Configuration des prix Stripe pour chaque plan
 const STRIPE_PRICE_IDS = {
@@ -38,30 +26,26 @@ const isDevelopment = process.env.NODE_ENV === "development";
 
 /**
  * API route pour créer une session d'abonnement Stripe
- * Cette route vérifie l'authentification via le token Firebase
  */
 export async function POST(request: NextRequest) {
-  console.log(
-    "API subscription/create - Début du traitement de la requête POST"
-  );
+  // Vérifier que les services nécessaires sont disponibles
+  if (!db) {
+    return NextResponse.json(
+      { error: "Service de base de données non disponible" },
+      { status: 503 }
+    );
+  }
 
   // Mode développement - simulation pour le développement local
   if (isDevelopment) {
-    console.log("API subscription/create - Mode développement détecté");
-
     try {
-      // En mode dev, on peut simuler une session de paiement
       const requestData = await request.json();
       const { planId } = requestData;
 
-      console.log("API subscription/create - Simulation pour le plan:", planId);
-
-      // Retourner une URL simulée avec protocole http:// explicite pour éviter la redirection relative
       return NextResponse.json({
         url: `${SITE_URL}/dashboard/abonnement?success=true&plan=${planId}&simulated=true`,
       });
     } catch (error) {
-      console.error("API subscription/create - Erreur en mode dev:", error);
       return NextResponse.json(
         { error: "Erreur lors de la simulation de paiement" },
         { status: 500 }
@@ -71,9 +55,6 @@ export async function POST(request: NextRequest) {
 
   // Mode production - vérification de Stripe
   if (!stripe) {
-    console.error(
-      "API subscription/create - Stripe n'est pas configuré correctement"
-    );
     return NextResponse.json(
       { error: "Stripe non configuré" },
       { status: 500 }
@@ -83,14 +64,8 @@ export async function POST(request: NextRequest) {
   try {
     const { planId, userId } = await request.json();
 
-    console.log("API subscription/create - Données reçues:", {
-      planId,
-      userId,
-    });
-
     // Vérification du planId
     if (!planId || !["premium", "entreprise"].includes(planId)) {
-      console.error("API subscription/create - Plan invalide:", planId);
       return NextResponse.json({ error: "Plan invalide" }, { status: 400 });
     }
 
@@ -98,17 +73,11 @@ export async function POST(request: NextRequest) {
     const priceId = STRIPE_PRICE_IDS[planId as keyof typeof STRIPE_PRICE_IDS];
 
     if (!priceId) {
-      console.error(
-        "API subscription/create - Prix non trouvé pour le plan:",
-        planId
-      );
       return NextResponse.json(
         { error: "Prix Stripe non configuré pour ce plan" },
         { status: 500 }
       );
     }
-
-    console.log("API subscription/create - Prix Stripe trouvé:", priceId);
 
     // Créer une session de paiement Stripe Checkout
     const session = await stripe.checkout.sessions.create({
@@ -128,14 +97,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log("API subscription/create - Session créée:", session.id);
-
     return NextResponse.json({
       sessionId: session.id,
       url: session.url,
     });
   } catch (error) {
-    console.error("API subscription/create - Erreur:", error);
+    console.error("Erreur Stripe session:", error);
     return NextResponse.json(
       { error: "Erreur lors de la création de la session Stripe" },
       { status: 500 }

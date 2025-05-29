@@ -1,330 +1,223 @@
-# 📊 SaaS Facturation
+# 🚀 SaaS Facturation - Application de facturation moderne
 
-> **Application SaaS de facturation complète avec gestion avancée des utilisateurs, emails automatisés et interface moderne**
+## 📋 Description
 
-Une solution de facturation professionnelle tout-en-un avec gestion multi-utilisateurs, système d'invitations, emails automatisés et interface responsive avec thème sombre/clair.
+Application SaaS de facturation complète construite avec Next.js, Firebase et Stripe. Cette solution moderne permet aux entreprises de gérer facilement leurs clients, factures, abonnements et équipes avec une interface intuitive et des fonctionnalités avancées.
 
-## ✨ Fonctionnalités
+## ✨ Fonctionnalités principales
 
-### 📄 Gestion des factures
+### 🎯 Gestion de facturation
 
-- ✅ Création et édition de factures avec calcul automatique des totaux
-- ✅ Génération de PDF des factures avec templates personnalisés
-- ✅ Suivi des paiements et des échéances
-- ✅ Factures récurrentes/abonnements automatisés
-- ✅ Saisie des prix TTC et calcul automatique HT/TVA
-- ✅ Envoi automatique par email avec templates professionnels
-- ✅ Historique complet des envois et interactions
+- ✅ **Création de factures** avec éditeur moderne
+- ✅ **Gestion des clients** complète avec historique
+- ✅ **Templates personnalisables** avec logo et branding
+- ✅ **Génération PDF automatique** avec modèles professionnels
+- ✅ **Suivi des paiements** et relances automatiques
+- ✅ **Factures récurrentes** avec gestion automatisée
 
-### 👥 Gestion des clients
+### 👥 Collaboration multi-utilisateurs
 
-- ✅ Base de données clients complète avec recherche avancée
-- ✅ Historique des factures par client
-- ✅ Informations de contact et adresses de facturation multiples
-- ✅ Emails secondaires pour l'envoi de factures
-- ✅ Synchronisation automatique des emails par défaut
+- ✅ **Système d'invitations intelligent** avec workflow complet
+- ✅ **Gestion des rôles** (Admin, Éditeur, Visiteur)
+- ✅ **Permissions granulaires** par fonctionnalité
+- ✅ **Activation/désactivation** des utilisateurs
+- ✅ **Suppression sécurisée** avec confirmations
 
-### 🏢 Gestion multi-utilisateurs avancée
+### 📧 Communication professionnelle
 
-- ✅ **Système d'invitations par email** avec workflow complet
-- ✅ **3 niveaux de rôles** : Administrateur, Éditeur, Visiteur
-- ✅ **Page d'invitation dédiée** (`/invitation`) avec authentification intelligente
-- ✅ **Modales modernes** pour toutes les actions utilisateurs
-- ✅ **Gestion des limites** selon le plan d'abonnement
-- ✅ **Activation/désactivation** et suppression sécurisée des utilisateurs
+- ✅ **Envoi d'emails via Resend** (migration EmailJS terminée)
+- ✅ **Templates d'emails personnalisés** pour tous types
+- ✅ **Signatures personnalisées** par utilisateur
+- ✅ **Notifications automatiques** avec centre unifié
+- ✅ **Système de contact commercial** intégré
 
-### 💰 Abonnements et plans
+### 💳 Abonnements et paiements
 
-- ✅ Plans tarifaires différents (Gratuit, Premium, Entreprise)
-- ✅ Gestion des limites selon le plan (factures, clients, utilisateurs)
-- ✅ Interface de changement de plan/abonnement
-- ✅ Paiement par carte bancaire via Stripe
-- ✅ Système de désabonnement et gestion du cycle de vie
+- ✅ **Intégration Stripe complète** pour les paiements
+- ✅ **Plans flexibles** (Gratuit, Premium, Entreprise)
+- ✅ **Gestion des limites** par plan automatisée
+- ✅ **Webhooks Stripe** pour synchronisation temps réel
+- ✅ **Interface de gestion d'abonnement** moderne
 
-### 🔐 Authentification et sécurité
+### 🎨 Interface utilisateur
 
-- ✅ Connexion/inscription avec Google et email/mot de passe
-- ✅ Gestion des profils utilisateurs avec signatures personnalisées
-- ✅ Système de rôles et permissions granulaires
-- ✅ Protection des routes et données par utilisateur
-- ✅ Réinitialisation de mot de passe sécurisée
+- ✅ **Design moderne et responsive** avec Tailwind CSS
+- ✅ **Mode sombre/clair** avec next-themes
+- ✅ **Dashboard interactif** avec graphiques temps réel
+- ✅ **Composants modulaires** et réutilisables
+- ✅ **Notifications toast** et modales élégantes
 
-### 📧 Système d'emails unifié (Resend)
+## 🛠️ Technologies utilisées
 
-- ✅ **Migration complète vers Resend** pour une délivrabilité optimale
-- ✅ **Templates HTML professionnels** pour tous types d'emails
-- ✅ **Emails automatisés** : factures, invitations, confirmations
-- ✅ **Gestion intelligente** : mode développement vs production
-- ✅ **Support multi-destinataires** avec gestion des échecs
-- ✅ **Historique des envois** et tracking des emails
+| Catégorie       | Technologies                                   |
+| --------------- | ---------------------------------------------- |
+| **Frontend**    | Next.js 14, React 18, TypeScript, Tailwind CSS |
+| **Backend**     | Firebase (Firestore, Auth, Functions)          |
+| **Paiements**   | Stripe (Checkout, Webhooks, Subscriptions)     |
+| **Emails**      | Resend API avec templates HTML                 |
+| **PDF**         | jsPDF avec templates personnalisés             |
+| **Déploiement** | Vercel avec optimisations production           |
+| **Thèmes**      | next-themes avec persistance                   |
 
-### 🎨 Interface utilisateur moderne
+## 🚀 Installation et configuration
 
-- ✅ **Design system cohérent** avec composants réutilisables
-- ✅ **Thème sombre/clair** via next-themes
-- ✅ **Interface responsive** pour mobile, tablette et desktop
-- ✅ **Animations et transitions** fluides
-- ✅ **Notifications temps réel** avec centre de notifications
-- ✅ **Modales modernes** avec confirmations sécurisées
+### Prérequis
 
-## 🗂️ Structure des pages
+- Node.js 18+
+- Compte Firebase
+- Compte Stripe
+- Compte Resend
 
-### 🔐 Authentification
-
-- `/login` - Page de connexion (toujours en mode clair)
-- `/invitation` - **[NOUVEAU]** Page d'acceptation d'invitation avec workflow intelligent
-
-### 📊 Dashboard
-
-- `/dashboard` - Tableau de bord avec statistiques et graphiques
-- `/dashboard/clients` - Gestion complète des clients
-- `/dashboard/factures` - Gestion des factures avec envoi email
-- `/dashboard/factures/recurrentes` - Factures récurrentes automatisées
-- `/dashboard/utilisateurs` - **[AMÉLIORÉ]** Gestion avancée des utilisateurs
-- `/dashboard/profil` - **[NOUVEAU]** Gestion du profil avec signatures personnalisées
-- `/dashboard/abonnement` - Gestion de l'abonnement avec contact commercial
-- `/dashboard/parametres` - Configuration de l'entreprise et de l'application
-- `/dashboard/notifications` - Centre de notifications temps réel
-
-### 🌐 Pages publiques
-
-- `/` - Page d'accueil avec présentation du produit
-- `/contact` - Formulaire de contact avec email automatique
-- `/invoice/[token]` - Vue publique partageable des factures
-
-## 🛠️ Configuration technique
-
-### 📋 Prérequis
-
-- **Node.js 18+** et npm/yarn
-- **Compte Firebase** (Firestore, Authentication, Storage)
-- **Compte Resend** pour l'envoi d'emails
-- **Compte Stripe** pour les paiements (optionnel en développement)
-
-### 🚀 Installation
-
-1. **Cloner le dépôt**
+### 1️⃣ Installation
 
 ```bash
-git clone https://github.com/votre-username/saas-facturation.git
-cd saas-facturation
-```
-
-2. **Installer les dépendances**
-
-```bash
+git clone https://github.com/votre-repo/saas-facturation-v1.git
+cd saas-facturation-v1
 npm install
 ```
 
-3. **Configurer les variables d'environnement**
-   Créer un fichier `.env.local` à la racine du projet :
+### 2️⃣ Configuration des variables d'environnement
+
+Créez un fichier `.env.local` :
 
 ```env
-# Configuration Firebase
-NEXT_PUBLIC_FIREBASE_API_KEY=votre_cle_api
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=votre_domaine.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=votre_projet_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=votre_bucket.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=votre_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=votre_app_id
+# Firebase Configuration
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_domain.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_bucket.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 
-# Configuration Resend (pour les emails)
-RESEND_API_KEY=votre_cle_resend
+# Firebase Admin (pour les API)
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
 
-# Configuration Stripe (optionnel)
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=votre_cle_stripe_pub
+# Stripe Configuration
+STRIPE_SECRET_KEY=sk_test_xxxxx
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
+STRIPE_PREMIUM_PRICE_ID=price_xxxxx
+STRIPE_ENTREPRISE_PRICE_ID=price_xxxxx
+STRIPE_FREE_PRICE_ID=price_xxxxx
 
-# URL de base pour les liens d'invitation
+# Resend Configuration
+RESEND_API_KEY=re_xxxxx
+
+# Application URLs
 NEXT_PUBLIC_BASE_URL=http://localhost:3000
+NEXT_PUBLIC_URL=http://localhost:3000
 ```
 
-4. **Démarrer le serveur de développement**
+### 3️⃣ Configuration Firebase
+
+1. Créez un projet Firebase
+2. Activez Authentication (Google, Email/Password)
+3. Configurez Firestore avec les règles appropriées
+4. Générez une clé de service pour Firebase Admin
+
+### 4️⃣ Configuration Stripe
+
+1. Créez des produits et prix dans votre dashboard Stripe
+2. Configurez les webhooks Stripe vers `/api/webhooks/stripe`
+3. Notez les IDs des prix pour vos plans
+
+### 5️⃣ Lancement
 
 ```bash
+# Développement
 npm run dev
-```
 
-L'application sera accessible sur `http://localhost:3000`
-
-### 📧 Configuration du système d'emails (Resend)
-
-**Migration d'EmailJS vers Resend** pour une meilleure délivrabilité :
-
-1. **Créer un compte [Resend](https://resend.com/)**
-2. **Ajouter et vérifier votre domaine** dans Resend
-3. **Générer une clé API** et l'ajouter à `.env.local`
-4. **Configurer les DNS** pour l'authentification des emails
-
-**🎯 Fonctionnalités emails :**
-
-- ✅ **Emails de factures** avec PDF en pièce jointe
-- ✅ **Invitations utilisateurs** avec liens sécurisés
-- ✅ **Contact commercial** avec confirmations automatiques
-- ✅ **Templates responsives** avec design professionnel
-- ✅ **Mode développement** : tous les emails redirigés vers l'adresse vérifiée
-
-### 🔥 Configuration Firebase
-
-1. **Créer un projet Firebase**
-2. **Activer Firestore** et configurer les règles de sécurité
-3. **Activer Authentication** (Google + Email/Password)
-4. **Activer Storage** pour les fichiers PDF
-5. **Importer les règles Firestore** depuis `firestore.rules`
-
-**Structure des collections :**
-
-```
-├── users/{userId}
-├── organizations/{orgId}
-│   └── membres/{userId}
-├── invitations/{invitationId}
-├── factures/{factureId}
-├── clients/{clientId}
-├── parametres/{userId}
-└── notifications/{notificationId}
-```
-
-### 🎨 Configuration des thèmes
-
-L'application utilise **next-themes** pour la gestion des thèmes :
-
-```javascript
-// Thèmes disponibles
-- light (par défaut)
-- dark
-- system (suit le thème de l'OS)
-```
-
-**Note :** La page de login reste toujours en mode clair pour une cohérence visuelle.
-
-## 🚀 Déploiement
-
-### Vercel (Recommandé)
-
-1. **Connecter le dépôt** à Vercel
-2. **Configurer les variables d'environnement** dans le dashboard Vercel
-3. **Déployer automatiquement** à chaque push sur `main`
-
-### Autres plateformes
-
-L'application est compatible avec :
-
-- **Netlify**
-- **Railway**
-- **AWS Amplify**
-- **DigitalOcean App Platform**
-
-## 🔒 Sécurité et bonnes pratiques
-
-### 🛡️ Mesures de sécurité
-
-- ✅ **Authentification sécurisée** via Firebase Auth
-- ✅ **Règles Firestore** strictes pour l'accès aux données
-- ✅ **Protection CSRF** et validation des inputs
-- ✅ **Chiffrement des données** sensibles
-- ✅ **Validation côté serveur** pour toutes les API
-
-### 📋 Bonnes pratiques
-
-- ✅ **Variables d'environnement** pour tous les secrets
-- ✅ **Code splitting** et optimisation des performances
-- ✅ **Tests automatisés** (à implémenter)
-- ✅ **Monitoring des erreurs** avec logging avancé
-- ✅ **Sauvegarde automatique** des données Firestore
-
-## 🧪 Tests et qualité
-
-```bash
-# Lancer les tests (à implémenter)
-npm run test
-
-# Vérifier le linting
-npm run lint
-
-# Construire pour la production
+# Production
 npm run build
+npm start
 ```
 
-## 📚 Technologies utilisées
+## 🌐 Déploiement sur Vercel
 
-### Frontend
+### Déploiement automatique
 
-- **Next.js 14** (App Router)
-- **React 18** avec Hooks
-- **TypeScript** pour la sécurité des types
-- **Tailwind CSS** pour le styling
-- **next-themes** pour la gestion des thèmes
+1. **Connectez votre repository à Vercel**
+2. **Configurez les variables d'environnement** (voir `VERCEL_ENV_SETUP.md`)
+3. **Déployez** automatiquement
 
-### Backend & Services
+### Variables d'environnement Vercel
 
-- **Firebase** (Firestore, Auth, Storage)
-- **Resend** pour les emails
-- **Stripe** pour les paiements
-- **API Routes Next.js** pour les endpoints
+Ajoutez toutes les variables dans le dashboard Vercel :
 
-### Outils de développement
+- Sections : Production, Preview, Development
+- Variables critiques : voir `VERCEL_ENV_SETUP.md`
 
-- **ESLint** et **Prettier** pour la qualité du code
-- **Git** avec conventions de commit
-- **VS Code** avec extensions recommandées
+### Optimisations incluses
 
-## 📞 Support et maintenance
+- ✅ **Build optimisé** avec exclusions intelligentes
+- ✅ **Gestion d'erreurs gracieuse** pour le build
+- ✅ **Variables d'environnement sécurisées**
+- ✅ **Firebase Admin optimisé** pour Vercel
+- ✅ **Suspense boundaries** pour les pages dynamiques
 
-### 🐛 Signaler un bug
+## 📁 Structure du projet
 
-1. Vérifier les [issues existantes](https://github.com/votre-username/saas-facturation/issues)
-2. Créer une nouvelle issue avec le template approprié
-3. Inclure les étapes de reproduction et l'environnement
+```
+src/
+├── app/                    # Pages Next.js App Router
+│   ├── api/               # API Routes
+│   ├── dashboard/         # Interface utilisateur connectée
+│   ├── invitation/        # Page d'invitation utilisateurs
+│   └── login/             # Authentification
+├── components/            # Composants React réutilisables
+│   ├── dashboard/         # Composants spécifiques au dashboard
+│   ├── notifications/     # Système de notifications
+│   └── ui/               # Composants UI génériques
+├── lib/                  # Configuration et utilitaires
+├── services/             # Services métier
+└── types/               # Types TypeScript
+```
 
-### 💡 Proposer une fonctionnalité
+## 🔒 Sécurité
 
-1. Ouvrir une **Feature Request** sur GitHub
-2. Décrire le besoin et l'impact attendu
-3. Proposer une solution si possible
+- ✅ **Authentification Firebase** sécurisée
+- ✅ **Règles Firestore** restrictives
+- ✅ **Validation côté serveur** pour toutes les APIs
+- ✅ **Webhooks Stripe** avec vérification de signature
+- ✅ **Variables d'environnement** protégées
+- ✅ **Permissions utilisateurs** granulaires
 
-### 📧 Contact
+## 📊 Monitoring et performances
 
-- **Email :** support@javachrist.fr
-- **Site web :** [javachrist.fr](https://javachrist.fr)
-- **GitHub :** [@JavaChrist](https://github.com/JavaChrist)
+- ✅ **Logs d'erreurs** minimaux et pertinents
+- ✅ **Code optimisé** sans logs de debug en production
+- ✅ **Gestion d'erreurs** gracieuse partout
+- ✅ **Performance optimisée** avec lazy loading
+- ✅ **Cache intelligent** pour les données fréquentes
 
-## 📈 Roadmap
+## 🆕 Dernières améliorations
 
-### 🎯 Prochaines fonctionnalités
+### ✨ Code Production-Ready
 
-- [ ] **API REST complète** pour intégrations tierces
-- [ ] **Dashboard analytics** avancé avec KPIs
-- [ ] **Exports comptables** (FEC, CSV)
-- [ ] **Multi-devises** et gestion des taux de change
-- [ ] **Mobile app** React Native
-- [ ] **Intégrations** (Zapier, Make, etc.)
+- 🧹 **Nettoyage complet** des logs de debug
+- 🗑️ **Suppression** des fichiers de test inutiles
+- ⚡ **Optimisation** des performances et du build
+- 🔧 **Configuration Vercel** complète et documentée
 
-### 🔄 Améliorations techniques
+### 🎯 Fonctionnalités récentes
 
-- [ ] **Tests unitaires** et d'intégration
-- [ ] **CI/CD** avec GitHub Actions
-- [ ] **Monitoring** avec Sentry
-- [ ] **Performance** avec Web Vitals
-- [ ] **SEO** et optimisation
+- 📧 **Migration Resend** terminée (EmailJS retiré)
+- 👥 **Système d'invitations** complet avec workflow intelligent
+- ✏️ **Signatures personnalisées** pour tous les utilisateurs
+- 🎨 **Thèmes cohérents** avec next-themes dans toute l'app
+- 🚀 **Déploiement optimisé** pour Vercel avec guides complets
+
+## 🤝 Support et maintenance
+
+- 📧 **Support technique** : support@javachrist.fr
+- 📚 **Documentation** : Guides complets inclus
+- 🐛 **Issues** : Via GitHub Issues
+- 🔄 **Mises à jour** : Déploiement continu avec Vercel
 
 ## 📄 Licence
 
-Ce projet est sous licence **MIT** - voir le fichier [LICENSE](LICENSE) pour plus de détails.
-
-## 👨‍💻 Auteur
-
-**Christian Grohens** ([@JavaChrist](https://github.com/JavaChrist))
-
-- 🌐 Site web : [javachrist.fr](https://javachrist.fr)
-- 📧 Email : contact@javachrist.fr
-- 💼 LinkedIn : [Christian Grohens](https://linkedin.com/in/christian-grohens)
+Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 
 ---
 
-<div align="center">
-
-**⭐ Si ce projet vous aide, n'hésitez pas à lui donner une étoile !**
-
-[🚀 Démo en ligne](https://votre-demo.vercel.app) • [📖 Documentation](https://docs.votre-site.com) • [🐛 Signaler un bug](https://github.com/votre-username/saas-facturation/issues)
-
-</div>
+**🎉 Prêt pour la production avec un code propre et optimisé !**

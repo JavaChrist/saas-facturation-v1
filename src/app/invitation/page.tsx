@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import {
@@ -39,7 +39,8 @@ interface Invitation {
 type InvitationStatus = 'loading' | 'valid' | 'expired' | 'used' | 'not-found' | 'error';
 type AuthStatus = 'checking' | 'guest' | 'wrong-email' | 'correct-email';
 
-export default function InvitationPage() {
+// Composant pour le contenu de la page qui utilise useSearchParams
+function InvitationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loginWithGoogle, loginWithEmail, registerWithEmail } = useAuth();
@@ -90,8 +91,6 @@ export default function InvitationPage() {
 
   const verifyInvitation = async () => {
     try {
-      console.log('[INVITATION] Vérification de l\'invitation:', { invitationId, organizationId, invitedEmail });
-
       // Chercher l'invitation dans Firestore
       const invitationsQuery = query(
         collection(db, "invitations"),
@@ -102,7 +101,6 @@ export default function InvitationPage() {
       const querySnapshot = await getDocs(invitationsQuery);
 
       if (querySnapshot.empty) {
-        console.log('[INVITATION] Invitation non trouvée');
         setInvitationStatus('not-found');
         return;
       }
@@ -137,15 +135,13 @@ export default function InvitationPage() {
           setOrganizationName(orgDoc.data().nom || 'Organisation');
         }
       } catch (error) {
-        console.error('[INVITATION] Erreur lors de la récupération de l\'organisation:', error);
         setOrganizationName('Organisation');
       }
 
       setInvitationStatus('valid');
-      console.log('[INVITATION] Invitation valide:', invitationData);
 
     } catch (error) {
-      console.error('[INVITATION] Erreur lors de la vérification:', error);
+      console.error("Erreur vérification invitation:", error);
       setInvitationStatus('error');
     }
   };
@@ -155,7 +151,6 @@ export default function InvitationPage() {
 
     try {
       setLoading(true);
-      console.log('[INVITATION] Acceptation de l\'invitation pour:', user.email);
 
       // Ajouter l'utilisateur à l'organisation
       const memberRef = doc(db, "organizations", organizationId, "membres", user.uid);
@@ -174,15 +169,13 @@ export default function InvitationPage() {
         acceptedBy: user.uid,
       });
 
-      console.log('[INVITATION] Invitation acceptée avec succès');
-
       // Rediriger vers le dashboard
       setTimeout(() => {
         router.push('/dashboard');
       }, 2000);
 
     } catch (error) {
-      console.error('[INVITATION] Erreur lors de l\'acceptation:', error);
+      console.error("Erreur acceptation invitation:", error);
       setError('Erreur lors de l\'acceptation de l\'invitation');
     } finally {
       setLoading(false);
@@ -482,5 +475,23 @@ export default function InvitationPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Composant principal exporté avec Suspense
+export default function InvitationPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
+            <p className="text-text-light dark:text-text-dark">Chargement de l'invitation...</p>
+          </div>
+        </div>
+      }
+    >
+      <InvitationContent />
+    </Suspense>
   );
 } 

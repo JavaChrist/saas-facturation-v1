@@ -38,8 +38,6 @@ export const emailService = {
         };
       }
 
-      console.log("[EMAIL-SERVICE] 📧 Envoi demande commerciale:", { name, email });
-
       // Créer un ID unique pour la demande
       const requestId = `request_${new Date().getTime()}_${Math.random().toString(36).substring(2, 11)}`;
 
@@ -62,8 +60,6 @@ export const emailService = {
           },
         });
 
-        console.log("[EMAIL-SERVICE] ✅ Demande enregistrée dans Firestore");
-
         // Envoyer l'email via l'API Resend
         const response = await fetch('/api/send-email', {
           method: 'POST',
@@ -84,18 +80,16 @@ export const emailService = {
           throw new Error(result.message || 'Erreur lors de l\'envoi de l\'email');
         }
 
-        console.log("[EMAIL-SERVICE] ✅ Email envoyé via Resend:", result);
-
         return {
           success: true,
           message: `Votre demande a été envoyée avec succès. Notre équipe commerciale vous contactera prochainement.`,
         };
       } catch (dbError) {
-        console.error("[EMAIL-SERVICE] ❌ Erreur lors de l'enregistrement:", dbError);
+        console.error("Erreur enregistrement contact:", dbError);
         throw dbError;
       }
     } catch (error: any) {
-      console.error("[EMAIL-SERVICE] ❌ Erreur lors de l'envoi:", error);
+      console.error("Erreur envoi contact:", error);
       return {
         success: false,
         message: error.message || "Erreur lors de l'envoi de la demande",
@@ -124,8 +118,6 @@ export const emailService = {
         };
       }
 
-      console.log("[EMAIL-SERVICE] 📧 Envoi invitation:", { email, organizationId, role });
-
       // Créer un ID unique pour l'invitation
       const invitationId = `inv_${new Date().getTime()}_${Math.random().toString(36).substring(2, 11)}`;
 
@@ -152,8 +144,6 @@ export const emailService = {
           createdBy: currentUser.uid,
         });
 
-        console.log("[EMAIL-SERVICE] ✅ Invitation enregistrée dans Firestore");
-
         // Envoyer l'email d'invitation via l'API Resend
         const response = await fetch('/api/send-email', {
           method: 'POST',
@@ -176,18 +166,16 @@ export const emailService = {
           throw new Error(result.message || 'Erreur lors de l\'envoi de l\'invitation');
         }
 
-        console.log("[EMAIL-SERVICE] ✅ Invitation envoyée via Resend:", result);
-
         return {
           success: true,
           message: `Invitation envoyée avec succès à ${email}.`,
         };
       } catch (dbError) {
-        console.error("[EMAIL-SERVICE] ❌ Erreur lors de l'enregistrement:", dbError);
+        console.error("Erreur enregistrement invitation:", dbError);
         throw dbError;
       }
     } catch (error: any) {
-      console.error("[EMAIL-SERVICE] ❌ Erreur lors de l'envoi:", error);
+      console.error("Erreur envoi invitation:", error);
       return {
         success: false,
         message: error.message || "Erreur lors de l'envoi de l'invitation",

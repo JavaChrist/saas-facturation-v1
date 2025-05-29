@@ -44,8 +44,6 @@ function LoginContent() {
 
       // Mettre à jour la clé pour forcer le remontage
       setFormKey(Date.now());
-
-      console.log("Formulaires réinitialisés");
     }, 0);
   };
 
@@ -213,28 +211,23 @@ function LoginContent() {
   // Effet pour rediriger l'utilisateur connecté
   useEffect(() => {
     if (user && !loading) {
-      console.log("LoginPage - Utilisateur connecté, redirection");
-
       // Vérifier s'il y a une URL stockée dans localStorage
       const storedRedirectUrl = localStorage.getItem("authRedirectUrl");
 
       // Si un chemin de redirection est présent dans l'URL, l'utiliser
       if (redirectPath) {
-        console.log("LoginPage - Redirection vers URL du paramètre:", redirectPath);
         router.push(redirectPath);
         // Nettoyer le localStorage après utilisation
         localStorage.removeItem("authRedirectUrl");
       }
       // Sinon utiliser l'URL stockée dans localStorage si disponible
       else if (storedRedirectUrl) {
-        console.log("LoginPage - Redirection vers URL stockée:", storedRedirectUrl);
         router.push(storedRedirectUrl);
         // Nettoyer le localStorage après utilisation
         localStorage.removeItem("authRedirectUrl");
       }
       // Redirection par défaut au dashboard
       else {
-        console.log("LoginPage - Redirection vers dashboard (par défaut)");
         router.push("/dashboard");
       }
     }
@@ -244,7 +237,6 @@ function LoginContent() {
   useEffect(() => {
     const justLoggedOut = sessionStorage.getItem("just_logged_out");
     if (justLoggedOut) {
-      console.log("Détection de déconnexion récente - purge forcée");
       sessionStorage.removeItem("just_logged_out");
       resetAllForms();
       setError(null);
@@ -256,7 +248,6 @@ function LoginContent() {
   useEffect(() => {
     return () => {
       if (!user) {
-        console.log("Marquage de déconnexion récente");
         sessionStorage.setItem("just_logged_out", "true");
       }
     };
@@ -265,7 +256,6 @@ function LoginContent() {
   // Effet pour purger les formulaires au montage
   useEffect(() => {
     resetAllForms();
-    console.log("Réinitialisation des formulaires au montage");
   }, []);
 
   // Affichage de la redirection si l'utilisateur est connecté

@@ -9,8 +9,12 @@ import {
   getDoc,
   updateDoc,
   setDoc,
+  deleteDoc,
+  orderBy,
+  onSnapshot
 } from "firebase/firestore";
 import { checkPlanLimit, getUserPlan } from "@/services/subscriptionService";
+import { User } from 'firebase/auth';
 
 // Interface pour un utilisateur de l'organisation
 export interface OrganizationUser {
@@ -22,6 +26,20 @@ export interface OrganizationUser {
   organizationId: string;
   isActive: boolean;
   isDeleted?: boolean;
+}
+
+export interface Member {
+  id: string;
+  email: string;
+  nomAffichage: string;
+  role: string;
+  dateAjout: any;
+  actif: boolean;
+}
+
+export interface NewUser {
+  email: string;
+  role: string;
 }
 
 /**
@@ -402,5 +420,57 @@ const mapRoleToEnglish = (role: string): "admin" | "editor" | "viewer" => {
       return "viewer";
     default:
       return "viewer";
+  }
+};
+
+// Fonction pour récupérer la liste des membres en temps réel
+export const getMembers = (organizationId: string, callback: (members: Member[]) => void) => {
+  const membersCollection = collection(db, "organizations", organizationId, "membres");
+  const membersQuery = query(membersCollection, orderBy("dateAjout", "desc"));
+
+  return onSnapshot(membersQuery, (snapshot) => {
+    const members: Member[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      members.push({
+        id: doc.id,
+        email: data.email,
+        nomAffichage: data.nomAffichage,
+        role: data.role,
+        dateAjout: data.dateAjout,
+        actif: data.actif ?? true,
+      });
+    });
+    callback(members);
+  }, (error) => {
+    console.error("Erreur récupération membres:", error);
+    callback([]);
+  });
+};
+
+// Fonction pour récupérer les utilisateurs d'une organisation
+export const getUsers = async (organizationId: string): Promise<Member[]> => {
+  try {
+    const membersCollection = collection(db, "organizations", organizationId, "membres");
+    const membersQuery = query(membersCollection, orderBy("dateAjout", "desc"));
+    const snapshot = await getDocs(membersQuery);
+
+    const users: Member[] = [];
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      users.push({
+        id: doc.id,
+        email: data.email,
+        nomAffichage: data.nomAffichage,
+        role: data.role,
+        dateAjout: data.dateAjout,
+        actif: data.actif ?? true,
+      });
+    });
+
+    return users;
+  } catch (error) {
+    console.error("Erreur récupération utilisateurs:", error);
+    throw error;
   }
 };

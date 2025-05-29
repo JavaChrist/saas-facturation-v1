@@ -1,0 +1,29 @@
+# Fichiers de développement
+*.md
+!README.md
+.env.local
+.env.example
+
+# Firebase functions (ne pas déployer avec l'app Next.js)
+functions/
+firebase.json
+.firebaserc
+
+# Fichiers de test et développement
+*.test.ts
+*.test.js
+test/
+tests/
+
+# Documentation et guides
+GUIDE-*.md
+VERCEL_ENV_SETUP.md
+
+# Logs et cache
+*.log
+.next/cache
+node_modules/.cache
+
+# Fichiers temporaires
+*.tmp
+*.temp 

@@ -29,11 +29,13 @@ import { getUserPlan } from "@/services/subscriptionService";
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const router = useRouter();
+
   const [dateRange, setDateRange] = useState<DateRange>({
-    startDate: new Date(new Date().getFullYear(), 0, 1), // 1er janvier de l'année en cours
+    startDate: new Date(new Date().getFullYear(), 0, 1),
     endDate: new Date(),
     label: "Cette année",
   });
+
   const [userPlanInfo, setUserPlanInfo] = useState<{
     planId: string;
     planName: string;
@@ -53,280 +55,53 @@ export default function Dashboard() {
     }
   }, [user, router]);
 
-  // Récupérer le plan de l'utilisateur
+  // Récupération du plan utilisateur
   useEffect(() => {
-    if (user) {
-      const fetchUserPlan = async () => {
-        try {
-          console.log(
-            "[DEBUG-DASHBOARD] Début de fetchUserPlan pour",
-            user.uid
-          );
+    if (!user) return;
 
-          // Vérifier si nous sommes en mode développement
-          if (
-            process.env.NODE_ENV === "development" &&
-            typeof window !== "undefined"
-          ) {
-            // Vérifier si un changement de plan vient d'avoir lieu
-            const planJustChanged = sessionStorage.getItem("planJustChanged");
-            if (planJustChanged === "true") {
-              console.log(
-                "[DEBUG-DASHBOARD] Détection d'un changement de plan récent"
-              );
-              const planId = sessionStorage.getItem("planId");
-              console.log(
-                "[DEBUG-DASHBOARD] Plan ID récemment changé:",
-                planId
-              );
+    const fetchUserPlan = async () => {
+      try {
+        const plan = await getUserPlan(user.uid);
 
-              // Réinitialiser le drapeau pour ne pas entrer dans cette condition à chaque fois
-              sessionStorage.removeItem("planJustChanged");
-
-              if (planId) {
-                // Construction du plan correspondant
-                let planName = "Gratuit";
-                let planColor = "gray";
-                let planIcon = <FiStar className="text-gray-400" />;
-
-                if (planId === "premium") {
-                  planName = "Premium";
-                  planColor = "blue";
-                  planIcon = <FiAward className="text-blue-400" />;
-                } else if (planId === "enterprise" || planId === "entreprise") {
-                  planName = "Entreprise";
-                  planColor = "purple";
-                  planIcon = <FiShield className="text-purple-400" />;
-                }
-
-                // Application immédiate du plan
-                setUserPlanInfo({
-                  planId: planId,
-                  planName,
-                  planColor,
-                  planIcon,
-                });
-
-                console.log(
-                  "[DEBUG-DASHBOARD] Plan appliqué suite au changement:",
-                  {
-                    planId,
-                    planName,
-                    planColor,
-                  }
-                );
-
-                return;
-              }
-            }
-
-            // Vérifier en priorité le dernier plan utilisé (marqueur fiable introduit récemment)
-            const lastUsedPlanId =
-              localStorage.getItem("lastUsedPlanId") ||
-              sessionStorage.getItem("lastUsedPlanId");
-
-            if (lastUsedPlanId) {
-              console.log(
-                "[DEBUG-DASHBOARD] Dernier plan utilisé détecté:",
-                lastUsedPlanId
-              );
-
-              // Construction d'un plan correspondant à l'identifiant directement
-              let planName = "Gratuit";
-              let planColor = "gray";
-              let planIcon = <FiStar className="text-gray-400" />;
-
-              if (lastUsedPlanId === "premium") {
-                console.log(
-                  "[DEBUG-DASHBOARD] Utilisation forcée du plan Premium"
-                );
-                planName = "Premium";
-                planColor = "blue";
-                planIcon = <FiAward className="text-blue-400" />;
-              } else if (lastUsedPlanId === "enterprise" || lastUsedPlanId === "entreprise") {
-                console.log(
-                  "[DEBUG-DASHBOARD] Utilisation forcée du plan Entreprise"
-                );
-                planName = "Entreprise";
-                planColor = "purple";
-                planIcon = <FiShield className="text-purple-400" />;
-              }
-
-              // Application immédiate du plan
-              setUserPlanInfo({
-                planId: lastUsedPlanId,
-                planName,
-                planColor,
-                planIcon,
-              });
-
-              console.log("[DEBUG-DASHBOARD] Plan appliqué directement:", {
-                planId: lastUsedPlanId,
-                planName,
-                planColor,
-              });
-
-              // Ne pas continuer le traitement
-              return;
-            }
-          }
-
-          // Si aucun plan n'a été trouvé dans le localStorage, utiliser le service normal
-          console.log(
-            "[DEBUG-DASHBOARD] Aucun plan trouvé dans localStorage, utilisation du service standard"
-          );
-          const plan = await getUserPlan(user.uid);
-
-          let planName = "Gratuit";
-          let planColor = "gray";
-          let planIcon = <FiStar className="text-gray-400" />;
-
-          if (plan.planId === "premium") {
-            planName = "Premium";
-            planColor = "blue";
-            planIcon = <FiAward className="text-blue-400" />;
-          } else if (plan.planId === "enterprise" || plan.planId === "entreprise") {
-            planName = "Entreprise";
-            planColor = "purple";
-            planIcon = <FiShield className="text-purple-400" />;
-          }
-
-          setUserPlanInfo({
-            planId: plan.planId,
-            planName,
-            planColor,
-            planIcon,
-          });
-
-          console.log("[DEBUG-DASHBOARD] Plan récupéré via le service:", plan);
-        } catch (error) {
-          console.error(
-            "[DEBUG-DASHBOARD] Erreur lors de la récupération du plan:",
-            error
-          );
-        }
-      };
-
-      fetchUserPlan();
-    }
-  }, [user]);
-
-  // Optimiser la vérification forcée du plan pour qu'elle n'ait lieu qu'au montage initial
-  useEffect(() => {
-    if (user && typeof window !== "undefined") {
-      console.log(
-        "[DEBUG-DASHBOARD] Vérification forcée du plan au chargement"
-      );
-
-      // Ajouter des logs pour le débogage en production
-      console.log('[DEBUG-PRODUCTION] ---- DÉBUT INFO PLANS ----');
-      console.log('[DEBUG-PRODUCTION] localStorage items:');
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key) {
-          try {
-            const value = localStorage.getItem(key);
-            console.log(`[DEBUG-PRODUCTION] ${key}: ${value}`);
-          } catch (e) {
-            console.log(`[DEBUG-PRODUCTION] ${key}: <erreur de lecture>`);
-          }
-        }
-      }
-
-      console.log('[DEBUG-PRODUCTION] sessionStorage items:');
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key) {
-          try {
-            const value = sessionStorage.getItem(key);
-            console.log(`[DEBUG-PRODUCTION] ${key}: ${value}`);
-          } catch (e) {
-            console.log(`[DEBUG-PRODUCTION] ${key}: <erreur de lecture>`);
-          }
-        }
-      }
-
-      console.log('[DEBUG-PRODUCTION] Plan actuel: ', userPlanInfo);
-      console.log('[DEBUG-PRODUCTION] ---- FIN INFO PLANS ----');
-
-      // Vérifier si l'URL contient un paramètre forceUpdate
-      const hasForceUpdate = window.location.href.includes("forceUpdate");
-
-      if (hasForceUpdate) {
-        console.log(
-          "[DEBUG-DASHBOARD] Paramètre forceUpdate détecté, nettoyage du paramètre"
-        );
-        // Nettoyer l'URL des paramètres temporaires
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
-      }
-
-      // Vérifier le plan dans les différents stockages
-      const storageKeys = ["lastUsedPlanId", "currentPlanId", "planId"];
-      let detectedPlanId = null;
-
-      // Chercher dans les différentes clés possibles
-      for (const key of storageKeys) {
-        const value = localStorage.getItem(key) || sessionStorage.getItem(key);
-        if (value) {
-          detectedPlanId = value;
-          console.log(`[DEBUG-DASHBOARD] Plan détecté via ${key}:`, value);
-          break;
-        }
-      }
-
-      if (detectedPlanId && detectedPlanId !== userPlanInfo.planId) {
-        // Mettre à jour immédiatement le plan affiché
         let planName = "Gratuit";
         let planColor = "gray";
         let planIcon = <FiStar className="text-gray-400" />;
 
-        if (detectedPlanId === "premium") {
+        if (plan.planId === "premium") {
           planName = "Premium";
           planColor = "blue";
           planIcon = <FiAward className="text-blue-400" />;
-        } else if (detectedPlanId === "enterprise" || detectedPlanId === "entreprise") {
+        } else if (plan.planId === "enterprise" || plan.planId === "entreprise") {
           planName = "Entreprise";
           planColor = "purple";
           planIcon = <FiShield className="text-purple-400" />;
         }
 
         setUserPlanInfo({
-          planId: detectedPlanId,
+          planId: plan.planId,
           planName,
           planColor,
           planIcon,
         });
-
-        console.log(
-          "[DEBUG-DASHBOARD] Plan mis à jour lors du chargement forcé:",
-          {
-            planId: detectedPlanId,
-            planName,
-            planColor,
-          }
-        );
+      } catch (error) {
+        console.error("Erreur récupération plan:", error);
       }
-    }
+    };
+
+    fetchUserPlan();
   }, [user]);
 
   const handleDateChange = (newDateRange: DateRange) => {
     setDateRange(newDateRange);
   };
 
-  // Fonction de déconnexion améliorée
   const handleLogout = async () => {
     try {
-      // Marquer qu'une déconnexion vient de se produire
       sessionStorage.setItem("just_logged_out", "true");
-
-      // Exécuter la déconnexion
       await logout();
-
-      // Rediriger vers la page de connexion
       router.push("/login");
     } catch (error) {
-      console.error("Erreur lors de la déconnexion:", error);
+      console.error("Erreur déconnexion:", error);
     }
   };
 
@@ -459,22 +234,19 @@ export default function Dashboard() {
           <DashboardStats user={user} dateRange={dateRange} />
         </div>
 
-        {/* Graphiques de statut des factures */}
         <div className="mb-8">
           <InvoiceStatusChart dateRange={dateRange} />
         </div>
 
-        {/* Graphique de chiffre d'affaires */}
         <div className="mb-8">
           <RevenueChart dateRange={dateRange} />
         </div>
 
-        {/* Graphique d'évolution des clients */}
         <div className="mb-8">
           <ClientsChart dateRange={dateRange} />
         </div>
 
-        {/* Navigation */}
+        {/* Navigation cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Link
             href="/dashboard/clients"

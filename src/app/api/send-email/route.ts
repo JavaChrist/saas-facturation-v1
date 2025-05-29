@@ -11,9 +11,6 @@ export async function POST(request: NextRequest) {
   try {
     const { type, ...data } = await request.json();
 
-    console.log(`[EMAIL-API] 📧 Traitement du type: ${type}`);
-    console.log(`[EMAIL-API] 🔧 Mode: ${isDevelopment ? "développement" : "production"}`);
-
     let emailResponse;
 
     switch (type) {
@@ -32,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(emailResponse);
   } catch (error) {
-    console.error("[EMAIL-API] ❌ Erreur:", error);
+    console.error("Erreur API email:", error);
     return NextResponse.json(
       { success: false, message: "Erreur lors de l'envoi de l'email" },
       { status: 500 }
@@ -48,11 +45,6 @@ async function sendContactEmail(data: {
 }) {
   try {
     const { name, email, message } = data;
-
-    console.log(`[EMAIL-API] 📧 Contact de ${name} (${email})`);
-    if (isDevelopment) {
-      console.log(`[EMAIL-API] 🔧 Mode dev: redirection vers ${FORCE_TEST_EMAIL}`);
-    }
 
     // Template pour l'équipe commerciale
     const adminEmailContent = `
@@ -174,8 +166,6 @@ async function sendContactEmail(data: {
       replyTo: email,
     });
 
-    console.log("[EMAIL-API] ✅ Email équipe commerciale envoyé:", adminResult);
-
     // Envoyer l'email de confirmation au client (forcé vers test en dev)
     const clientResult = await resend.emails.send({
       from: "onboarding@resend.dev",
@@ -183,8 +173,6 @@ async function sendContactEmail(data: {
       subject: `✅ Confirmation de votre demande - Facturation SaaS`,
       html: clientEmailContent,
     });
-
-    console.log("[EMAIL-API] ✅ Email confirmation client envoyé:", clientResult);
 
     return {
       success: true,
@@ -199,7 +187,7 @@ async function sendContactEmail(data: {
     };
 
   } catch (error) {
-    console.error("[EMAIL-API] ❌ Erreur envoi contact:", error);
+    console.error("Erreur envoi contact:", error);
     throw error;
   }
 }
@@ -214,11 +202,6 @@ async function sendInvitationEmail(data: {
 }) {
   try {
     const { email, organizationId, role, invitationId, inviterName = "L'équipe" } = data;
-
-    console.log(`[EMAIL-API] 📧 Invitation pour ${email}`);
-    if (isDevelopment) {
-      console.log(`[EMAIL-API] 🔧 Mode dev: redirection vers ${FORCE_TEST_EMAIL}`);
-    }
 
     const roleFrench = role === 'admin' ? 'Administrateur' : role === 'editor' ? 'Éditeur' : 'Visiteur';
     const invitationLink = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/invitation?id=${invitationId}&org=${organizationId}&email=${encodeURIComponent(email)}`;
@@ -307,8 +290,6 @@ async function sendInvitationEmail(data: {
       html: invitationEmailContent,
     });
 
-    console.log("[EMAIL-API] ✅ Email invitation envoyé:", result);
-
     return {
       success: true,
       message: isDevelopment
@@ -321,7 +302,7 @@ async function sendInvitationEmail(data: {
     };
 
   } catch (error) {
-    console.error("[EMAIL-API] ❌ Erreur envoi invitation:", error);
+    console.error("Erreur envoi invitation:", error);
     throw error;
   }
 } 

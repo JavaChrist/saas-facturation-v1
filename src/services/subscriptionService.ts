@@ -31,21 +31,21 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
   try {
     // Vérifier si nous sommes sur Vercel en production
     const isVercelProduction = process.env.VERCEL_ENV === "production";
-    
+
     // Mode développement - retourner un plan factice si la collection users n'existe pas
     const isDevelopment = process.env.NODE_ENV === "development";
 
     // En mode client (navigateur), vérifier si un paiement est validé
-    const isPaymentVerified = typeof window !== "undefined" ? 
+    const isPaymentVerified = typeof window !== "undefined" ?
       sessionStorage.getItem("paymentVerified") === "true" : false;
-    
+
     // Vérifier si l'utilisateur est admin
     const isAdmin = ADMIN_USERS.includes(userId);
-    
+
     // Vérifier s'il y a un changement de plan en attente (non validé)
-    const hasPendingPlan = typeof window !== "undefined" ? 
+    const hasPendingPlan = typeof window !== "undefined" ?
       sessionStorage.getItem("pendingPlanChange") === "true" : false;
-    
+
     // Si changement en attente sans vérification de paiement, et utilisateur non admin,
     // réinitialiser au plan gratuit par défaut
     if (hasPendingPlan && !isPaymentVerified && !isAdmin && typeof window !== "undefined") {
@@ -53,11 +53,11 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
       const previousPlanId = localStorage.getItem("previousPlanId") || "gratuit";
       localStorage.setItem("lastUsedPlanId", previousPlanId);
       sessionStorage.setItem("lastUsedPlanId", previousPlanId);
-      
+
       // Nettoyer les variables temporaires
       sessionStorage.removeItem("pendingPlanId");
       sessionStorage.removeItem("pendingPlanChange");
-      
+
       console.log("Remise au plan précédent car paiement non vérifié:", previousPlanId);
     }
 
@@ -68,15 +68,15 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
         const userId_plan_map: Record<string, string> = {
           "oq10PAIePPXMVgFX82tlXu67oVx2": "enterprise"
         };
-        
+
         // Si l'utilisateur est dans la liste des utilisateurs avec plan forcé
-        if (userId_plan_map[userId]) {          
+        if (userId_plan_map[userId]) {
           const forcedPlanId = userId_plan_map[userId];
-          
+
           // Forcer la création d'un plan Entreprise
           const dateStart = new Date();
           const dateEnd = new Date(dateStart.getTime() + 30 * 24 * 60 * 60 * 1000);
-          
+
           const vercelForcedPlan = {
             planId: forcedPlanId,
             isActive: true,
@@ -86,12 +86,12 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
             stripeCustomerId: "vercel_cus_" + Math.random().toString(36).substring(2, 11),
             limites: {
               clients: -1,
-              factures: -1,  
+              factures: -1,
               modeles: -1,
               utilisateurs: 10,
             },
           };
-          
+
           // Sauvegarder le plan forcé dans tous les stockages disponibles
           try {
             const planJSON = JSON.stringify(vercelForcedPlan);
@@ -105,7 +105,7 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
           } catch (e) {
             console.error("Erreur lors de la sauvegarde du plan forcé:", e);
           }
-          
+
           return vercelForcedPlan;
         }
       }
@@ -137,26 +137,26 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
                 lastUsedPlanId === "premium"
                   ? 50
                   : lastUsedPlanId === "enterprise" || lastUsedPlanId === "entreprise"
-                  ? -1
-                  : 5,
+                    ? -1
+                    : 5,
               factures:
                 lastUsedPlanId === "premium"
                   ? -1
                   : lastUsedPlanId === "enterprise" || lastUsedPlanId === "entreprise"
-                  ? -1
-                  : 5,
+                    ? -1
+                    : 5,
               modeles:
                 lastUsedPlanId === "premium"
                   ? 5
                   : lastUsedPlanId === "enterprise" || lastUsedPlanId === "entreprise"
-                  ? -1
-                  : 1,
+                    ? -1
+                    : 1,
               utilisateurs:
                 lastUsedPlanId === "premium"
                   ? 2
                   : lastUsedPlanId === "enterprise" || lastUsedPlanId === "entreprise"
-                  ? 10
-                  : 1,
+                    ? 10
+                    : 1,
             },
           };
 
@@ -209,26 +209,26 @@ export const getUserPlan = async (userId: string): Promise<UserPlan> => {
                     planId === "premium"
                       ? 50
                       : planId === "enterprise" || planId === "entreprise"
-                      ? -1
-                      : 5,
+                        ? -1
+                        : 5,
                   factures:
                     planId === "premium"
                       ? -1
                       : planId === "enterprise" || planId === "entreprise"
-                      ? -1
-                      : 5,
+                        ? -1
+                        : 5,
                   modeles:
-                    planId === "premium" 
-                      ? 5 
-                      : planId === "enterprise" || planId === "entreprise" 
-                      ? -1 
-                      : 1,
+                    planId === "premium"
+                      ? 5
+                      : planId === "enterprise" || planId === "entreprise"
+                        ? -1
+                        : 1,
                   utilisateurs:
-                    planId === "premium" 
-                      ? 2 
-                      : planId === "enterprise" || planId === "entreprise" 
-                      ? 10 
-                      : 1,
+                    planId === "premium"
+                      ? 2
+                      : planId === "enterprise" || planId === "entreprise"
+                        ? 10
+                        : 1,
                 },
               };
 
@@ -470,29 +470,29 @@ export const hasUserPlan = async (userId: string, planId: string): Promise<boole
     const userRef = doc(db, "users", userId);
     const userDoc = await getDoc(userRef);
     const userData = userDoc.exists() ? userDoc.data() : null;
-    
+
     // Si c'est un administrateur par ID ou un email admin demandant le plan Enterprise, toujours permettre l'accès
-    if ((ADMIN_USERS.includes(userId) || (userData?.email && isAdminEmail(userData.email))) && 
-        (planId === "enterprise" || planId === "entreprise")) {
+    if ((ADMIN_USERS.includes(userId) || (userData?.email && isAdminEmail(userData.email))) &&
+      (planId === "enterprise" || planId === "entreprise")) {
       return false; // Retourne false pour permettre de "s'abonner" (même si c'est gratuit)
     }
-    
+
     // Récupérer le plan actuel de l'utilisateur depuis Firebase
     if (userDoc.exists() && userDoc.data().subscription) {
       const subscription = userDoc.data().subscription;
-      
+
       // Vérifier si le plan actuel correspond au plan demandé
       if (subscription.planId === planId) {
         return true;
       }
-      
+
       // Standardiser les noms des plans enterprise/entreprise
-      if ((subscription.planId === "enterprise" || subscription.planId === "entreprise") && 
-          (planId === "enterprise" || planId === "entreprise")) {
+      if ((subscription.planId === "enterprise" || subscription.planId === "entreprise") &&
+        (planId === "enterprise" || planId === "entreprise")) {
         return true;
       }
     }
-    
+
     return false;
   } catch (error) {
     console.error("Erreur lors de la vérification du plan:", error);
@@ -513,7 +513,7 @@ export const changePlanDev = async (userId: string, newPlanId: string, userEmail
 
     // Vérifier si l'utilisateur est administrateur
     const isUserAdmin = ADMIN_USERS.includes(userId) || (userEmail && isAdminEmail(userEmail));
-    
+
     // Si l'utilisateur n'est pas admin et essaie d'accéder à un plan payant sans preuve de paiement,
     // ne pas autoriser le changement mais créer un abonnement temporaire
     if (!isUserAdmin && (newPlanId === "premium" || newPlanId === "enterprise" || newPlanId === "entreprise")) {
@@ -522,15 +522,15 @@ export const changePlanDev = async (userId: string, newPlanId: string, userEmail
         // Mémoriser la tentative mais sans confirmer l'activation
         sessionStorage.setItem("pendingPlanId", newPlanId);
         sessionStorage.setItem("pendingPlanChange", "true");
-        
+
         // Ne pas définir lastUsedPlanId ou planId pour éviter la persistance du plan
         console.log(`Tentative de passage au plan ${newPlanId} en attente de validation de paiement`);
       }
-      
+
       // Retourner true pour que l'UI continue le processus vers Stripe
       return true;
     }
-    
+
     // Définir les limites en fonction du plan
     let limites = {
       clients: 5,
@@ -553,15 +553,15 @@ export const changePlanDev = async (userId: string, newPlanId: string, userEmail
         modeles: -1,
         utilisateurs: 10,
       };
-      
+
       // Standardiser le nom du plan enterprise
       newPlanId = "enterprise";
     }
-    
+
     // Créer un objet de plan complet
     const dateStart = new Date();
     const dateEnd = new Date(dateStart.getTime() + 30 * 24 * 60 * 60 * 1000);
-    
+
     const userSubscription = {
       planId: newPlanId,
       isActive: true,
@@ -573,14 +573,14 @@ export const changePlanDev = async (userId: string, newPlanId: string, userEmail
       limites: limites,
       lastUpdated: new Date()
     };
-    
+
     // Toujours mettre à jour Firebase, même en développement
     try {
       const userRef = doc(db, "users", userId);
-      
+
       // Vérifier si l'utilisateur existe déjà
       const userDoc = await getDoc(userRef);
-      
+
       if (userDoc.exists()) {
         // Mettre à jour l'utilisateur existant
         await updateDoc(userRef, {
@@ -589,10 +589,10 @@ export const changePlanDev = async (userId: string, newPlanId: string, userEmail
         });
       } else {
         // Créer un nouvel utilisateur
-        
+
         // Utiliser l'email fourni ou une valeur par défaut
         const email = userEmail || "user@example.com";
-        
+
         await setDoc(userRef, {
           subscription: userSubscription,
           email: email,
@@ -618,7 +618,7 @@ export const changePlanDev = async (userId: string, newPlanId: string, userEmail
         stripeCustomerId: "cus_sim_" + Math.random().toString(36).substring(2, 11),
         limites: limites
       };
-      
+
       // Stocker l'objet complet et l'ID du plan
       const planJSON = JSON.stringify(planObject);
       localStorage.setItem("devUserPlan", planJSON);
@@ -644,23 +644,23 @@ export const setAdminPlan = async (userId: string, userEmail?: string): Promise<
   try {
     // Vérifier si l'utilisateur est déjà dans la liste des administrateurs ou a un email administrateur
     const isAuthorizedAdmin = ADMIN_USERS.includes(userId) || (userEmail && isAdminEmail(userEmail));
-    
+
     // En mode production, ne permettre l'élévation qu'aux utilisateurs déjà autorisés
     if (process.env.NODE_ENV !== "development" && !isAuthorizedAdmin) {
       console.error("Tentative non autorisée de définir un compte administrateur:", userId, userEmail);
       return false;
     }
-    
+
     // En mode développement, n'autoriser que les emails d'administrateur
     if (process.env.NODE_ENV === "development" && userEmail && !isAdminEmail(userEmail)) {
       console.error("Email non autorisé pour devenir administrateur:", userEmail);
       return false;
     }
-    
+
     // Création d'une date d'expiration lointaine (10 ans)
     const today = new Date();
     const farFuture = new Date(today.getFullYear() + 10, today.getMonth(), today.getDate());
-    
+
     // Créer un objet de plan admin
     const adminSubscription = {
       planId: "enterprise",
@@ -678,14 +678,14 @@ export const setAdminPlan = async (userId: string, userEmail?: string): Promise<
       },
       lastUpdated: today
     };
-    
+
     // Mettre à jour Firebase
     try {
       const userRef = doc(db, "users", userId);
-      
+
       // Vérifier si l'utilisateur existe déjà
       const userDoc = await getDoc(userRef);
-      
+
       if (userDoc.exists()) {
         // Mettre à jour l'utilisateur existant
         await updateDoc(userRef, {
@@ -695,10 +695,10 @@ export const setAdminPlan = async (userId: string, userEmail?: string): Promise<
         });
       } else {
         // Créer un nouvel utilisateur admin
-        
+
         // Utiliser l'email fourni ou une valeur par défaut
         const email = userEmail || "admin@example.com";
-        
+
         await setDoc(userRef, {
           subscription: adminSubscription,
           email: email,
@@ -731,7 +731,7 @@ export const setAdminPlan = async (userId: string, userEmail?: string): Promise<
           utilisateurs: -1,
         }
       };
-      
+
       // Stocker l'objet complet et l'ID du plan
       const planJSON = JSON.stringify(planObject);
       localStorage.setItem("devUserPlan", planJSON);
@@ -761,18 +761,18 @@ export const cancelSubscription = async (userId: string): Promise<boolean> => {
     if (ADMIN_USERS.includes(userId)) {
       return false;
     }
-    
+
     // Récupérer les informations actuelles de l'utilisateur
     const userRef = doc(db, "users", userId);
     const userDoc = await getDoc(userRef);
-    
+
     if (userDoc.exists() && userDoc.data().subscription) {
       const subscription = userDoc.data().subscription;
-      
+
       // Si l'utilisateur a un abonnement Stripe réel, il faudrait l'annuler via l'API Stripe
-      if (subscription.stripeSubscriptionId && 
-          !subscription.stripeSubscriptionId.startsWith("sim_") &&
-          subscription.stripeSubscriptionId !== "admin_free_plan") {
+      if (subscription.stripeSubscriptionId &&
+        !subscription.stripeSubscriptionId.startsWith("sim_") &&
+        subscription.stripeSubscriptionId !== "admin_free_plan") {
         try {
           // Cette partie devrait être implémentée avec l'API Stripe en production
           // Pour le développement, nous simulons simplement l'annulation
@@ -781,7 +781,7 @@ export const cancelSubscription = async (userId: string): Promise<boolean> => {
           // Continuer malgré l'erreur pour mettre à jour Firebase
         }
       }
-      
+
       // Mettre à jour le plan de l'utilisateur à "gratuit" dans Firebase
       const today = new Date();
       const planGratuit = {
@@ -801,12 +801,12 @@ export const cancelSubscription = async (userId: string): Promise<boolean> => {
         },
         lastUpdated: today
       };
-      
+
       await updateDoc(userRef, {
         subscription: planGratuit,
         lastUpdated: today
       });
-      
+
       // Mettre à jour le localStorage
       if (typeof window !== "undefined") {
         const planJSON = JSON.stringify(planGratuit);
@@ -818,7 +818,7 @@ export const cancelSubscription = async (userId: string): Promise<boolean> => {
         sessionStorage.setItem("planId", "gratuit");
         sessionStorage.setItem("planJustChanged", "true");
       }
-      
+
       return true;
     } else {
       return false;
@@ -834,23 +834,23 @@ export const cancelSubscription = async (userId: string): Promise<boolean> => {
  */
 export const isAdminEmail = (email: string | null | undefined): boolean => {
   if (!email) return false;
-  
+
   // Liste des emails d'administrateur autorisés
   const adminEmails = [
-    "support@javachrist.fr", 
+    "support@javachrist.fr",
     "admin@javachrist.fr",
     "admin@facturation.javachrist.eu"
   ];
-  
+
   const lowercaseEmail = email.toLowerCase();
   const isAdmin = adminEmails.includes(lowercaseEmail);
-  
+
   // Journaliser les tentatives de vérification d'admin
   if (isAdmin) {
     console.log(`Email administrateur vérifié: ${lowercaseEmail}`);
   } else if (lowercaseEmail.includes("javachrist") || lowercaseEmail.includes("admin")) {
     console.warn(`Tentative de vérification avec un email non administrateur: ${lowercaseEmail}`);
   }
-  
+
   return isAdmin;
 };
