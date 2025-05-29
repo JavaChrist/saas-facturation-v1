@@ -25,6 +25,7 @@ import {
   FiX,
   FiEye,
   FiRefreshCw,
+  FiMail,
 } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { Facture, Client } from "@/types/facture";
@@ -158,6 +159,13 @@ export default function FacturesPage() {
   const [selectedModeleId, setSelectedModeleId] = useState<string | null>(null);
   const [factureForPDF, setFactureForPDF] = useState<Facture | null>(null);
   const [loadingModeles, setLoadingModeles] = useState(false);
+
+  // États pour l'envoi d'emails
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [factureForEmail, setFactureForEmail] = useState<Facture | null>(null);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailType, setEmailType] = useState<'invoice' | 'reminder' | 'overdue'>('invoice');
+  const [customMessage, setCustomMessage] = useState('');
 
   const { updateCachedFacture } = useFacture();
 
@@ -807,6 +815,95 @@ export default function FacturesPage() {
     }
   };
 
+  // Fonction pour ouvrir le modal d'envoi d'email
+  const openEmailModal = (facture: Facture) => {
+    // Vérifier que le client a au moins un email
+    const hasEmail = (facture.client.emails && facture.client.emails.length > 0) ||
+      facture.client.email;
+
+    if (!hasEmail) {
+      alert('Aucun email configuré pour ce client. Veuillez d\'abord ajouter un email dans les informations du client.');
+      return;
+    }
+
+    setFactureForEmail(facture);
+    setEmailType('invoice');
+    setCustomMessage('');
+    setIsEmailModalOpen(true);
+  };
+
+  // Fonction pour fermer le modal d'envoi d'email
+  const closeEmailModal = () => {
+    setIsEmailModalOpen(false);
+    setFactureForEmail(null);
+    setEmailType('invoice');
+    setCustomMessage('');
+  };
+
+  // Fonction pour envoyer l'email
+  const sendInvoiceEmail = async () => {
+    if (!factureForEmail || !user) {
+      alert('Erreur: Facture ou utilisateur non trouvé');
+      return;
+    }
+
+    setEmailLoading(true);
+
+    try {
+      console.log(`[EMAIL] Envoi de l'email pour la facture ${factureForEmail.numero}`);
+
+      const response = await fetch('/api/send-invoice', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          facture: factureForEmail,
+          emailType,
+          customMessage: customMessage.trim() || undefined,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert(`✅ Email envoyé avec succès à ${result.data.sentTo.join(', ')}`);
+
+        // Mettre à jour le statut de la facture côté client
+        try {
+          const factureRef = doc(db, 'factures', factureForEmail.id);
+          const updateData: any = {
+            lastEmailSent: new Date(),
+            emailSentCount: (factureForEmail.emailSentCount || 0) + 1,
+          };
+
+          // Si c'est le premier envoi, changer le statut
+          if (factureForEmail.statut === 'En attente') {
+            updateData.statut = 'Envoyée';
+          }
+
+          await updateDoc(factureRef, updateData);
+          console.log('[EMAIL] Statut de la facture mis à jour');
+        } catch (updateError) {
+          console.error('[EMAIL] Erreur lors de la mise à jour du statut:', updateError);
+          // Ne pas bloquer l'utilisateur pour cette erreur
+        }
+
+        // Recharger les factures pour mettre à jour les statuts
+        rechargerFactures();
+
+        closeEmailModal();
+      } else {
+        throw new Error(result.error || result.details || 'Erreur lors de l\'envoi de l\'email');
+      }
+    } catch (error) {
+      console.error('[EMAIL] Erreur lors de l\'envoi:', error);
+      alert(`❌ Erreur lors de l'envoi de l'email: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   // Fonction pour recharger les données de factures
   const rechargerFactures = useCallback(async () => {
     if (!user) return;
@@ -1025,6 +1122,13 @@ export default function FacturesPage() {
                         title="Générer PDF"
                       >
                         <FiFileText size={18} />
+                      </button>
+                      <button
+                        onClick={() => openEmailModal(facture)}
+                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mx-1"
+                        title="Envoyer par email"
+                      >
+                        <FiMail size={18} />
                       </button>
                       <button
                         onClick={() => openEditModal(facture)}
@@ -1410,6 +1514,105 @@ export default function FacturesPage() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal d'envoi d'email */}
+      {isEmailModalOpen && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg w-[600px] relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={closeEmailModal}
+              className="absolute top-3 right-3 bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-3 py-1 rounded-full hover:bg-gray-400 dark:hover:bg-gray-600 transform hover:scale-105 transition-transform duration-300"
+            >
+              <FiX size={16} />
+            </button>
+            <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">
+              Envoyer l'email - Facture {factureForEmail?.numero}
+            </h2>
+
+            {factureForEmail && (
+              <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-700 rounded">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  <strong>Client:</strong> {factureForEmail.client.nom}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  <strong>Email(s):</strong> {
+                    factureForEmail.client.emails && factureForEmail.client.emails.length > 0
+                      ? factureForEmail.client.emails.map(e => e.email).join(', ')
+                      : factureForEmail.client.email
+                  }
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  <strong>Montant:</strong> {formaterMontant(factureForEmail.totalTTC)}
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div className="flex flex-col">
+                <label
+                  htmlFor="email-type"
+                  className="block font-semibold text-gray-800 dark:text-white mb-2"
+                >
+                  Type d'email
+                </label>
+                <select
+                  value={emailType}
+                  onChange={(e) => setEmailType(e.target.value as 'invoice' | 'reminder' | 'overdue')}
+                  className="w-full p-2 border rounded bg-white text-gray-800"
+                  required
+                >
+                  <option value="invoice">Facture (envoi initial)</option>
+                  <option value="reminder">Rappel (échéance proche)</option>
+                  <option value="overdue">Retard de paiement</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <label
+                  htmlFor="custom-message"
+                  className="block font-semibold text-gray-800 dark:text-white mb-2"
+                >
+                  Message personnalisé (optionnel)
+                </label>
+                <textarea
+                  value={customMessage}
+                  onChange={(e) => setCustomMessage(e.target.value)}
+                  className="w-full p-2 border rounded bg-white text-gray-800"
+                  placeholder="Laissez vide pour utiliser le message par défaut"
+                  rows={4}
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <button
+                  onClick={closeEmailModal}
+                  className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
+                  disabled={emailLoading}
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={sendInvoiceEmail}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center"
+                  disabled={emailLoading}
+                >
+                  {emailLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Envoi...
+                    </>
+                  ) : (
+                    <>
+                      <FiMail className="mr-2" />
+                      Envoyer l'email
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
