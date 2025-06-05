@@ -310,7 +310,7 @@ export default function ClientsPage() {
       `le client ${clientToDelete.nom}`,
       async () => {
         try {
-          await deleteDoc(doc(db, "clients", id));
+    await deleteDoc(doc(db, "clients", id));
           modal.showSuccess("Client supprimé avec succès");
         } catch (error) {
           console.error("Erreur lors de la suppression:", error);

@@ -62,15 +62,15 @@ export const getOrganizationUsers = async (
       if (!membersSnapshot.empty) {
         const members = membersSnapshot.docs
           .map((doc) => ({
-            id: doc.id,
-            email: doc.data().email,
-            displayName: doc.data().nomAffichage,
-            role: mapRoleToEnglish(doc.data().role),
-            createdAt: doc.data().dateAjout?.toDate
-              ? doc.data().dateAjout.toDate()
-              : new Date(doc.data().dateAjout || Date.now()),
-            organizationId: organizationId,
-            isActive: doc.data().actif !== undefined ? doc.data().actif : true,
+          id: doc.id,
+          email: doc.data().email,
+          displayName: doc.data().nomAffichage,
+          role: mapRoleToEnglish(doc.data().role),
+          createdAt: doc.data().dateAjout?.toDate
+            ? doc.data().dateAjout.toDate()
+            : new Date(doc.data().dateAjout || Date.now()),
+          organizationId: organizationId,
+          isActive: doc.data().actif !== undefined ? doc.data().actif : true,
             isDeleted: doc.data().supprime === true,
           }))
           .filter((member) => !member.isDeleted) as OrganizationUser[]; // Exclure les utilisateurs supprimés
@@ -91,11 +91,11 @@ export const getOrganizationUsers = async (
 
     const users = snapshot.docs
       .map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().dateCreation?.toDate
-          ? doc.data().dateCreation.toDate()
-          : new Date(doc.data().dateCreation || Date.now()),
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().dateCreation?.toDate
+        ? doc.data().dateCreation.toDate()
+        : new Date(doc.data().dateCreation || Date.now()),
         isDeleted: doc.data().supprime === true,
       }))
       .filter((user) => !user.isDeleted) as OrganizationUser[]; // Exclure les utilisateurs supprimés

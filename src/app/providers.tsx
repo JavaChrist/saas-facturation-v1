@@ -12,7 +12,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
     >
       <AuthProvider>
-        {children}
+          {children}
       </AuthProvider>
     </ThemeProvider>
   );

@@ -40,7 +40,7 @@ export const emailService = {
 
       // Créer un ID unique pour la demande
       const requestId = `request_${new Date().getTime()}_${Math.random().toString(36).substring(2, 11)}`;
-
+      
       // Enregistrer la demande dans Firestore
       try {
         await addDoc(collection(db, "contactRequests"), {
@@ -59,7 +59,7 @@ export const emailService = {
             language: typeof navigator !== 'undefined' ? navigator.language : 'fr-FR',
           },
         });
-
+        
         // Envoyer l'email via l'API Resend
         const response = await fetch('/api/send-email', {
           method: 'POST',
@@ -79,7 +79,7 @@ export const emailService = {
         if (!response.ok) {
           throw new Error(result.message || 'Erreur lors de l\'envoi de l\'email');
         }
-
+        
         return {
           success: true,
           message: `Votre demande a été envoyée avec succès. Notre équipe commerciale vous contactera prochainement.`,
@@ -120,20 +120,20 @@ export const emailService = {
 
       // Créer un ID unique pour l'invitation
       const invitationId = `inv_${new Date().getTime()}_${Math.random().toString(36).substring(2, 11)}`;
-
+      
       // Enregistrer l'invitation dans Firestore
       try {
         // Obtenir l'ID de l'utilisateur authentifié 
         const auth = getAuth();
         const currentUser = auth.currentUser;
-
+        
         if (!currentUser) {
           return {
             success: false,
             message: "Vous devez être connecté pour envoyer une invitation",
           };
         }
-
+        
         await addDoc(collection(db, "invitations"), {
           email,
           organizationId,
@@ -143,7 +143,7 @@ export const emailService = {
           status: "pending",
           createdBy: currentUser.uid,
         });
-
+        
         // Envoyer l'email d'invitation via l'API Resend
         const response = await fetch('/api/send-email', {
           method: 'POST',
@@ -165,7 +165,7 @@ export const emailService = {
         if (!response.ok) {
           throw new Error(result.message || 'Erreur lors de l\'envoi de l\'invitation');
         }
-
+        
         return {
           success: true,
           message: `Invitation envoyée avec succès à ${email}.`,

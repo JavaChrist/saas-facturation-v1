@@ -221,6 +221,8 @@ export const generateInvoicePDFWithTemplate = async (
     const pageHeight = pdfDoc.internal.pageSize.height;
 
     // Ajout du logo si disponible et selon la position définie dans le modèle
+    let logoHeight = 0; // 🔧 NOUVEAU : Tracker la hauteur occupée par le logo
+
     if (entreprise.logo && modele.style.logoPosition !== "aucun") {
       try {
         console.log("Ajout du logo de l'entreprise");
@@ -239,6 +241,7 @@ export const generateInvoicePDFWithTemplate = async (
             "logo",
             "FAST"
           );
+          logoHeight = 20; // 🔧 NOUVEAU : Logo + espace = 20mm au lieu de 15mm
           console.log(
             "Logo ajouté depuis Data URL à la position:",
             modele.style.logoPosition
@@ -263,18 +266,19 @@ export const generateInvoicePDFWithTemplate = async (
     // Appliquer la police du modèle
     pdfDoc.setFont(modele.style.police, "bold");
 
-    // Titre "FACTURE"
+    // 🔧 CORRIGÉ : Titre "FACTURE" avec espace dynamique après le logo
     console.log("Ajout du titre");
     pdfDoc.setFontSize(20);
     const [r, g, b] = hexToRgb(modele.style.couleurPrimaire);
     pdfDoc.setTextColor(r, g, b); // Couleur primaire du modèle
-    pdfDoc.text("FACTURE", 15, 25);
+    const titreY = logoHeight > 0 ? logoHeight + 10 : 25; // 🔧 NOUVEAU : Position dynamique
+    pdfDoc.text("FACTURE", 15, titreY);
 
-    // Informations de l'entreprise (à gauche)
+    // 🔧 CORRIGÉ : Informations de l'entreprise avec position ajustée
     console.log("Ajout des informations de l'entreprise");
     pdfDoc.setTextColor(0, 0, 0); // Retour au noir
     pdfDoc.setFontSize(10);
-    let yPos = 30;
+    let yPos = titreY + 5; // 🔧 NOUVEAU : Position relative au titre
 
     // Nom de l'entreprise en gras
     pdfDoc.setFont(modele.style.police, "bold");
@@ -293,7 +297,7 @@ export const generateInvoicePDFWithTemplate = async (
       pdfDoc.text(info, 15, yPos + 5 + index * 4.5); // Augmentation de l'espacement de 4 à 4.5
     });
 
-    // Numéro de facture et date (en haut à droite)
+    // 🔧 CORRIGÉ : Numéro de facture et date avec position ajustée
     console.log("Ajout du numéro de facture et de la date");
     let dateStr: string;
 
@@ -314,26 +318,28 @@ export const generateInvoicePDFWithTemplate = async (
     }
 
     pdfDoc.setFont(modele.style.police, "bold");
-    pdfDoc.text(`Facture N° ${facture.numero}`, pageWidth - 60, 30);
+    pdfDoc.text(`Facture N° ${facture.numero}`, pageWidth - 60, titreY);
     pdfDoc.setFont(modele.style.police, "normal");
-    pdfDoc.text(`Date: ${dateStr}`, pageWidth - 60, 35); // Augmenté de 34 à 35
+    pdfDoc.text(`Date: ${dateStr}`, pageWidth - 60, titreY + 5);
 
-    // Informations du client (à droite)
+    // 🔧 CORRIGÉ : Informations du client avec position ajustée
     console.log("Ajout des informations client");
-    pdfDoc.text("FACTURER À:", pageWidth - 60, 65);
+    const clientY = Math.max(65, yPos + 35); // 🔧 NOUVEAU : Position dynamique, minimum 65mm ou après les infos entreprise
+    pdfDoc.text("FACTURER À:", pageWidth - 60, clientY);
     pdfDoc.setFont(modele.style.police, "bold");
-    pdfDoc.text(facture.client.nom.toUpperCase(), pageWidth - 60, 70);
+    pdfDoc.text(facture.client.nom.toUpperCase(), pageWidth - 60, clientY + 5);
     pdfDoc.setFont(modele.style.police, "normal");
     const clientInfos = [
       facture.client.rue,
       `${facture.client.codePostal} ${facture.client.ville}`,
     ];
     clientInfos.forEach((info, index) => {
-      pdfDoc.text(info, pageWidth - 60, 75 + index * 4.5); // Augmentation de l'espacement et ajustement de la position de départ
+      pdfDoc.text(info, pageWidth - 60, clientY + 10 + index * 4.5);
     });
 
-    // Tableau des articles avec TVA
+    // 🔧 CORRIGÉ : Tableau avec position ajustée pour éviter le chevauchement
     console.log("Création du tableau des articles");
+    const tableStartY = Math.max(95, clientY + 30); // Position minimum ou après les infos client
     const tableColumn = [
       "Description",
       "Quantité",
@@ -370,7 +376,7 @@ export const generateInvoicePDFWithTemplate = async (
 
     console.log("Configuration du tableau");
     autoTable(pdfDoc, {
-      startY: 95,
+      startY: tableStartY,
       head: [tableColumn],
       body: tableRows,
       theme: "plain",
@@ -635,6 +641,8 @@ export const generateInvoicePDFDefault = async (
     const pageHeight = pdfDoc.internal.pageSize.height;
 
     // Ajout du logo si disponible
+    let logoHeight = 0; // 🔧 NOUVEAU : Tracker la hauteur occupée par le logo
+
     if (entreprise.logo) {
       try {
         console.log("Ajout du logo de l'entreprise");
@@ -650,6 +658,7 @@ export const generateInvoicePDFDefault = async (
             "logo",
             "FAST"
           );
+          logoHeight = 20; // 🔧 NOUVEAU : Logo + espace = 20mm au lieu de 15mm
           console.log("Logo ajouté depuis Data URL");
         }
         // Pour les logos avec URL
@@ -666,18 +675,19 @@ export const generateInvoicePDFDefault = async (
       }
     }
 
-    // Titre "FACTURE"
+    // 🔧 CORRIGÉ : Titre "FACTURE" avec espace dynamique après le logo
     console.log("Ajout du titre");
     pdfDoc.setFont("helvetica", "bold");
     pdfDoc.setFontSize(20);
     pdfDoc.setTextColor(41, 128, 185); // Bleu moderne
-    pdfDoc.text("FACTURE", 15, 25);
+    const titreY = logoHeight > 0 ? logoHeight + 10 : 25; // 🔧 NOUVEAU : Position dynamique
+    pdfDoc.text("FACTURE", 15, titreY);
 
-    // Informations de l'entreprise (à gauche)
+    // 🔧 CORRIGÉ : Informations de l'entreprise avec position ajustée
     console.log("Ajout des informations de l'entreprise");
     pdfDoc.setTextColor(0, 0, 0); // Retour au noir
     pdfDoc.setFontSize(10);
-    let yPos = 30;
+    let yPos = titreY + 5; // 🔧 NOUVEAU : Position relative au titre
 
     // Nom de l'entreprise en gras
     pdfDoc.setFont("helvetica", "bold");
@@ -696,7 +706,7 @@ export const generateInvoicePDFDefault = async (
       pdfDoc.text(info, 15, yPos + 5 + index * 4.5); // Augmentation de l'espacement de 4 à 4.5
     });
 
-    // Numéro de facture et date (en haut à droite)
+    // 🔧 CORRIGÉ : Numéro de facture et date avec position ajustée
     console.log("Ajout du numéro de facture et de la date");
     let dateStr: string;
 
@@ -717,26 +727,28 @@ export const generateInvoicePDFDefault = async (
     }
 
     pdfDoc.setFont("helvetica", "bold");
-    pdfDoc.text(`Facture N° ${facture.numero}`, pageWidth - 60, 30);
+    pdfDoc.text(`Facture N° ${facture.numero}`, pageWidth - 60, titreY);
     pdfDoc.setFont("helvetica", "normal");
-    pdfDoc.text(`Date: ${dateStr}`, pageWidth - 60, 35); // Augmenté de 34 à 35
+    pdfDoc.text(`Date: ${dateStr}`, pageWidth - 60, titreY + 5);
 
-    // Informations du client (à droite)
+    // 🔧 CORRIGÉ : Informations du client avec position ajustée
     console.log("Ajout des informations client");
-    pdfDoc.text("FACTURER À:", pageWidth - 60, 65);
+    const clientY = Math.max(65, yPos + 35); // 🔧 NOUVEAU : Position dynamique, minimum 65mm ou après les infos entreprise
+    pdfDoc.text("FACTURER À:", pageWidth - 60, clientY);
     pdfDoc.setFont("helvetica", "bold");
-    pdfDoc.text(facture.client.nom.toUpperCase(), pageWidth - 60, 70);
+    pdfDoc.text(facture.client.nom.toUpperCase(), pageWidth - 60, clientY + 5);
     pdfDoc.setFont("helvetica", "normal");
     const clientInfos = [
       facture.client.rue,
       `${facture.client.codePostal} ${facture.client.ville}`,
     ];
     clientInfos.forEach((info, index) => {
-      pdfDoc.text(info, pageWidth - 60, 75 + index * 4.5); // Augmentation de l'espacement et ajustement de la position de départ
+      pdfDoc.text(info, pageWidth - 60, clientY + 10 + index * 4.5);
     });
 
-    // Tableau des articles avec TVA
+    // 🔧 CORRIGÉ : Tableau avec position ajustée pour éviter le chevauchement
     console.log("Création du tableau des articles");
+    const tableStartY = Math.max(95, clientY + 30); // Position minimum ou après les infos client
     const tableColumn = [
       "Description",
       "Quantité",
@@ -769,7 +781,7 @@ export const generateInvoicePDFDefault = async (
 
     console.log("Configuration du tableau");
     autoTable(pdfDoc, {
-      startY: 95,
+      startY: tableStartY,
       head: [tableColumn],
       body: tableRows,
       theme: "plain",

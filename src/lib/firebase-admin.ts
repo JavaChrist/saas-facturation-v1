@@ -45,7 +45,7 @@ const getOrCreateFirebaseApp = () => {
         projectId: projectId,
       });
     }
-  } catch (error) {
+    } catch (error) {
     console.error("Erreur Firebase Admin:", error);
     return null;
   }
@@ -60,9 +60,9 @@ export function initAdmin() {
     }
     return app;
   } catch (error) {
-    return null;
+      return null;
+    }
   }
-}
 
 // Fonction pour obtenir Firestore Admin de manière sécurisée
 export function getAdminFirestore() {

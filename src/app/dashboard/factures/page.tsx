@@ -108,6 +108,28 @@ const formatDate = (date: any): string => {
   }
 };
 
+// 🔧 NOUVELLE fonction utilitaire pour convertir une date en format input date (YYYY-MM-DD)
+const formatDateForInput = (date: any): string => {
+  try {
+    const dateObj = convertToDate(date);
+    // Utiliser toISOString().split('T')[0] pour avoir le format YYYY-MM-DD
+    return dateObj.toISOString().split('T')[0];
+  } catch (e) {
+    console.error("Erreur de formatage de date pour input:", e);
+    // Date d'aujourd'hui par défaut
+    return new Date().toISOString().split('T')[0];
+  }
+};
+
+// 🔧 NOUVELLE fonction utilitaire pour créer une date depuis un input date
+const createDateFromInput = (inputValue: string): Date => {
+  if (!inputValue) return new Date();
+
+  // Créer la date en spécifiant explicitement le fuseau horaire local
+  const date = new Date(inputValue + 'T12:00:00');
+  return date;
+};
+
 // Nouvelle fonction utilitaire pour tronquer à 2 décimales et formater
 const truncateAndFormat = (num: number | null | undefined): string => {
   if (num === null || num === undefined || isNaN(num)) {
@@ -593,18 +615,46 @@ export default function FacturesPage() {
 
   // Mise à jour du client sélectionné
   const handleClientChange = (clientId: string) => {
-    const selectedClient = clients.find((c) => c.id === clientId);
-    if (selectedClient) {
-      // S'assurer que le client a une propriété emails
-      const clientWithEmails = {
-        ...selectedClient,
-        emails: selectedClient.emails || []
-      };
+    console.log("[DEBUG] 👤 Changement de client:", clientId);
 
-      setNewFacture({
-        ...newFacture,
-        client: clientWithEmails
+    if (clientId === "") {
+      console.log("[DEBUG] 🚫 Aucun client sélectionné, reset du client");
+      setNewFacture(prev => ({
+        ...prev,
+        client: {
+          id: "",
+          refClient: "",
+          nom: "",
+          rue: "",
+          codePostal: "",
+          ville: "",
+          email: "",
+          emails: [],
+          delaisPaiement: "30 jours" as DelaiPaiementType,
+        },
+      }));
+      return;
+    }
+
+    const selectedClient = clients.find((client) => client.id === clientId);
+    if (selectedClient) {
+      console.log("[DEBUG] ✅ Client trouvé:", {
+        id: selectedClient.id,
+        nom: selectedClient.nom,
+        email: selectedClient.email,
+        emailsCount: selectedClient.emails?.length || 0,
+        delaisPaiement: selectedClient.delaisPaiement
       });
+
+      setNewFacture(prev => ({
+        ...prev,
+        client: {
+          ...selectedClient,
+          emails: selectedClient.emails || []
+        },
+      }));
+    } else {
+      console.warn("[DEBUG] ⚠️ Client non trouvé avec l'ID:", clientId);
     }
   };
 
@@ -619,13 +669,24 @@ export default function FacturesPage() {
     }
 
     try {
-      console.log("[DEBUG] Début de la création/modification de facture");
+      console.log("[DEBUG] 🔄 Début de la création/modification de facture");
+      console.log("[DEBUG] 📊 État newFacture:", {
+        numero: newFacture.numero,
+        clientId: newFacture.client.id,
+        clientNom: newFacture.client.nom,
+        dateCreation: newFacture.dateCreation,
+        statut: newFacture.statut,
+        articlesCount: newFacture.articles?.length || 0,
+        totalHT: newFacture.totalHT,
+        totalTTC: newFacture.totalTTC
+      });
+
       const factureData = {
         userId: user.uid,
         numero: newFacture.numero,
         client: newFacture.client,
         statut: newFacture.statut,
-        articles: newFacture.articles,
+        articles: newFacture.articles || [],
         totalHT: newFacture.totalHT,
         totalTTC: newFacture.totalTTC,
         dateCreation: Timestamp.fromDate(
@@ -634,13 +695,32 @@ export default function FacturesPage() {
             : new Date()
         ),
       };
-      console.log("[DEBUG] Données de la facture à sauvegarder:", factureData);
+
+      console.log("[DEBUG] 💾 Données de la facture à sauvegarder:", {
+        ...factureData,
+        dateCreation: factureData.dateCreation.toDate().toISOString()
+      });
 
       if (selectedFacture && selectedFacture.id) {
         // Modification d'une facture existante
-        console.log("[DEBUG] Modification de la facture existante:", selectedFacture.id);
+        console.log("[DEBUG] ✏️ Modification de la facture existante:", selectedFacture.id);
         const factureRef = doc(db, "factures", selectedFacture.id);
+
         await updateDoc(factureRef, factureData);
+        console.log("[DEBUG] ✅ Facture modifiée avec succès dans Firestore");
+
+        // Mettre à jour la facture dans la liste locale
+        setFactures(prev => prev.map(f =>
+          f.id === selectedFacture.id
+            ? { ...factureData, id: selectedFacture.id, dateCreation: factureData.dateCreation.toDate() } as Facture
+            : f
+        ));
+
+        // Mettre à jour le cache si nécessaire
+        if (updateCachedFacture) {
+          updateCachedFacture({ ...factureData, id: selectedFacture.id, dateCreation: factureData.dateCreation.toDate() } as Facture);
+        }
+
       } else {
         // Vérifier à nouveau les limites avant la création
         const isLimitReached = await checkPlanLimit(
@@ -650,7 +730,7 @@ export default function FacturesPage() {
         );
 
         if (isLimitReached) {
-          console.log("[DEBUG] Limite de factures atteinte");
+          console.log("[DEBUG] ⚠️ Limite de factures atteinte");
           modal.showWarning(
             `Vous avez atteint la limite de ${planInfo.currentFactures} facture(s) pour votre plan ${planInfo.planId}. Veuillez passer à un forfait supérieur pour ajouter plus de factures.`,
             'Limite atteinte'
@@ -659,18 +739,21 @@ export default function FacturesPage() {
         }
 
         // Création d'une nouvelle facture
+        console.log("[DEBUG] ➕ Création d'une nouvelle facture");
         const factureRef = collection(db, "factures");
         const newFactureDoc = await addDoc(factureRef, factureData);
+        console.log("[DEBUG] ✅ Nouvelle facture créée avec succès:", newFactureDoc.id);
 
         // Ajouter la nouvelle facture directement à la liste en mémoire
         const factureWithId = {
           ...factureData,
-          id: newFactureDoc.id
+          id: newFactureDoc.id,
+          dateCreation: factureData.dateCreation.toDate()
         } as Facture;
 
         setFactures(prev => [factureWithId, ...prev]);
 
-        console.log("[DEBUG] Nouvelle facture créée avec succès:", {
+        console.log("[DEBUG] 📝 Nouvelle facture ajoutée à la liste:", {
           id: newFactureDoc.id,
           numero: factureData.numero
         });
@@ -681,10 +764,19 @@ export default function FacturesPage() {
 
       // Afficher un message de succès
       modal.showSuccess(
-        selectedFacture ? 'Facture modifiée avec succès' : 'Facture créée avec succès'
+        selectedFacture ? 'Facture modifiée avec succès !' : 'Facture créée avec succès !'
       );
+
+      console.log("[DEBUG] 🎉 Opération de sauvegarde terminée avec succès");
+
     } catch (error) {
-      console.error("Erreur lors de la sauvegarde de la facture:", error);
+      console.error("[DEBUG] ❌ Erreur lors de la sauvegarde de la facture:", error);
+      console.error("[DEBUG] 🔍 Détails de l'erreur:", {
+        errorType: typeof error,
+        errorMessage: error instanceof Error ? error.message : 'Erreur inconnue',
+        errorStack: error instanceof Error ? error.stack : 'Pas de stack trace'
+      });
+
       modal.showError(
         "Une erreur est survenue lors de la sauvegarde de la facture. Veuillez réessayer."
       );
@@ -1345,57 +1437,66 @@ export default function FacturesPage() {
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <input
-                  type="text"
-                  placeholder="Numéro de facture"
-                  value={newFacture.numero}
-                  onChange={(e) =>
-                    setNewFacture({
-                      ...newFacture,
-                      numero: e.target.value.toUpperCase(),
-                    })
-                  }
-                  className="w-full p-2 border bg-white text-gray-800"
-                  required
-                />
-                <select
-                  value={newFacture.statut}
-                  onChange={(e) =>
-                    setNewFacture({
-                      ...newFacture,
-                      statut: e.target.value as Facture["statut"],
-                    })
-                  }
-                  className="w-full p-2 border bg-white text-gray-800"
-                  required
-                >
-                  <option value="En attente">En attente</option>
-                  <option value="Envoyée">Envoyée</option>
-                  <option value="Payée">Payée</option>
-                  <option value="Partiellement payée">Partiellement payée</option>
-                  <option value="À relancer">À relancer</option>
-                </select>
+                <div className="flex flex-col">
+                  <label className="block font-semibold text-gray-800 dark:text-white mb-2">
+                    Numéro de facture
+                  </label>
+                  <input
+                    type="text"
+                    value={newFacture.numero}
+                    onChange={(e) => {
+                      console.log("[DEBUG] Changement numéro facture:", e.target.value);
+                      setNewFacture(prev => ({
+                        ...prev,
+                        numero: e.target.value,
+                      }));
+                    }}
+                    className="w-full p-2 border rounded bg-white text-gray-800"
+                    required
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="block font-semibold text-gray-800 dark:text-white mb-2">
+                    Statut
+                  </label>
+                  <select
+                    value={newFacture.statut}
+                    onChange={(e) => {
+                      console.log("[DEBUG] Changement statut:", e.target.value);
+                      setNewFacture(prev => ({
+                        ...prev,
+                        statut: e.target.value as Facture["statut"],
+                      }));
+                    }}
+                    className="w-full p-2 border rounded bg-white text-gray-800"
+                    required
+                  >
+                    <option value="En attente">En attente</option>
+                    <option value="Envoyée">Envoyée</option>
+                    <option value="Payée">Payée</option>
+                    <option value="En retard">En retard</option>
+                    <option value="Annulée">Annulée</option>
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col">
-                  <label
-                    htmlFor="date-facture"
-                    className="block font-semibold text-gray-800 dark:text-white mb-2"
-                  >
-                    Date de la facture
+                  <label className="block font-semibold text-gray-800 dark:text-white mb-2">
+                    Date de facturation
                   </label>
                   <input
                     type="date"
                     id="date-facture"
-                    value={formatDate(newFacture.dateCreation).split('/').reverse().join('-')}
+                    value={formatDateForInput(newFacture.dateCreation)}
                     onChange={(e) => {
-                      const date = e.target.value ? new Date(e.target.value) : new Date();
-                      date.setHours(12, 0, 0, 0); // Midi pour éviter les problèmes de fuseau horaire
-                      setNewFacture({
-                        ...newFacture,
-                        dateCreation: date,
-                      });
+                      console.log("[DEBUG] Changement de date:", e.target.value);
+                      const newDate = createDateFromInput(e.target.value);
+                      console.log("[DEBUG] Nouvelle date créée:", newDate);
+                      setNewFacture(prev => ({
+                        ...prev,
+                        dateCreation: newDate,
+                      }));
                     }}
                     className="w-full p-2 border rounded bg-white text-gray-800"
                     required

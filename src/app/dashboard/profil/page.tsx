@@ -36,9 +36,9 @@ export default function ProfilPage() {
   useEffect(() => {
     if (!user) {
       router.push('/login');
-      return;
-    }
-
+          return;
+        }
+        
     const loadProfile = async () => {
       try {
         setIsLoading(true);
@@ -215,7 +215,7 @@ export default function ProfilPage() {
 
   if (isLoading) {
     console.log("[PROFIL] Affichage du loader");
-    return (
+  return (
       <div className="flex justify-center items-center min-h-screen bg-background-light dark:bg-background-dark">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
         <p className="ml-4 text-text-light dark:text-text-dark">Chargement du profil...</p>
@@ -244,7 +244,7 @@ export default function ProfilPage() {
             </button>
           </div>
         </div>
-      </div>
+        </div>
     );
   }
 
@@ -271,7 +271,7 @@ export default function ProfilPage() {
               <FiEye size={18} className="mr-2" />
               {showPreview ? 'Masquer' : 'Aperçu'}
             </button>
-            <button
+            <button 
               onClick={handleSave}
               disabled={isSaving}
               className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 flex items-center transform hover:scale-105 transition-transform duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
