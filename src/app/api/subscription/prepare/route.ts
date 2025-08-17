@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { STRIPE_SECRET_KEY, SITE_URL } from "@/config/stripe";
+import { stripe, isStripeConfigured, getStripeNotConfiguredResponse } from "@/lib/stripe-client";
+import { SITE_URL } from "@/config/stripe";
 import { STRIPE_PRICE_IDS } from "@/config/prices";
 
 // Log détaillé des variables d'environnement
@@ -16,15 +16,16 @@ console.log("Toutes les variables d'environnement:", {
 console.log("Configuration des prix Stripe:", STRIPE_PRICE_IDS);
 console.log("=============================================");
 
-// Initialiser Stripe avec la clé secrète (en gérant le cas où elle est undefined)
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY || STRIPE_SECRET_KEY || "";
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2025-03-31.basil",
-});
+
 
 // Route simplifiée pour le déploiement Vercel
 export async function POST(request: NextRequest) {
   console.log("API subscription/prepare - Mode simplifié pour déploiement");
+  
+  if (!isStripeConfigured()) {
+    const response = getStripeNotConfiguredResponse();
+    return NextResponse.json(response, { status: 503 });
+  }
 
   try {
     const { planId, userId, email } = await request.json();
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       });
 
       // Créer une session Checkout
-      const session = await stripe.checkout.sessions.create({
+      const session = await stripe!.checkout.sessions.create({
         payment_method_types: ["card"],
         mode: "subscription",
         line_items: [

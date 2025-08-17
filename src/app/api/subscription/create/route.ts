@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminFirestore } from "@/lib/firebase-admin";
-import Stripe from "stripe";
+import { stripe, isStripeConfigured, getStripeNotConfiguredResponse } from "@/lib/stripe-client";
 import { SITE_URL } from "@/config/stripe";
-
-// Configuration Stripe et Firebase
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-10-28.acacia",
-});
 
 let db: any;
 try {
@@ -34,6 +29,11 @@ export async function POST(request: NextRequest) {
       { error: "Service de base de données non disponible" },
       { status: 503 }
     );
+  }
+
+  if (!isStripeConfigured()) {
+    const response = getStripeNotConfiguredResponse();
+    return NextResponse.json(response, { status: 503 });
   }
 
   // Mode développement - simulation pour le développement local
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Créer une session de paiement Stripe Checkout
-    const session = await stripe.checkout.sessions.create({
+    const session = await stripe!.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [
         {

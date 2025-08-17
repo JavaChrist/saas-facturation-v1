@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { STRIPE_SECRET_KEY } from "@/config/stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || STRIPE_SECRET_KEY, {
-  apiVersion: "2025-03-31.basil",
-});
+import { stripe, isStripeConfigured, getStripeNotConfiguredResponse } from "@/lib/stripe-client";
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isStripeConfigured()) {
+      const response = getStripeNotConfiguredResponse();
+      return NextResponse.json(response, { status: 503 });
+    }
+
     const { paymentIntentId, planId, userId } = await request.json();
 
     // Récupérer le PaymentIntent
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const paymentIntent = await stripe!.paymentIntents.retrieve(paymentIntentId);
 
     if (paymentIntent.status !== "succeeded") {
       return NextResponse.json(
