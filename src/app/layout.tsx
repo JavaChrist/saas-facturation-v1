@@ -13,9 +13,37 @@ import Image from "next/image";
 
 export const metadata: Metadata = {
   title: "Facturation SaaS",
-  description: "Application de facturation SaaS",
+  description: "Application de facturation professionnelle",
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/logo16.png", sizes: "16x16", type: "image/png" },
+      { url: "/logo32.png", sizes: "32x32", type: "image/png" },
+      { url: "/logo48.png", sizes: "48x48", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+      { url: "/apple-touch-icon-152.png", sizes: "152x152", type: "image/png" },
+      { url: "/apple-touch-icon-167.png", sizes: "167x167", type: "image/png" },
+      { url: "/apple-touch-icon-180.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Facturation",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  openGraph: {
+    type: "website",
+    locale: "fr_FR",
+    url: "https://facturation.javachrist.eu",
+    siteName: "Facturation SaaS",
+    title: "Facturation SaaS - Gestion professionnelle",
+    description: "Application de facturation professionnelle pour entrepreneurs et PME",
   },
 };
 
@@ -27,7 +55,15 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning>
       <head>
+        <meta name="theme-color" content="#f4530c" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="Facturation" />
         <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon-152.png" />
+        <link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon-167.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-180.png" />
         {/* Script pour injecter des variables d'environnement */}
         <script
           dangerouslySetInnerHTML={{
