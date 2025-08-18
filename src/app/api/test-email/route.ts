@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const emailsArray = testEmail.includes(',')
-      ? testEmail.split(',').map(e => e.trim()).filter(e => e)
+      ? testEmail.split(',').map((e: string) => e.trim()).filter((e: string) => e)
       : [testEmail];
 
     console.log('🧪 [TEST-EMAIL] Emails destinataires:', emailsArray);
