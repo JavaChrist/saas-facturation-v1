@@ -13,7 +13,9 @@ import {
   FiUserPlus,
   FiMail,
   FiUser,
-  FiGrid
+  FiGrid,
+  FiMenu,
+  FiX
 } from "react-icons/fi";
 import Link from "next/link";
 import Image from "next/image";
@@ -47,6 +49,8 @@ export default function Dashboard() {
     planColor: "gray",
     planIcon: <FiStar className="text-gray-400" />,
   });
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Redirection vers /login si l'utilisateur n'est pas connecté
   useEffect(() => {
@@ -110,9 +114,35 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background-light dark:bg-background-dark">
+    <div className="flex min-h-screen bg-background-light dark:bg-background-dark relative">
+      {/* Overlay pour mobile */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-50 bg-gray-800 dark:bg-gray-900 text-white min-h-screen p-5">
+      <aside className={`
+        fixed lg:relative
+        inset-y-0 left-0
+        w-64
+        bg-gray-800 dark:bg-gray-900 text-white
+        min-h-screen p-5
+        transform transition-transform duration-300 ease-in-out
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        lg:translate-x-0
+        z-50 lg:z-0
+      `}>
+        {/* Bouton fermer sur mobile */}
+        <button
+          onClick={() => setIsSidebarOpen(false)}
+          className="absolute top-4 right-4 lg:hidden"
+        >
+          <FiX className="text-white" size={24} />
+        </button>
+
         <div className="flex items-center gap-3 mb-6">
           <div className="relative w-12 h-12 flex-shrink-0">
             <Image
@@ -129,6 +159,7 @@ export default function Dashboard() {
         <nav className="space-y-2">
           <Link
             href="/dashboard"
+            onClick={() => setIsSidebarOpen(false)}
             className="flex items-center py-2 px-4 rounded-md bg-gray-700 dark:bg-gray-800 hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             <FiGrid className="mr-3 text-white" size={18} />
@@ -136,6 +167,7 @@ export default function Dashboard() {
           </Link>
           <Link
             href="/dashboard/clients"
+            onClick={() => setIsSidebarOpen(false)}
             className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             <FiUsers className="mr-3 text-white" size={18} />
@@ -143,6 +175,7 @@ export default function Dashboard() {
           </Link>
           <Link
             href="/dashboard/factures"
+            onClick={() => setIsSidebarOpen(false)}
             className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             <FiFileText className="mr-3 text-white" size={18} />
@@ -150,6 +183,7 @@ export default function Dashboard() {
           </Link>
           <Link
             href="/dashboard/notifications"
+            onClick={() => setIsSidebarOpen(false)}
             className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             <FiMail className="mr-3 text-white" size={18} />
@@ -157,6 +191,7 @@ export default function Dashboard() {
           </Link>
           <Link
             href="/dashboard/utilisateurs"
+            onClick={() => setIsSidebarOpen(false)}
             className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             <FiUserPlus className="mr-3 text-white" size={18} />
@@ -164,6 +199,7 @@ export default function Dashboard() {
           </Link>
           <Link
             href="/dashboard/profil"
+            onClick={() => setIsSidebarOpen(false)}
             className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             <FiUser className="mr-3 text-white" size={18} />
@@ -171,6 +207,7 @@ export default function Dashboard() {
           </Link>
           <Link
             href="/dashboard/parametres"
+            onClick={() => setIsSidebarOpen(false)}
             className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             <FiSettings className="mr-3 text-white" size={18} />
@@ -178,6 +215,7 @@ export default function Dashboard() {
           </Link>
           <Link
             href="/dashboard/abonnement"
+            onClick={() => setIsSidebarOpen(false)}
             className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
           >
             <FiCreditCard className="mr-3 text-white" size={18} />
@@ -197,19 +235,28 @@ export default function Dashboard() {
       </aside>
 
       {/* Contenu principal */}
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 p-4 lg:p-6 overflow-auto">
         {/* Topbar */}
         <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Tableau de bord
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Bienvenue, {user?.displayName || user?.email || "Utilisateur"}
-            </p>
-          </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-4">
+            {/* Bouton hamburger pour mobile */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700"
+            >
+              <FiMenu className="text-gray-900 dark:text-white" size={24} />
+            </button>
             <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Tableau de bord
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                Bienvenue, {user?.displayName || user?.email || "Utilisateur"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 md:space-x-4">
+            <div className="hidden sm:block">
               <div className="text-sm text-gray-600 dark:text-gray-300">
                 Plan actif
               </div>
@@ -224,7 +271,7 @@ export default function Dashboard() {
             </div>
             <DateFilter
               onDateChange={(range: DateRange) => setDateRange(range)}
-              className="w-56"
+              className="w-40 md:w-56"
             />
             <NotificationBell />
           </div>
