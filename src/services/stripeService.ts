@@ -1,15 +1,10 @@
-import Stripe from "stripe";
+import { stripe, isStripeConfigured, getStripeNotConfiguredResponse } from "@/lib/stripe-client";
 import { Facture } from "@/types/facture";
 import {
   STRIPE_CURRENCY,
   SUCCESS_URL,
   CANCEL_URL,
 } from "@/config/stripe";
-
-// Initialiser Stripe avec la clé secrète
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: "2025-03-31.basil", // Version de l'API compatible
-});
 
 /**
  * Crée une session de paiement Stripe pour une facture

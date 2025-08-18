@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // Email de test forcé en mode développement
 const FORCE_TEST_EMAIL = "contact@javachrist.fr";
@@ -44,6 +44,14 @@ async function sendContactEmail(data: {
   message: string;
 }) {
   try {
+    if (!resend) {
+      console.warn("RESEND_API_KEY non configurée - envoi d'email ignoré");
+      return {
+        success: true,
+        message: "Mode démo: email non envoyé (RESEND_API_KEY manquante)",
+      };
+    }
+    
     const { name, email, message } = data;
 
     // Template pour l'équipe commerciale
@@ -201,6 +209,14 @@ async function sendInvitationEmail(data: {
   inviterName?: string;
 }) {
   try {
+    if (!resend) {
+      console.warn("RESEND_API_KEY non configurée - envoi d'email ignoré");
+      return {
+        success: true,
+        message: "Mode démo: email non envoyé (RESEND_API_KEY manquante)",
+      };
+    }
+    
     const { email, organizationId, role, invitationId, inviterName = "L'équipe" } = data;
 
     const roleFrench = role === 'admin' ? 'Administrateur' : role === 'editor' ? 'Éditeur' : 'Visiteur';

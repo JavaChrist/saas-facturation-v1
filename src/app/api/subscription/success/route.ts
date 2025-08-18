@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { STRIPE_SECRET_KEY } from "@/config/stripe";
+import { stripe, isStripeConfigured, getStripeNotConfiguredResponse } from "@/lib/stripe-client";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-
-// S'assurer que la clé est bien une chaîne
-const stripeSecretKey = STRIPE_SECRET_KEY || "";
-const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2025-03-31.basil",
-});
 
 /**
  * API route pour confirmer un paiement réussi
@@ -16,6 +9,11 @@ const stripe = new Stripe(stripeSecretKey, {
  */
 export async function POST(request: NextRequest) {
   try {
+    if (!isStripeConfigured()) {
+      const response = getStripeNotConfiguredResponse();
+      return NextResponse.json(response, { status: 503 });
+    }
+
     const { sessionId, userId, planId } = await request.json();
 
     if (!sessionId || !userId || !planId) {
@@ -38,7 +36,7 @@ export async function POST(request: NextRequest) {
         };
       } else {
         // En production, vérifier avec Stripe
-        stripeSession = await stripe.checkout.sessions.retrieve(sessionId);
+        stripeSession = await stripe!.checkout.sessions.retrieve(sessionId);
       }
     } catch (stripeError) {
       console.error("Erreur lors de la récupération de la session Stripe:", stripeError);
