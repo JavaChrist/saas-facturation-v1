@@ -396,37 +396,27 @@ function LoginContent() {
               id="login-form"
               onSubmit={handleEmailLogin}
               className="mb-6"
-              autoComplete="new-password"
+              autoComplete="on"
             >
-              {/* Champs cachés pour tromper le remplissage automatique */}
-              <div style={{ display: "none" }}>
-                <input type="text" name="username" autoComplete="username" />
-                <input
-                  type="password"
-                  name="current-password"
-                  autoComplete="current-password"
-                />
-              </div>
-
               <div className="mb-4">
                 <label
-                  htmlFor="email"
+                  htmlFor="login-email"
                   className="mb-2 block text-sm font-medium text-gray-800"
                 >
                   Email
                 </label>
                 <input
                   type="email"
-                  id="email"
+                  id="login-email"
                   name="email"
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
                   required
-                  autoComplete="email"
+                  autoComplete="username email"
                 />
               </div>
               <div className="mb-4">
                 <label
-                  htmlFor="password"
+                  htmlFor="login-password"
                   className="mb-2 block text-sm font-medium text-gray-800"
                 >
                   Mot de passe
@@ -434,11 +424,11 @@ function LoginContent() {
                 <div className="relative">
                   <input
                     type={showLoginPassword ? "text" : "password"}
-                    id="password"
+                    id="login-password"
                     name="password"
                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-800 focus:border-blue-500 focus:outline-none"
                     required
-                    autoComplete="off"
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
