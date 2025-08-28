@@ -60,16 +60,28 @@
   "categories": ["business", "finance", "productivity"],
   "screenshots": [
     {
+      "src": "/screenshots/dashboard-clair.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "label": "Tableau de bord (clair)"
+    },
+    {
       "src": "/screenshots/dashboard.png",
       "sizes": "1280x720",
       "type": "image/png",
-      "label": "Tableau de bord"
+      "label": "Tableau de bord (sombre)"
+    },
+    {
+      "src": "/screenshots/invoices-clair.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "label": "Gestion des factures (clair)"
     },
     {
       "src": "/screenshots/invoices.png",
       "sizes": "1280x720",
       "type": "image/png",
-      "label": "Gestion des factures"
+      "label": "Gestion des factures (sombre)"
     }
   ],
   "shortcuts": [
