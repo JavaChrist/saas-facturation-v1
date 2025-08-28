@@ -18,6 +18,7 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const unreadCount = notifications.filter(n => !n.lue).length;
 
   // Fonction pour rafraîchir manuellement les notifications
   const refreshNotifications = async () => {
@@ -146,7 +147,12 @@ export default function NotificationsPage() {
     <div className="p-6 bg-background-light dark:bg-background-dark min-h-screen flex flex-col items-center">
       <div className="max-w-4xl mx-auto w-full">
         <div className="mb-3 sm:mb-6">
-          <h1 className="text-3xl font-semibold text-gray-800 dark:text-white">🔔 Notifications</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-semibold text-gray-800 dark:text-white">🔔 Notifications</h1>
+            <span className="inline-flex items-center justify-center text-xs font-medium rounded-full px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+              {unreadCount} non lue{unreadCount > 1 ? 's' : ''}
+            </span>
+          </div>
           <div className="grid grid-cols-1 sm:flex sm:space-x-3 gap-2 mt-3">
             <button
               onClick={refreshNotifications}
@@ -159,6 +165,24 @@ export default function NotificationsPage() {
               <FiRefreshCw size={18} className={`mr-2 ${refreshing ? "animate-spin" : ""}`} />
               Actualiser
             </button>
+            {unreadCount > 0 && (
+              <button
+                onClick={async () => {
+                  if (!user) return;
+                  try {
+                    // marquer toutes comme lues (réutiliser la cloche ou créer localement)
+                    const { marquerToutesCommeLues } = await import("@/services/notificationService");
+                    await marquerToutesCommeLues(user.uid);
+                    setNotifications(prev => prev.map(n => ({ ...n, lue: true })));
+                  } catch (e) {
+                    console.error("Erreur marquer toutes comme lues:", e);
+                  }
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md"
+              >
+                Tout marquer comme lu
+              </button>
+            )}
             <button
               onClick={() => router.push("/dashboard")}
               className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center justify-center"
