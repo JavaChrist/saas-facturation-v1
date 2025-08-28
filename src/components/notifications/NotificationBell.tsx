@@ -4,7 +4,6 @@ import { useAuth } from "@/lib/authContext";
 import { Notification } from "@/types/notification";
 import {
   getNotificationsNonLues,
-  getAllNotifications,
   marquerCommeLue,
   marquerToutesCommeLues,
   verifierFacturesEnRetard,
@@ -61,12 +60,8 @@ const NotificationBell: React.FC = () => {
       console.log("NotificationBell: Vérification des factures en retard terminée");
 
       console.log("NotificationBell: Récupération des notifications non lues");
-      // Récupérer les notifications non lues
-      let notifs = await getNotificationsNonLues(user.uid);
-      // Fallback: si aucune non lue, récupérer toutes pour afficher les relances existantes
-      if (notifs.length === 0) {
-        notifs = await getAllNotifications(user.uid);
-      }
+      // Récupérer uniquement les notifications non lues
+      const notifs = await getNotificationsNonLues(user.uid);
       console.log(`NotificationBell: ${notifs.length} notifications récupérées:`, 
         notifs.map(n => ({
           id: n.id,
