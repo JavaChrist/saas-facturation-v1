@@ -720,7 +720,10 @@ export default function FacturesPage() {
 
         // Mettre à jour le cache si nécessaire
         if (updateCachedFacture) {
-          updateCachedFacture({ ...factureData, id: selectedFacture.id, dateCreation: factureData.dateCreation.toDate() } as Facture);
+          updateCachedFacture(
+            selectedFacture.id,
+            { ...factureData, dateCreation: factureData.dateCreation.toDate() } as Partial<Facture>
+          );
         }
 
       } else {
@@ -1001,7 +1004,7 @@ export default function FacturesPage() {
           allEmails.push({
             email: e.email.trim(),
             isDefault: e.isDefault,
-            label: e.label || 'Contact'
+            label: 'Contact'
           });
         }
       });
@@ -1129,7 +1132,7 @@ export default function FacturesPage() {
           const factureRef = doc(db, 'factures', factureForEmail.id);
           const updateData: any = {
             lastEmailSent: new Date(),
-            emailSentCount: (factureForEmail.emailSentCount || 0) + 1,
+            emailSentCount: ((factureForEmail as any).emailSentCount || 0) + 1,
           };
 
           // Si c'est le premier envoi, changer le statut
@@ -1402,13 +1405,12 @@ export default function FacturesPage() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center">
                         <span
-                          className={`inline-block w-2.5 h-2.5 rounded-full ${getCouleurStatut(facture.statut)}`}
+                          className={`inline-block w-3.5 h-3.5 md:w-4 md:h-4 rounded-full ${getCouleurStatut(facture.statut)}`}
                           style={getCouleurStatutInline(facture.statut)}
                           aria-hidden="true"
                         />
-                        <span className="text-sm">{getTexteCourtStatut(facture.statut)}</span>
                       </div>
                     </td>
                     <td className="py-3 px-4 text-center">
@@ -1574,9 +1576,7 @@ export default function FacturesPage() {
                     {newFacture.client.id && newFacture.client.delaisPaiement ? (
                       <span className="font-medium">
                         {calculerDateEcheance(
-                          newFacture.dateCreation instanceof Date
-                            ? newFacture.dateCreation
-                            : new Date(newFacture.dateCreation || Date.now()),
+                          convertToDate(newFacture.dateCreation as any),
                           newFacture.client.delaisPaiement
                         ).toLocaleDateString('fr-FR')}
                       </span>
@@ -1887,7 +1887,7 @@ export default function FacturesPage() {
                           allEmails.push({
                             email: e.email.trim(),
                             isDefault: e.isDefault,
-                            label: e.label || 'Contact'
+                            label: 'Contact'
                           });
                         }
                       });
