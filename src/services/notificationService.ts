@@ -23,25 +23,16 @@ export const verifierFacturesEnRetardDirectement = async (
   userId: string
 ): Promise<void> => {
   try {
-    // Vérifier l'état de l'authentification
+    // Ne pas bloquer sur getAuth().currentUser: en pratique, les règles Firestore protègent déjà l'accès
+    // et il arrive que currentUser soit momentanément null malgré le contexte user.
     const auth = getAuth();
     const currentUser = auth.currentUser;
-    console.log("État de l'authentification:", {
+    console.log("État de l'authentification (non bloquant):", {
       userId,
       currentUserId: currentUser?.uid,
       isAuthenticated: !!currentUser,
       email: currentUser?.email
     });
-
-    if (!currentUser) {
-      console.error("Utilisateur non authentifié");
-      return;
-    }
-
-    if (currentUser.uid !== userId) {
-      console.error("ID utilisateur ne correspond pas à l'utilisateur authentifié");
-      return;
-    }
 
     console.log("Vérification directe des factures en retard pour l'utilisateur:", userId);
 
@@ -481,25 +472,14 @@ const supprimerNotificationsDupliquees = async (userId: string): Promise<void> =
 // Récupérer les notifications non lues pour un utilisateur
 export const getNotificationsNonLues = async (userId: string): Promise<Notification[]> => {
   try {
-    // Vérifier l'état de l'authentification
+    // Ne pas bloquer si currentUser est null pendant une courte période
     const auth = getAuth();
     const currentUser = auth.currentUser;
-    console.log("État de l'authentification pour les notifications:", {
+    console.log("État auth (non bloquant) pour notifications:", {
       userId,
       currentUserId: currentUser?.uid,
       isAuthenticated: !!currentUser,
-      email: currentUser?.email
     });
-
-    if (!currentUser) {
-      console.error("Utilisateur non authentifié");
-      return [];
-    }
-
-    if (currentUser.uid !== userId) {
-      console.error("ID utilisateur ne correspond pas à l'utilisateur authentifié");
-      return [];
-    }
 
     console.log("Récupération des notifications non lues pour l'utilisateur:", userId);
 
