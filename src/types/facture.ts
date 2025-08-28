@@ -58,4 +58,5 @@ export interface Facture {
   montantPaye?: number; // Montant total payé (calculé)
   resteAPayer?: number; // Reste à payer (calculé)
   updating?: boolean; // Indicateur de mise à jour en cours
+  emailSentCount?: number; // Nombre d'emails envoyés
 }
