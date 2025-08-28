@@ -21,6 +21,17 @@ export default function NotificationsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const unreadCount = notifications.filter(n => !n.lue).length;
 
+  // Rafraîchir sans relancer la génération (utile juste après "Tout lu")
+  const fetchAllOnly = async () => {
+    if (!user) return;
+    try {
+      const notifs = await getAllNotifications(user.uid);
+      setNotifications(notifs);
+    } catch (e) {
+      console.error("Erreur lors du rechargement des notifications:", e);
+    }
+  };
+
   // Fonction pour rafraîchir manuellement les notifications
   const refreshNotifications = async () => {
     if (!user) return;
@@ -159,8 +170,8 @@ export default function NotificationsPage() {
               onClick={refreshNotifications}
               disabled={refreshing || loading}
               className={`${refreshing || loading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700"
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700"
                 } text-white py-2 px-4 rounded-md flex items-center justify-center`}
             >
               <FiRefreshCw size={18} className={`mr-2 ${refreshing ? "animate-spin" : ""}`} />
@@ -172,7 +183,7 @@ export default function NotificationsPage() {
                   if (!user) return;
                   try {
                     await marquerToutesCommeLues(user.uid);
-                    await refreshNotifications();
+                    await fetchAllOnly();
                   } catch (e) {
                     console.error("Erreur marquer toutes comme lues:", e);
                   }
@@ -236,10 +247,10 @@ export default function NotificationsPage() {
                           <div className="flex items-center">
                             <span
                               className={`w-3 h-3 rounded-full mr-2 ${notification.type === "paiement_retard"
-                                  ? "bg-red-500"
-                                  : notification.type === "paiement_proche"
-                                    ? "bg-orange-400"
-                                    : "bg-blue-500"
+                                ? "bg-red-500"
+                                : notification.type === "paiement_proche"
+                                  ? "bg-orange-400"
+                                  : "bg-blue-500"
                                 }`}
                             />
                             <h3 className="font-medium text-gray-800 dark:text-white">
