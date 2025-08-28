@@ -111,7 +111,13 @@ const NotificationBell: React.FC = () => {
   }, []);
 
   const toggleDropdown = () => {
-    setIsOpen(!isOpen);
+    setIsOpen(prev => {
+      const next = !prev;
+      if (next && !loading) {
+        fetchNotificationsWithRetry();
+      }
+      return next;
+    });
   };
 
   const handleNotificationClick = async (notification: Notification) => {
@@ -287,7 +293,7 @@ const NotificationBell: React.FC = () => {
                             }
                           )
                         : new Date(
-                            notification.dateCreation
+                            notification.dateCreation as any
                           ).toLocaleDateString("fr-FR", {
                             hour: "2-digit",
                             minute: "2-digit",
