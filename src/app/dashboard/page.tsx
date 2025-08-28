@@ -19,14 +19,47 @@ import {
 } from "react-icons/fi";
 import Link from "next/link";
 import Image from "next/image";
-import RevenueChart from "@/components/dashboard/RevenueChart";
-import DashboardStats from "@/components/dashboard/DashboardStats";
-import DateFilter, { DateRange } from "@/components/dashboard/DateFilter";
-import ClientsChart from "@/components/dashboard/ClientsChart";
-import InvoiceStatusChart from "@/components/dashboard/InvoiceStatusChart";
+import dynamic from "next/dynamic";
+import type { DateRange } from "@/components/dashboard/DateFilter";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { getUserPlan } from "@/services/subscriptionService";
+
+// Imports dynamiques pour réduire le JS initial et éviter le CLS avec des placeholders
+const DashboardStats = dynamic(() => import("@/components/dashboard/DashboardStats"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-28 bg-gray-100 dark:bg-gray-800 rounded-md animate-pulse" />
+  ),
+});
+
+const InvoiceStatusChart = dynamic(() => import("@/components/dashboard/InvoiceStatusChart"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-72 md:h-80 bg-gray-100 dark:bg-gray-800 rounded-md animate-pulse" />
+  ),
+});
+
+const RevenueChart = dynamic(() => import("@/components/dashboard/RevenueChart"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-72 md:h-80 bg-gray-100 dark:bg-gray-800 rounded-md animate-pulse" />
+  ),
+});
+
+const ClientsChart = dynamic(() => import("@/components/dashboard/ClientsChart"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-72 md:h-80 bg-gray-100 dark:bg-gray-800 rounded-md animate-pulse" />
+  ),
+});
+
+const DateFilter = dynamic(() => import("@/components/dashboard/DateFilter"), {
+  ssr: false,
+  loading: () => (
+    <div className="hidden sm:block w-32 md:w-56 h-10 bg-gray-100 dark:bg-gray-800 rounded-md" />
+  ),
+});
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -277,19 +310,19 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="mb-8">
+        <div className="mb-8 min-h-[7rem]">
           <DashboardStats user={user} dateRange={dateRange} />
         </div>
 
-        <div className="mb-8">
+        <div className="mb-8 min-h-[20rem]">
           <InvoiceStatusChart dateRange={dateRange} />
         </div>
 
-        <div className="mb-8">
+        <div className="mb-8 min-h-[20rem]">
           <RevenueChart dateRange={dateRange} />
         </div>
 
-        <div className="mb-8">
+        <div className="mb-8 min-h-[20rem]">
           <ClientsChart dateRange={dateRange} />
         </div>
 
