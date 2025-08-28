@@ -271,7 +271,7 @@ export default function Dashboard() {
             </div>
             <DateFilter
               onDateChange={(range: DateRange) => setDateRange(range)}
-              className="w-40 md:w-56"
+              className="hidden sm:block w-32 md:w-56"
             />
             <NotificationBell />
           </div>

@@ -52,7 +52,7 @@ export default function ParametresPage() {
         console.log("Tentative de récupération des données d'entreprise pour l'utilisateur:", user.uid);
         // Vérifier si la collection/document existe
         const docRef = doc(db, "parametres", user.uid, "entreprise", "default");
-        
+
         try {
           const docSnap = await getDoc(docRef);
           console.log("Données récupérées:", docSnap.exists() ? "Document trouvé" : "Document non trouvé");
@@ -110,7 +110,7 @@ export default function ParametresPage() {
           }
         } catch (fetchError) {
           console.error("Erreur détaillée lors de la récupération:", fetchError);
-          
+
           // Vérifier les codes d'erreur spécifiques
           if (fetchError instanceof Error) {
             const errorMessage = fetchError.message;
@@ -126,7 +126,7 @@ export default function ParametresPage() {
           } else {
             setError("Erreur lors de la récupération des données. Veuillez réessayer.");
           }
-          
+
           // Utiliser des valeurs par défaut malgré l'erreur
           const defaultEntreprise: Entreprise = {
             nom: "",
@@ -251,20 +251,18 @@ export default function ParametresPage() {
 
   return (
     <div className="p-6 flex flex-col items-center">
-      <div className="flex justify-between items-center mb-6 w-full max-w-3xl">
-        <h1 className="text-4xl font-semibold text-gray-800 dark:text-white">
-          ⚙️ Paramètres
-        </h1>
-        <div className="flex space-x-3">
+      <div className="w-full max-w-3xl mb-6">
+        <h1 className="text-4xl font-semibold text-gray-800 dark:text-white">⚙️ Paramètres</h1>
+        <div className="grid grid-cols-1 sm:flex sm:space-x-3 gap-2 mt-3">
           <button
             onClick={() => router.push("/dashboard/parametres/sauvegardes")}
-            className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center transform hover:scale-105 transition-transform duration-300"
+            className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center"
           >
             <FiDatabase size={18} className="mr-2" /> Sauvegardes
           </button>
           <button
             onClick={() => router.push("/dashboard")}
-            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
+            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center justify-center"
           >
             <FiArrowLeft size={18} className="mr-2" /> Retour
           </button>
@@ -352,7 +350,7 @@ export default function ParametresPage() {
                                 "L'image est trop volumineuse (max 500KB)"
                               );
                             }
-                            
+
                             // Vérification des types d'images autorisés
                             const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
                             if (!allowedTypes.includes(file.type)) {
@@ -384,10 +382,9 @@ export default function ParametresPage() {
                           } catch (error) {
                             console.error("Erreur lors du chargement:", error);
                             setError(
-                              `Erreur lors du chargement du logo: ${
-                                error instanceof Error
-                                  ? error.message
-                                  : "Erreur inconnue"
+                              `Erreur lors du chargement du logo: ${error instanceof Error
+                                ? error.message
+                                : "Erreur inconnue"
                               }`
                             );
                           } finally {
@@ -592,10 +589,9 @@ export default function ParametresPage() {
 
           <div className="flex justify-between items-center">
             {saveMessage && (
-              <div className={`transition-all duration-300 py-2 px-4 rounded-md ${
-                saveStatus === "success" ? "bg-green-100 text-green-800 border border-green-300" :
-                saveStatus === "error" ? "bg-red-100 text-red-800 border border-red-300" : ""
-              }`}>
+              <div className={`transition-all duration-300 py-2 px-4 rounded-md ${saveStatus === "success" ? "bg-green-100 text-green-800 border border-green-300" :
+                  saveStatus === "error" ? "bg-red-100 text-red-800 border border-red-300" : ""
+                }`}>
                 {saveStatus === "success" && "✅ "}
                 {saveStatus === "error" && "❌ "}
                 {saveMessage}

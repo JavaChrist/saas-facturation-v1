@@ -26,10 +26,10 @@ export default function NotificationsPage() {
     try {
       setRefreshing(true);
       console.log("Rafraîchissement manuel des notifications pour l'utilisateur:", user.uid);
-      
+
       // Vérifier d'abord les factures en retard pour générer les notifications nécessaires
       await verifierFacturesEnRetard(user.uid);
-      
+
       // Puis récupérer toutes les notifications
       const notifs = await getAllNotifications(user.uid);
       console.log("Notifications récupérées après rafraîchissement:", notifs.map(n => ({
@@ -55,10 +55,10 @@ export default function NotificationsPage() {
     const fetchNotifications = async () => {
       try {
         setLoading(true);
-        
+
         // Vérifier d'abord les factures en retard pour générer les notifications nécessaires
         await verifierFacturesEnRetard(user.uid);
-        
+
         // Puis récupérer toutes les notifications
         const notifs = await getAllNotifications(user.uid);
         setNotifications(notifs);
@@ -145,26 +145,23 @@ export default function NotificationsPage() {
   return (
     <div className="p-6 bg-background-light dark:bg-background-dark min-h-screen flex flex-col items-center">
       <div className="max-w-4xl mx-auto w-full">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-semibold text-gray-800 dark:text-white">
-            🔔 Notifications
-          </h1>
-          <div className="flex space-x-3">
+        <div className="mb-3 sm:mb-6">
+          <h1 className="text-3xl font-semibold text-gray-800 dark:text-white">🔔 Notifications</h1>
+          <div className="grid grid-cols-1 sm:flex sm:space-x-3 gap-2 mt-3">
             <button
               onClick={refreshNotifications}
               disabled={refreshing || loading}
-              className={`${
-                refreshing || loading
+              className={`${refreshing || loading
                   ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700 transform hover:scale-105"
-              } text-white py-2 px-4 rounded-md flex items-center transition-transform duration-300`}
+                  : "bg-blue-600 hover:bg-blue-700"
+                } text-white py-2 px-4 rounded-md flex items-center justify-center`}
             >
               <FiRefreshCw size={18} className={`mr-2 ${refreshing ? "animate-spin" : ""}`} />
               Actualiser
             </button>
             <button
               onClick={() => router.push("/dashboard")}
-              className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
+              className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center justify-center"
             >
               <FiArrowLeft size={18} className="mr-2" /> Retour
             </button>
@@ -203,9 +200,8 @@ export default function NotificationsPage() {
                   {group.notifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`px-6 py-4 flex justify-between items-start hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                        !notification.lue ? "border-l-4 border-l-blue-500" : ""
-                      }`}
+                      className={`px-6 py-4 flex justify-between items-start hover:bg-gray-50 dark:hover:bg-gray-700 ${!notification.lue ? "border-l-4 border-l-blue-500" : ""
+                        }`}
                     >
                       <Link
                         href={`/dashboard/factures?id=${notification.factureId}`}
@@ -216,13 +212,12 @@ export default function NotificationsPage() {
                         >
                           <div className="flex items-center">
                             <span
-                              className={`w-3 h-3 rounded-full mr-2 ${
-                                notification.type === "paiement_retard"
+                              className={`w-3 h-3 rounded-full mr-2 ${notification.type === "paiement_retard"
                                   ? "bg-red-500"
                                   : notification.type === "paiement_proche"
-                                  ? "bg-orange-400"
-                                  : "bg-blue-500"
-                              }`}
+                                    ? "bg-orange-400"
+                                    : "bg-blue-500"
+                                }`}
                             />
                             <h3 className="font-medium text-gray-800 dark:text-white">
                               {notification.clientNom} -{" "}

@@ -577,24 +577,19 @@ export default function UtilisateursPage() {
 
   return (
     <div className="p-6 bg-background-light dark:bg-background-dark">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-4xl font-semibold text-gray-800 dark:text-white">
-          👥 Gestion des Utilisateurs
-        </h1>
-        <div className="flex space-x-4">
+      <div className="mb-4">
+        <h1 className="text-3xl sm:text-4xl font-semibold text-gray-800 dark:text-white">👥 Gestion des Utilisateurs</h1>
+        <div className="grid grid-cols-1 sm:flex sm:space-x-4 gap-2 mt-3">
           <button
             onClick={() => router.push("/dashboard")}
-            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
+            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center justify-center"
           >
             <FiArrowLeft size={18} className="mr-2" /> Retour
           </button>
           <button
             onClick={openAddUserModal}
             disabled={!canAddMoreUsers}
-            className={`${canAddMoreUsers
-              ? "bg-green-600 hover:bg-green-700 transform hover:scale-105"
-              : "bg-gray-400 cursor-not-allowed"
-              } text-white py-2 px-4 rounded-md flex items-center transition-transform duration-300`}
+            className={`${canAddMoreUsers ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed"} text-white py-2 px-4 rounded-md flex items-center justify-center`}
           >
             <FiUserPlus size={18} className="mr-2" /> Ajouter un utilisateur
           </button>
@@ -643,98 +638,100 @@ export default function UtilisateursPage() {
 
       {/* Liste des utilisateurs */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-800 text-white">
-            <tr>
-              <th className="py-3 px-4 text-left">Nom</th>
-              <th className="py-3 px-4 text-left">Email</th>
-              <th className="py-3 px-4 text-left">Rôle</th>
-              <th className="py-3 px-4 text-left">Statut</th>
-              <th className="py-3 px-4 text-left">Ajouté le</th>
-              <th className="py-3 px-4 text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.length === 0 ? (
+        <div className="w-full overflow-x-auto">
+          <table className="min-w-[700px] w-full">
+            <thead className="bg-gray-800 text-white">
               <tr>
-                <td
-                  colSpan={6}
-                  className="py-8 text-center text-gray-500 dark:text-gray-400"
-                >
-                  Aucun utilisateur trouvé. Ajoutez des utilisateurs pour qu'ils
-                  puissent accéder à votre compte.
-                </td>
+                <th className="py-3 px-4 text-left">Nom</th>
+                <th className="py-3 px-4 text-left">Email</th>
+                <th className="py-3 px-4 text-left">Rôle</th>
+                <th className="py-3 px-4 text-left">Statut</th>
+                <th className="py-3 px-4 text-left">Ajouté le</th>
+                <th className="py-3 px-4 text-center">Actions</th>
               </tr>
-            ) : (
-              users.map((user) => (
-                <tr
-                  key={user.id}
-                  className="border-b dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
-                    {user.displayName}
-                  </td>
-                  <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
-                    {user.email}
-                  </td>
-                  <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
-                    {getRoleFrenchName(user.role)}
-                  </td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs ${user.isActive
-                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                        : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                        }`}
-                    >
-                      {user.isActive ? "Actif" : "Inactif"}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
-                    {user.createdAt instanceof Date
-                      ? user.createdAt.toLocaleDateString()
-                      : new Date(user.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <div className="flex justify-center space-x-2">
-                      <button
-                        onClick={() => handleSendInvitation(user.email)}
-                        className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                        title="Renvoyer l'invitation"
-                      >
-                        <FiMail size={18} />
-                      </button>
-                      {user.isActive ? (
-                        <button
-                          onClick={() => handleDeactivateUser(user)}
-                          className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                          title="Désactiver"
-                        >
-                          <FiUserX size={18} />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleActivateUser(user)}
-                          className="text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-                          title="Réactiver"
-                        >
-                          <FiUserCheck size={18} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteUser(user)}
-                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                        title="Supprimer"
-                      >
-                        <FiTrash2 size={18} />
-                      </button>
-                    </div>
+            </thead>
+            <tbody>
+              {users.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="py-8 text-center text-gray-500 dark:text-gray-400"
+                  >
+                    Aucun utilisateur trouvé. Ajoutez des utilisateurs pour qu'ils
+                    puissent accéder à votre compte.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                users.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="border-b dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
+                      {user.displayName}
+                    </td>
+                    <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
+                      {user.email}
+                    </td>
+                    <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
+                      {getRoleFrenchName(user.role)}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs ${user.isActive
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                          }`}
+                      >
+                        {user.isActive ? "Actif" : "Inactif"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-gray-800 dark:text-gray-200">
+                      {user.createdAt instanceof Date
+                        ? user.createdAt.toLocaleDateString()
+                        : new Date(user.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <div className="flex justify-center space-x-2">
+                        <button
+                          onClick={() => handleSendInvitation(user.email)}
+                          className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                          title="Renvoyer l'invitation"
+                        >
+                          <FiMail size={18} />
+                        </button>
+                        {user.isActive ? (
+                          <button
+                            onClick={() => handleDeactivateUser(user)}
+                            className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            title="Désactiver"
+                          >
+                            <FiUserX size={18} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleActivateUser(user)}
+                            className="text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+                            title="Réactiver"
+                          >
+                            <FiUserCheck size={18} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteUser(user)}
+                          className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                          title="Supprimer"
+                        >
+                          <FiTrash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Modal d'ajout d'utilisateur */}

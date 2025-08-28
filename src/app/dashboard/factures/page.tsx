@@ -26,6 +26,7 @@ import {
   FiEye,
   FiRefreshCw,
   FiMail,
+  FiMenu,
 } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { Facture, Client } from "@/types/facture";
@@ -180,6 +181,7 @@ export default function FacturesPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
+  const [showActionsMobile, setShowActionsMobile] = useState(false);
 
   // État pour le modal de sélection de modèle
   const [isModeleSelectorOpen, setIsModeleSelectorOpen] = useState(false);
@@ -1217,26 +1219,37 @@ export default function FacturesPage() {
 
   return (
     <div className="p-6 bg-background-light dark:bg-background-dark">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-4xl font-semibold text-text-light dark:text-text-dark">
-          📜 Factures
-        </h1>
-        <div className="flex space-x-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6">
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center">
+            <button
+              onClick={() => setShowActionsMobile(v => !v)}
+              className="sm:hidden mr-3 p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700"
+              aria-label="Ouvrir le menu d'actions"
+            >
+              <FiMenu size={22} />
+            </button>
+            <h1 className="text-3xl sm:text-4xl font-semibold text-text-light dark:text-text-dark">
+              📜 Factures
+            </h1>
+          </div>
+        </div>
+        <div className="hidden sm:flex space-x-2 sm:space-x-4 mt-4 sm:mt-0">
           <button
             onClick={() => router.push("/dashboard")}
-            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
+            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center"
           >
             <FiArrowLeft size={18} className="mr-2" /> Retour
           </button>
           <button
             onClick={() => router.push("/dashboard/factures/modeles")}
-            className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center transform hover:scale-105 transition-transform duration-300"
+            className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center"
           >
             📝 Modèles
           </button>
           <button
             onClick={() => router.push("/dashboard/factures/recurrentes")}
-            className="bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 flex items-center transform hover:scale-105 transition-transform duration-300"
+            className="bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 flex items-center"
           >
             🔄 Récurrentes
           </button>
@@ -1245,12 +1258,41 @@ export default function FacturesPage() {
             disabled={limitReached}
             className={`${limitReached
               ? "bg-gray-400 cursor-not-allowed"
-              : "bg-gray-800 hover:bg-gray-600 transform hover:scale-105"
-              } text-white py-2 px-4 rounded-md transition-transform duration-300`}
+              : "bg-green-600 hover:bg-green-700"
+              } text-white py-2 px-4 rounded-md`}
           >
             Ajouter une facture
           </button>
         </div>
+        {showActionsMobile && (
+          <div className="sm:hidden mt-3 grid grid-cols-1 gap-2">
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center justify-center"
+            >
+              <FiArrowLeft size={18} className="mr-2" /> Retour
+            </button>
+            <button
+              onClick={() => router.push("/dashboard/factures/modeles")}
+              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center"
+            >
+              📝 Modèles
+            </button>
+            <button
+              onClick={() => router.push("/dashboard/factures/recurrentes")}
+              className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 flex items-center justify-center"
+            >
+              🔄 Récurrentes
+            </button>
+            <button
+              onClick={openModal}
+              disabled={limitReached}
+              className={`w-full ${limitReached ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"} text-white py-2 px-4 rounded-md`}
+            >
+              Ajouter une facture
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Affichage des erreurs */}
@@ -1360,13 +1402,14 @@ export default function FacturesPage() {
                       </div>
                     </td>
                     <td className="py-3 px-4 text-text-light dark:text-text-dark">
-                      <span
-                        className={`py-1 px-3 rounded-full text-white text-sm ${getCouleurStatut(facture.statut)}`}
-                        style={getCouleurStatutInline(facture.statut)}
-                        title={`Statut: ${facture.statut} - Classe: ${getCouleurStatut(facture.statut)}`}
-                      >
-                        {getTexteCourtStatut(facture.statut)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-block w-2.5 h-2.5 rounded-full ${getCouleurStatut(facture.statut)}`}
+                          style={getCouleurStatutInline(facture.statut)}
+                          aria-hidden="true"
+                        />
+                        <span className="text-sm">{getTexteCourtStatut(facture.statut)}</span>
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-center">
                       <button
@@ -1402,6 +1445,27 @@ export default function FacturesPage() {
                 ))}
             </tbody>
           </table>
+          {/* Légende des statuts */}
+          <div className="mt-4 text-sm text-gray-600 dark:text-gray-300">
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded-full bg-red-500" />
+                <span>À relancer</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded-full bg-green-500" />
+                <span>Payée</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded-full bg-blue-500" />
+                <span>Envoyée</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded-full bg-orange-500" />
+                <span>En attente</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

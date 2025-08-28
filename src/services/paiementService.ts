@@ -303,7 +303,7 @@ export const getCouleurStatut = (statut: Facture["statut"]): string => {
     case "Partiellement payée":
       return "bg-amber-500"; // Amber pour les paiements partiels (plus visible)
     case "En attente":
-      return "bg-yellow-500";
+      return "bg-orange-500";
     case "Envoyée":
       return "bg-blue-500";
     case "À relancer":
@@ -325,7 +325,7 @@ export const getCouleurStatutInline = (statut: Facture["statut"]): { backgroundC
     case "Partiellement payée":
       return { backgroundColor: "#F59E0B" }; // amber-500
     case "En attente":
-      return { backgroundColor: "#EAB308" }; // yellow-500
+      return { backgroundColor: "#F97316" }; // orange-500
     case "Envoyée":
       return { backgroundColor: "#3B82F6" }; // blue-500
     case "À relancer":

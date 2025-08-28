@@ -310,7 +310,7 @@ export default function ClientsPage() {
       `le client ${clientToDelete.nom}`,
       async () => {
         try {
-    await deleteDoc(doc(db, "clients", id));
+          await deleteDoc(doc(db, "clients", id));
           modal.showSuccess("Client supprimé avec succès");
         } catch (error) {
           console.error("Erreur lors de la suppression:", error);
@@ -322,25 +322,27 @@ export default function ClientsPage() {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
-        >
-          <FiArrowLeft size={18} className="mr-2" /> Retour
-        </button>
-        <button
-          onClick={openNewClientModal}
-          disabled={limitReached}
-          className={`${limitReached
-            ? "bg-gray-400 cursor-not-allowed"
-            : "bg-green-500 hover:bg-green-700 transform hover:scale-105"
-            } text-white py-2 px-4 rounded-md flex items-center transition-transform duration-300`}
-        >
-          <FiPlusCircle size={18} className="mr-2" /> Ajouter un client
-        </button>
+      <div className="mb-3">
+        <h1 className="text-2xl font-semibold">👥 Clients</h1>
+        <div className="grid grid-cols-1 sm:flex sm:space-x-3 gap-2 mt-3">
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center justify-center"
+          >
+            <FiArrowLeft size={18} className="mr-2" /> Retour
+          </button>
+          <button
+            onClick={openNewClientModal}
+            disabled={limitReached}
+            className={`${limitReached
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-green-500 hover:bg-green-700"
+              } text-white py-2 px-4 rounded-md flex items-center justify-center`}
+          >
+            <FiPlusCircle size={18} className="mr-2" /> Ajouter un client
+          </button>
+        </div>
       </div>
-      <h1 className="text-2xl font-semibold mb-6">👥 Clients</h1>
 
       {/* Information sur les limites du plan */}
       {planInfo.planId && (

@@ -36,9 +36,9 @@ export default function ProfilPage() {
   useEffect(() => {
     if (!user) {
       router.push('/login');
-          return;
-        }
-        
+      return;
+    }
+
     const loadProfile = async () => {
       try {
         setIsLoading(true);
@@ -215,7 +215,7 @@ export default function ProfilPage() {
 
   if (isLoading) {
     console.log("[PROFIL] Affichage du loader");
-  return (
+    return (
       <div className="flex justify-center items-center min-h-screen bg-background-light dark:bg-background-dark">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100"></div>
         <p className="ml-4 text-text-light dark:text-text-dark">Chargement du profil...</p>
@@ -244,7 +244,7 @@ export default function ProfilPage() {
             </button>
           </div>
         </div>
-        </div>
+      </div>
     );
   }
 
@@ -253,28 +253,26 @@ export default function ProfilPage() {
   return (
     <div className="p-6 bg-background-light dark:bg-background-dark min-h-screen">
       <div className="max-w-4xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-          <h1 className="text-4xl font-semibold text-text-light dark:text-text-dark">
-            👤 Mon Profil
-          </h1>
-          <div className="flex flex-wrap gap-2">
+        <div className="mb-3">
+          <h1 className="text-4xl font-semibold text-text-light dark:text-text-dark">👤 Mon Profil</h1>
+          <div className="grid grid-cols-1 sm:flex sm:space-x-3 gap-2 mt-3">
             <button
               onClick={() => router.push("/dashboard")}
-              className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center transform hover:scale-105 transition-transform duration-300"
+              className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center justify-center"
             >
               <FiArrowLeft size={18} className="mr-2" /> Retour
             </button>
             <button
               onClick={() => setShowPreview(!showPreview)}
-              className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center transform hover:scale-105 transition-transform duration-300"
+              className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center justify-center"
             >
               <FiEye size={18} className="mr-2" />
               {showPreview ? 'Masquer' : 'Aperçu'}
             </button>
-            <button 
+            <button
               onClick={handleSave}
               disabled={isSaving}
-              className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 flex items-center transform hover:scale-105 transition-transform duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSaving ? (
                 <>
