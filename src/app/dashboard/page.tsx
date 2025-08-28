@@ -270,7 +270,7 @@ export default function Dashboard() {
       {/* Contenu principal */}
       <main className="flex-1 p-4 lg:p-6 overflow-auto">
         {/* Topbar */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-6 min-h-[56px]">
           <div className="flex items-center gap-4">
             {/* Bouton hamburger pour mobile */}
             <button
@@ -279,11 +279,11 @@ export default function Dashboard() {
             >
               <FiMenu className="text-gray-900 dark:text-white" size={24} />
             </button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <div className="min-h-[40px] flex flex-col justify-center">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-tight">
                 Tableau de bord
               </h1>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-gray-600 dark:text-gray-400 leading-snug">
                 Bienvenue, {user?.displayName || user?.email || "Utilisateur"}
               </p>
             </div>

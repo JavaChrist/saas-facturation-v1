@@ -163,7 +163,7 @@ const NotificationBell: React.FC = () => {
   return (
     <div className="relative" ref={dropdownRef}>
       <div
-        className="cursor-pointer p-2 rounded-full hover:bg-gray-200 relative"
+        className="cursor-pointer relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200"
         onClick={toggleDropdown}
       >
         {loading ? (
@@ -185,11 +185,11 @@ const NotificationBell: React.FC = () => {
         ) : (
           <>
             <FiBell size={24} className="text-gray-700" />
-            {notifications.length > 0 && (
-              <span className="absolute top-0 right-0 inline-block w-5 h-5 text-xs text-center text-white bg-red-500 rounded-full">
-                {notifications.length > 9 ? "9+" : notifications.length}
-              </span>
-            )}
+            {/* Réserver l'espace du badge pour éviter le CLS */}
+            <span className="absolute top-0 right-0 inline-block w-5 h-5 text-xs text-center rounded-full"
+              style={{ visibility: notifications.length > 0 ? "visible" : "hidden", backgroundColor: notifications.length > 0 ? "#ef4444" : "transparent", color: notifications.length > 0 ? "#fff" : "transparent" }}>
+              {notifications.length > 9 ? "9+" : notifications.length || "0"}
+            </span>
           </>
         )}
       </div>
