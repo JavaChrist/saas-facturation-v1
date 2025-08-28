@@ -153,8 +153,8 @@ const NotificationBell: React.FC = () => {
         "NotificationBell: Marquer toutes les notifications comme lues"
       );
       await marquerToutesCommeLues(user.uid);
-      setNotifications([]);
-      setIsOpen(false);
+      // Rafraîchir l'état local pour refléter Firestore immédiatement
+      await fetchNotificationsWithRetry();
     } catch (error) {
       console.error(
         "NotificationBell: Erreur lors du marquage de toutes les notifications comme lues:",
@@ -215,7 +215,7 @@ const NotificationBell: React.FC = () => {
                   onClick={markAllAsRead}
                   className="text-xs text-blue-500 hover:underline"
                 >
-                  Tout marquer comme lu
+                  Tout lu
                 </button>
               )}
               <button
