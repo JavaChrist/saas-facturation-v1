@@ -7,6 +7,7 @@ import { Notification } from "@/types/notification";
 import {
   getAllNotifications,
   marquerCommeLue,
+  marquerToutesCommeLues,
   supprimerNotification,
   verifierFacturesEnRetard,
 } from "@/services/notificationService";
@@ -170,17 +171,15 @@ export default function NotificationsPage() {
                 onClick={async () => {
                   if (!user) return;
                   try {
-                    // marquer toutes comme lues (réutiliser la cloche ou créer localement)
-                    const { marquerToutesCommeLues } = await import("@/services/notificationService");
                     await marquerToutesCommeLues(user.uid);
-                    setNotifications(prev => prev.map(n => ({ ...n, lue: true })));
+                    await refreshNotifications();
                   } catch (e) {
                     console.error("Erreur marquer toutes comme lues:", e);
                   }
                 }}
                 className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md"
               >
-                Tout marquer comme lu
+                Tout lu
               </button>
             )}
             <button
