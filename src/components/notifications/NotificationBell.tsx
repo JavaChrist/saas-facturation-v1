@@ -110,6 +110,17 @@ const NotificationBell: React.FC = () => {
     };
   }, []);
 
+  // Rafraîchir quand l'onglet revient au premier plan
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && user) {
+        fetchNotificationsWithRetry();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [user]);
+
   const toggleDropdown = () => {
     setIsOpen(prev => {
       const next = !prev;
@@ -305,20 +316,13 @@ const NotificationBell: React.FC = () => {
             )}
           </div>
 
-          <div className="border-t px-4 py-2 flex justify-between items-center">
+          <div className="border-t px-4 py-2 flex justify-center items-center">
             <Link
               href="/dashboard/notifications"
               className="text-center text-sm text-blue-500 hover:underline"
               onClick={() => setIsOpen(false)}
             >
               Voir toutes les notifications
-            </Link>
-            <Link
-              href="/dashboard/debug"
-              className="text-xs text-gray-400 hover:underline"
-              onClick={() => setIsOpen(false)}
-            >
-              Débogage
             </Link>
           </div>
         </div>
