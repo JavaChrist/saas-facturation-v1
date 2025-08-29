@@ -46,6 +46,7 @@ import GestionPaiements from "@/components/GestionPaiements";
 import { useFacture } from "@/lib/factureProvider";
 import { useModal } from "@/hooks/useModal";
 import ModalManager from "@/components/ui/ModalManager";
+import { verifierFacturesEnRetard } from "@/services/notificationService";
 
 // Classes Tailwind pour les statuts - à conserver pour le build
 // bg-green-500 bg-amber-500 bg-orange-500 bg-yellow-500 bg-blue-500 bg-red-500 bg-gray-500
@@ -711,6 +712,13 @@ export default function FacturesPage() {
         await updateDoc(factureRef, factureData);
         console.log("[DEBUG] ✅ Facture modifiée avec succès dans Firestore");
 
+        // Déclencher la (re)vérification des notifications (ex: statut "À relancer")
+        try {
+          await verifierFacturesEnRetard(user.uid);
+        } catch (e) {
+          console.warn("[DEBUG] Vérification notifications après update:", e);
+        }
+
         // Mettre à jour la facture dans la liste locale
         setFactures(prev => prev.map(f =>
           f.id === selectedFacture.id
@@ -748,6 +756,13 @@ export default function FacturesPage() {
         const factureRef = collection(db, "factures");
         const newFactureDoc = await addDoc(factureRef, factureData);
         console.log("[DEBUG] ✅ Nouvelle facture créée avec succès:", newFactureDoc.id);
+
+        // Déclencher la vérification des notifications pour cette facture si nécessaire
+        try {
+          await verifierFacturesEnRetard(user.uid);
+        } catch (e) {
+          console.warn("[DEBUG] Vérification notifications après création:", e);
+        }
 
         // Ajouter la nouvelle facture directement à la liste en mémoire
         const factureWithId = {
