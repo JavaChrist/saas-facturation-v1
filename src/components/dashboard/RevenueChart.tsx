@@ -120,7 +120,7 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
         const lastYearData = Array(12).fill(0);
         const debugFactures: any[] = [];
 
-        // Date de début et de fin filtrées
+        // Date de début et de fin filtrées (pour l'année courante)
         const filteredStartDate = dateRange
           ? new Date(dateRange.startDate)
           : new Date(currentYear, 0, 1);
@@ -128,12 +128,11 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
           ? new Date(dateRange.endDate)
           : new Date();
 
-        // Même plage décalée d'un an en arrière pour pouvoir afficher
-        // les données de l'année précédente côte à côte
-        const previousStartDate = new Date(filteredStartDate);
-        previousStartDate.setFullYear(previousStartDate.getFullYear() - 1);
-        const previousEndDate = new Date(filteredEndDate);
-        previousEndDate.setFullYear(previousEndDate.getFullYear() - 1);
+        // Pour l'année précédente, on prend TOUJOURS l'année complète
+        // (01/01 - 31/12) afin de permettre la comparaison mois par mois
+        // sur les 12 mois du graphique, indépendamment du filtre courant.
+        const previousStartDate = new Date(lastYear, 0, 1, 0, 0, 0);
+        const previousEndDate = new Date(lastYear, 11, 31, 23, 59, 59);
 
         // Calculer le chiffre d'affaires par mois
         querySnapshot.forEach((doc) => {
