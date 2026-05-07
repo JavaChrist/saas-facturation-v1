@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { FiEdit, FiTrash2, FiArrowLeft, FiPlusCircle, FiPlus, FiX, FiCheck } from "react-icons/fi";
+import { FiEdit, FiTrash2, FiArrowLeft, FiPlusCircle, FiPlus, FiX, FiCheck, FiDownload } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { onSnapshot, collection, query, where } from "firebase/firestore";
@@ -11,6 +11,7 @@ import { EmailContact } from "@/types/facture";
 import { DELAIS_PAIEMENT_OPTIONS, DelaiPaiementType } from "@/services/delaisPaiementService";
 import DelaiPaiementSelector from "@/components/DelaiPaiementSelector";
 import { useModal } from "@/hooks/useModal";
+import { exportClientsCsv } from "@/services/exportService";
 import ModalManager from "@/components/ui/ModalManager";
 
 interface Client {
@@ -68,6 +69,17 @@ export default function ClientsPage() {
       console.error("Erreur lors de la migration des emails:", error);
     }
   };
+
+  // Ouvrir le modal nouveau client si action=new dans l'URL
+  useEffect(() => {
+    if (typeof window === "undefined" || !user) return;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("action") === "new") {
+      window.history.replaceState({}, "", "/dashboard/clients");
+      const timer = setTimeout(() => openNewClientModal(), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [user]);
 
   // Charger les clients depuis Firestore
   useEffect(() => {
@@ -330,6 +342,22 @@ export default function ClientsPage() {
             className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-800 flex items-center justify-center"
           >
             <FiArrowLeft size={18} className="mr-2" /> Retour
+          </button>
+          <button
+            onClick={() => {
+              const exportData = clients.map((c) => ({
+                id: c.id,
+                refClient: c.refClient,
+                nom: c.nom,
+                email: c.emails?.[0]?.email || c.email || "",
+                ville: c.ville,
+                codePostal: c.codePostal,
+              }));
+              exportClientsCsv(exportData);
+            }}
+            className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md flex items-center justify-center"
+          >
+            <FiDownload size={18} className="mr-2" /> Exporter CSV
           </button>
           <button
             onClick={openNewClientModal}

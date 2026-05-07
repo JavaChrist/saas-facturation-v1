@@ -246,107 +246,99 @@ const DashboardStats: React.FC<DashboardStatsProps> = ({ user, dateRange }) => {
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* CA total TTC */}
-        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
-          <div className="bg-green-100 dark:bg-green-900 p-4 rounded-lg mr-4">
+        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex flex-col min-w-0">
+          <div className="bg-green-100 dark:bg-green-900 p-4 rounded-lg w-fit mb-3">
             <TbCash className="text-green-500 dark:text-green-400 text-2xl" />
           </div>
-          <div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
-              CA Total TTC
+          <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
+            CA Total TTC
+          </p>
+          <p className="text-2xl font-bold text-gray-800 dark:text-gray-100 break-words tabular-nums">
+            {loading ? "Chargement..." : `${stats.caTotal.toFixed(2)} €`}
+          </p>
+          {stats.caTotalVariation !== null && (
+            <p
+              className={`text-sm mt-1 ${stats.caTotalVariation >= 0
+                  ? "text-green-500"
+                  : "text-red-500"
+                }`}
+            >
+              {stats.caTotalVariation > 0 ? "+" : ""}
+              {stats.caTotalVariation.toFixed(2)}% vs période précédente
             </p>
-            <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              {loading ? "Chargement..." : `${stats.caTotal.toFixed(2)} €`}
-            </p>
-            {stats.caTotalVariation !== null && (
-              <p
-                className={`text-sm ${stats.caTotalVariation >= 0
-                    ? "text-green-500"
-                    : "text-red-500"
-                  }`}
-              >
-                {stats.caTotalVariation > 0 ? "+" : ""}
-                {stats.caTotalVariation.toFixed(2)}% vs période précédente
-              </p>
-            )}
-          </div>
+          )}
         </div>
 
         {/* CA total HT */}
-        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
-          <div className="bg-emerald-100 dark:bg-emerald-900 p-4 rounded-lg mr-4">
+        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex flex-col min-w-0">
+          <div className="bg-emerald-100 dark:bg-emerald-900 p-4 rounded-lg w-fit mb-3">
             <TbCash className="text-emerald-500 dark:text-emerald-400 text-2xl" />
           </div>
-          <div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
-              CA Total HT
+          <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
+            CA Total HT
+          </p>
+          <p className="text-2xl font-bold text-gray-800 dark:text-gray-100 break-words tabular-nums">
+            {loading ? "Chargement..." : `${stats.caTotalHT.toFixed(2)} €`}
+          </p>
+          {stats.caTotalHTVariation !== null && (
+            <p
+              className={`text-sm mt-1 ${stats.caTotalHTVariation >= 0
+                  ? "text-green-500"
+                  : "text-red-500"
+                }`}
+            >
+              {stats.caTotalHTVariation > 0 ? "+" : ""}
+              {stats.caTotalHTVariation.toFixed(2)}% vs période précédente
             </p>
-            <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              {loading ? "Chargement..." : `${stats.caTotalHT.toFixed(2)} €`}
-            </p>
-            {stats.caTotalHTVariation !== null && (
-              <p
-                className={`text-sm ${stats.caTotalHTVariation >= 0
-                    ? "text-green-500"
-                    : "text-red-500"
-                  }`}
-              >
-                {stats.caTotalHTVariation > 0 ? "+" : ""}
-                {stats.caTotalHTVariation.toFixed(2)}% vs période précédente
-              </p>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Nombre clients */}
-        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
-          <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-lg mr-4">
+        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex flex-col min-w-0">
+          <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-lg w-fit mb-3">
             <TbUsers className="text-blue-500 dark:text-blue-400 text-2xl" />
           </div>
-          <div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
-              Nombre de clients
+          <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
+            Nombre de clients
+          </p>
+          <p className="text-2xl font-bold text-gray-800 dark:text-gray-100 tabular-nums">
+            {loading ? "Chargement..." : stats.clientCount}
+          </p>
+          {stats.clientCountVariation !== null && (
+            <p
+              className={`text-sm mt-1 ${stats.clientCountVariation >= 0
+                  ? "text-green-500"
+                  : "text-red-500"
+                }`}
+            >
+              {stats.clientCountVariation > 0 ? "+" : ""}
+              {stats.clientCountVariation.toFixed(2)}% vs période précédente
             </p>
-            <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              {loading ? "Chargement..." : stats.clientCount}
-            </p>
-            {stats.clientCountVariation !== null && (
-              <p
-                className={`text-sm ${stats.clientCountVariation >= 0
-                    ? "text-green-500"
-                    : "text-red-500"
-                  }`}
-              >
-                {stats.clientCountVariation > 0 ? "+" : ""}
-                {stats.clientCountVariation.toFixed(2)}% vs période précédente
-              </p>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Nombre factures */}
-        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex items-center">
-          <div className="bg-purple-100 dark:bg-purple-900 p-4 rounded-lg mr-4">
+        <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md flex flex-col min-w-0">
+          <div className="bg-purple-100 dark:bg-purple-900 p-4 rounded-lg w-fit mb-3">
             <TbFileInvoice className="text-purple-500 dark:text-purple-400 text-2xl" />
           </div>
-          <div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
-              Nombre de factures
+          <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">
+            Nombre de factures
+          </p>
+          <p className="text-2xl font-bold text-gray-800 dark:text-gray-100 tabular-nums">
+            {loading ? "Chargement..." : stats.invoiceCount}
+          </p>
+          {stats.invoiceCountVariation !== null && (
+            <p
+              className={`text-sm mt-1 ${stats.invoiceCountVariation >= 0
+                  ? "text-green-500"
+                  : "text-red-500"
+                }`}
+            >
+              {stats.invoiceCountVariation > 0 ? "+" : ""}
+              {stats.invoiceCountVariation.toFixed(2)}% vs période précédente
             </p>
-            <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-              {loading ? "Chargement..." : stats.invoiceCount}
-            </p>
-            {stats.invoiceCountVariation !== null && (
-              <p
-                className={`text-sm ${stats.invoiceCountVariation >= 0
-                    ? "text-green-500"
-                    : "text-red-500"
-                  }`}
-              >
-                {stats.invoiceCountVariation > 0 ? "+" : ""}
-                {stats.invoiceCountVariation.toFixed(2)}% vs période précédente
-              </p>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>

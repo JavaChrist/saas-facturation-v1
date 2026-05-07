@@ -15,7 +15,12 @@ import {
   FiUser,
   FiGrid,
   FiMenu,
-  FiX
+  FiX,
+  FiTrendingUp,
+  FiActivity,
+  FiPieChart,
+  FiPlus,
+  FiSliders,
 } from "react-icons/fi";
 import Link from "next/link";
 import Image from "next/image";
@@ -24,33 +29,17 @@ import type { DateRange } from "@/components/dashboard/DateFilter";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import ThemeToggle from "@/components/ui/ThemeToggle";
 import { getUserPlan } from "@/services/subscriptionService";
+import {
+  getDashboardPreferences,
+  setDashboardPreferences,
+  type DashboardPreferences,
+} from "@/lib/dashboardPreferences";
 
 // Imports dynamiques pour réduire le JS initial et éviter le CLS avec des placeholders
 const DashboardStats = dynamic(() => import("@/components/dashboard/DashboardStats"), {
   ssr: false,
   loading: () => (
     <div className="h-28 bg-gray-100 dark:bg-gray-800 rounded-md animate-pulse" />
-  ),
-});
-
-const InvoiceStatusChart = dynamic(() => import("@/components/dashboard/InvoiceStatusChart"), {
-  ssr: false,
-  loading: () => (
-    <div className="h-72 md:h-80 bg-gray-100 dark:bg-gray-800 rounded-md animate-pulse" />
-  ),
-});
-
-const RevenueChart = dynamic(() => import("@/components/dashboard/RevenueChart"), {
-  ssr: false,
-  loading: () => (
-    <div className="h-72 md:h-80 bg-gray-100 dark:bg-gray-800 rounded-md animate-pulse" />
-  ),
-});
-
-const ClientsChart = dynamic(() => import("@/components/dashboard/ClientsChart"), {
-  ssr: false,
-  loading: () => (
-    <div className="h-72 md:h-80 bg-gray-100 dark:bg-gray-800 rounded-md animate-pulse" />
   ),
 });
 
@@ -84,6 +73,22 @@ export default function Dashboard() {
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [preferences, setPreferences] = useState<DashboardPreferences>({
+    showStats: true,
+    showQuickActions: true,
+  });
+  const [showPrefsPanel, setShowPrefsPanel] = useState(false);
+
+  // Charger les préférences au montage
+  useEffect(() => {
+    setPreferences(getDashboardPreferences());
+  }, []);
+
+  const updatePreference = (key: keyof DashboardPreferences, value: boolean) => {
+    const next = { ...preferences, [key]: value };
+    setPreferences(next);
+    setDashboardPreferences(next);
+  };
 
   // Redirection vers /login si l'utilisateur n'est pas connecté
   useEffect(() => {
@@ -215,6 +220,30 @@ export default function Dashboard() {
             Factures
           </Link>
           <Link
+            href="/dashboard/chiffre-affaires"
+            onClick={() => setIsSidebarOpen(false)}
+            className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
+          >
+            <FiTrendingUp className="mr-3 text-white" size={18} />
+            Chiffre
+          </Link>
+          <Link
+            href="/dashboard/evolution-clients"
+            onClick={() => setIsSidebarOpen(false)}
+            className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
+          >
+            <FiActivity className="mr-3 text-white" size={18} />
+            Évolution clients
+          </Link>
+          <Link
+            href="/dashboard/statut-factures"
+            onClick={() => setIsSidebarOpen(false)}
+            className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
+          >
+            <FiPieChart className="mr-3 text-white" size={18} />
+            Statut factures
+          </Link>
+          <Link
             href="/dashboard/notifications"
             onClick={() => setIsSidebarOpen(false)}
             className="flex items-center py-2 px-4 rounded-md hover:bg-gray-600 dark:hover:bg-gray-700"
@@ -306,25 +335,82 @@ export default function Dashboard() {
               onDateChange={(range: DateRange) => setDateRange(range)}
               className="hidden sm:block w-32 md:w-56"
             />
+            <div className="relative">
+              <button
+                onClick={() => setShowPrefsPanel(!showPrefsPanel)}
+                className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-700"
+                title="Personnaliser le tableau de bord"
+              >
+                <FiSliders className="text-gray-600 dark:text-gray-300" size={20} />
+              </button>
+              {showPrefsPanel && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowPrefsPanel(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 z-20">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Widgets affichés
+                    </p>
+                    <label className="flex items-center gap-2 cursor-pointer mb-2">
+                      <input
+                        type="checkbox"
+                        checked={preferences.showStats}
+                        onChange={(e) =>
+                          updatePreference("showStats", e.target.checked)
+                        }
+                        className="rounded"
+                      />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        Statistiques
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={preferences.showQuickActions}
+                        onChange={(e) =>
+                          updatePreference("showQuickActions", e.target.checked)
+                        }
+                        className="rounded"
+                      />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        Actions rapides
+                      </span>
+                    </label>
+                  </div>
+                </>
+              )}
+            </div>
             <NotificationBell />
           </div>
         </div>
 
+        {preferences.showStats && (
         <div className="mb-8 min-h-[7rem]">
           <DashboardStats user={user} dateRange={dateRange} />
         </div>
+        )}
 
-        <div className="mb-8 min-h-[20rem]">
-          <InvoiceStatusChart dateRange={dateRange} />
+        {preferences.showQuickActions && (
+        <div className="mb-8 flex flex-wrap gap-4">
+          <Link
+            href="/dashboard/factures?action=new"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition shadow-md"
+          >
+            <FiPlus size={20} />
+            Nouvelle facture
+          </Link>
+          <Link
+            href="/dashboard/clients?action=new"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition shadow-md"
+          >
+            <FiPlus size={20} />
+            Nouveau client
+          </Link>
         </div>
-
-        <div className="mb-8 min-h-[20rem]">
-          <RevenueChart dateRange={dateRange} />
-        </div>
-
-        <div className="mb-8 min-h-[20rem]">
-          <ClientsChart dateRange={dateRange} />
-        </div>
+        )}
 
         {/* Navigation cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -364,6 +450,69 @@ export default function Dashboard() {
                   </h3>
                   <p className="text-gray-500 dark:text-gray-400">
                     Gérer vos factures
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/chiffre-affaires"
+            className="transform hover:scale-105 transition-transform duration-300"
+          >
+            <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
+              <div className="flex items-center space-x-4">
+                <div className="bg-cyan-100 dark:bg-cyan-900 p-3 rounded-full">
+                  <FiTrendingUp className="text-cyan-500 dark:text-cyan-400 text-xl" />
+                </div>
+                <div className="flex flex-col">
+                  <h3 className="text-xl font-semibold text-text-light dark:text-text-dark">
+                    Chiffre
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Résultats et évolution du CA
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/evolution-clients"
+            className="transform hover:scale-105 transition-transform duration-300"
+          >
+            <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
+              <div className="flex items-center space-x-4">
+                <div className="bg-emerald-100 dark:bg-emerald-900 p-3 rounded-full">
+                  <FiActivity className="text-emerald-500 dark:text-emerald-400 text-xl" />
+                </div>
+                <div className="flex flex-col">
+                  <h3 className="text-xl font-semibold text-text-light dark:text-text-dark">
+                    Évolution clients
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Graphiques et statistiques clients
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/dashboard/statut-factures"
+            className="transform hover:scale-105 transition-transform duration-300"
+          >
+            <div className="bg-card-light dark:bg-card-dark p-6 rounded-lg shadow-md cursor-pointer h-[100px] flex items-center">
+              <div className="flex items-center space-x-4">
+                <div className="bg-amber-100 dark:bg-amber-900 p-3 rounded-full">
+                  <FiPieChart className="text-amber-500 dark:text-amber-400 text-xl" />
+                </div>
+                <div className="flex flex-col">
+                  <h3 className="text-xl font-semibold text-text-light dark:text-text-dark">
+                    Statut factures
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Répartition par statut
                   </p>
                 </div>
               </div>

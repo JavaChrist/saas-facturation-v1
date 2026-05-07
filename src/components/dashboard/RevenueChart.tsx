@@ -19,6 +19,8 @@ import { useAuth } from "@/lib/authContext";
 import { DateRange } from "./DateFilter";
 import { useTheme } from "next-themes";
 import { formatCurrency } from "@/lib/utils";
+import { exportChiffreAffairesCsv } from "@/services/exportService";
+import { FiDownload } from "react-icons/fi";
 
 // Enregistrement des composants nécessaires pour Chart.js
 ChartJS.register(
@@ -438,11 +440,32 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
     return "2 ans";
   };
 
+  const handleExportCsv = () => {
+    const exportData = revenueData.labels.map((mois, index) => ({
+      mois,
+      cetteAnnee: revenueData.thisYear[index],
+      anneePrecedente: revenueData.lastYear[index],
+      evolution: revenueData.monthlyVariation[index],
+    }));
+    exportChiffreAffairesCsv(exportData);
+  };
+
   return (
     <div className="bg-card-light dark:bg-card-dark rounded-lg shadow-md p-6">
-      <h2 className="text-xl font-semibold mb-4 text-text-light dark:text-text-dark">
-        Chiffre d'affaires sur {getPeriodLabel()}
-      </h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+        <h2 className="text-xl font-semibold text-text-light dark:text-text-dark">
+          Chiffre d&apos;affaires sur {getPeriodLabel()}
+        </h2>
+        {!loading && (
+          <button
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-2 px-3 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg text-sm font-medium transition"
+          >
+            <FiDownload size={18} />
+            Exporter CSV
+          </button>
+        )}
+      </div>
 
       {loading ? (
         <div className="flex justify-center items-center h-64">

@@ -7,6 +7,9 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
+import * as dotenv from "dotenv";
+dotenv.config();
+
 import * as functions from "firebase-functions/v1"; // Utiliser v1 pour la compatibilité
 import * as admin from "firebase-admin";
 import * as nodemailer from "nodemailer";
@@ -35,26 +38,22 @@ interface ContactRequestData {
 // Initialiser Firebase Admin
 admin.initializeApp();
 
-// Récupérer la configuration des variables d'environnement Firebase
-let config: any;
-try {
-  config = functions.config();
-} catch (e) {
-  config = { email: {} };
-}
+// Configuration email via .env (functions.config() déprécié depuis déc. 2025)
+const COMMERCIAL_EMAIL = process.env.COMMERCIAL_EMAIL || process.env.EMAIL_USER || "votre-email@domaine.com";
+const EMAIL_FROM = process.env.EMAIL_FROM || process.env.EMAIL_USER || "facturation@votredomaine.com";
 
-// L'email qui recevra les demandes commerciales (vous)
-const COMMERCIAL_EMAIL = config.email?.commercial || process.env.COMMERCIAL_EMAIL || "votre-email@domaine.com";
-// L'email d'expéditeur de vos messages
-const EMAIL_FROM = config.email?.from || process.env.EMAIL_FROM || "facturation@votredomaine.com";
+// Région Europe pour les fonctions (RGPD, latence)
+const europeFunctions = functions.region("europe-west1");
 
-// Configuration du transporteur d'email
-// Pour le développement, vous pouvez utiliser un compte Gmail ou un service SMTP test
+// Configuration du transporteur d'email - IONOS SMTP (France)
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: process.env.SMTP_HOST || "smtp.ionos.fr",
+  port: parseInt(process.env.SMTP_PORT || "587", 10),
+  secure: false,
+  requireTLS: true,
   auth: {
-    user: process.env.EMAIL_USER || "votre-email@gmail.com", // A configurer dans les variables d'environnement Firebase
-    pass: process.env.EMAIL_PASSWORD || "votre-mot-de-passe", // A configurer dans les variables d'environnement Firebase
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
   },
 });
 
@@ -192,7 +191,7 @@ const createClientConfirmationEmail = (
 };
 
 // Fonction pour envoyer une invitation à un utilisateur
-exports.sendUserInvitation = functions.https.onCall(
+exports.sendUserInvitation = europeFunctions.https.onCall(
   async (data: InvitationData, context: functions.https.CallableContext) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -268,7 +267,7 @@ exports.sendUserInvitation = functions.https.onCall(
 );
 
 // Fonction pour envoyer une facture par email
-exports.sendInvoiceByEmail = functions.https.onCall(
+exports.sendInvoiceByEmail = europeFunctions.https.onCall(
   async (data: InvoiceData, context: functions.https.CallableContext) => {
     if (!context.auth) {
       throw new functions.https.HttpsError(
@@ -389,8 +388,81 @@ exports.sendInvoiceByEmail = functions.https.onCall(
   }
 );
 
+// Fonction planifiée : rappels automatiques pour les factures en retard (tous les jours à 9h)
+exports.sendDailyPaymentReminders = europeFunctions.pubsub
+  .schedule("0 9 * * *")
+  .timeZone("Europe/Paris")
+  .onRun(async (context) => {
+    console.log("Démarrage des rappels automatiques pour factures en retard");
+
+    // Vérifier la config email
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      console.error("EMAIL_USER ou EMAIL_PASSWORD manquant dans .env");
+      return null;
+    }
+
+    try {
+      const db = admin.firestore();
+      const facturesSnapshot = await db
+        .collection("factures")
+        .where("statut", "==", "À relancer")
+        .get();
+
+      console.log(`${facturesSnapshot.size} facture(s) à relancer trouvée(s)`);
+
+      let emailsSent = 0;
+      for (const doc of facturesSnapshot.docs) {
+        const facture = doc.data();
+        const client = facture.client;
+        const clientEmail =
+          client?.emails?.[0]?.email || client?.email;
+
+        if (!clientEmail) {
+          console.log(`Facture ${doc.id}: pas d'email client, ignorée`);
+          continue;
+        }
+
+        const montant = typeof facture.totalTTC === "number"
+          ? facture.totalTTC
+          : parseFloat(facture.totalTTC) || 0;
+        const numero = facture.numero || doc.id;
+        const clientNom = client?.nom || "Client";
+
+        const mailOptions = {
+          from: `"FacturationSaaS - Rappel" <${process.env.EMAIL_USER}>`,
+          to: clientEmail,
+          subject: `Rappel : Facture ${numero} en attente de paiement`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <h2 style="color: #333;">Rappel de paiement</h2>
+              <p>Bonjour ${clientNom},</p>
+              <p>Nous vous rappelons que la facture <strong>${numero}</strong> d'un montant de <strong>${montant.toFixed(2)} €</strong> est en attente de paiement.</p>
+              <p>Merci de procéder au règlement dans les plus brefs délais.</p>
+              <p>Cordialement,<br>L'équipe FacturationSaaS</p>
+            </div>
+          `,
+        };
+
+        try {
+          await sendEmail(mailOptions);
+          emailsSent++;
+          console.log(`Email de rappel envoyé pour facture ${numero} à ${clientEmail}`);
+        } catch (emailError) {
+          console.error(`Erreur envoi email pour facture ${doc.id}:`, emailError);
+        }
+      }
+
+      console.log(`${emailsSent} email(s) de rappel envoyé(s)`);
+      return null;
+    } catch (error) {
+      console.error("Erreur rappels automatiques:", error);
+      // Ne pas rethrow pour éviter Internal Server Error - les logs restent visibles
+      return null;
+    }
+  });
+
 // Fonction pour envoyer une demande commerciale
-exports.sendContactRequest = functions.https.onCall(
+exports.sendContactRequest = europeFunctions.https.onCall(
   async (data: ContactRequestData, context: functions.https.CallableContext) => {
     try {
       const { name, email, message } = data;

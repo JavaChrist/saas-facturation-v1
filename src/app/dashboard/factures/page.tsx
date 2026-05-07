@@ -27,6 +27,7 @@ import {
   FiRefreshCw,
   FiMail,
   FiMenu,
+  FiDownload,
 } from "react-icons/fi";
 import { useRouter } from "next/navigation";
 import { Facture, Client } from "@/types/facture";
@@ -47,6 +48,7 @@ import { useFacture } from "@/lib/factureProvider";
 import { useModal } from "@/hooks/useModal";
 import ModalManager from "@/components/ui/ModalManager";
 import { verifierFacturesEnRetard } from "@/services/notificationService";
+import { exportFacturesCsv } from "@/services/exportService";
 
 // Classes Tailwind pour les statuts - à conserver pour le build
 // bg-green-500 bg-amber-500 bg-orange-500 bg-yellow-500 bg-blue-500 bg-red-500 bg-gray-500
@@ -110,16 +112,22 @@ const formatDate = (date: any): string => {
   }
 };
 
-// 🔧 NOUVELLE fonction utilitaire pour convertir une date en format input date (YYYY-MM-DD)
+// 🔧 Formate une Date en YYYY-MM-DD selon le fuseau horaire LOCAL
+// (toISOString() convertit en UTC et peut décaler d'un jour selon l'heure)
 const formatDateForInput = (date: any): string => {
   try {
     const dateObj = convertToDate(date);
-    // Utiliser toISOString().split('T')[0] pour avoir le format YYYY-MM-DD
-    return dateObj.toISOString().split('T')[0];
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const d = String(dateObj.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   } catch (e) {
     console.error("Erreur de formatage de date pour input:", e);
-    // Date d'aujourd'hui par défaut
-    return new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
   }
 };
 
@@ -130,6 +138,19 @@ const createDateFromInput = (inputValue: string): Date => {
   // Créer la date en spécifiant explicitement le fuseau horaire local
   const date = new Date(inputValue + 'T12:00:00');
   return date;
+};
+
+// Renvoie le dernier jour du mois précédent à 12h locale
+const lastDayOfPreviousMonth = (): Date => {
+  const now = new Date();
+  // Le jour 0 du mois courant = dernier jour du mois précédent
+  return new Date(now.getFullYear(), now.getMonth(), 0, 12, 0, 0);
+};
+
+// Renvoie le premier jour du mois courant à 12h locale
+const firstDayOfCurrentMonth = (): Date => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0);
 };
 
 // Nouvelle fonction utilitaire pour tronquer à 2 décimales et formater
@@ -433,17 +454,29 @@ export default function FacturesPage() {
     [user]
   );
 
-  // Ouvrir la facture si un ID est spécifié dans l'URL
+  // Ouvrir la facture si un ID est spécifié dans l'URL, ou ouvrir le modal nouvelle facture si action=new
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const action = urlParams.get("action");
+
+    if (action === "new" && !isLoading) {
+      window.history.replaceState({}, "", "/dashboard/factures");
+      // Utiliser setTimeout pour s'assurer que openModal est disponible
+      const timer = setTimeout(() => {
+        openModal();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+
     if (searchParams.id && factures.length > 0) {
       const factureToOpen = factures.find((f) => f.id === searchParams.id);
       if (factureToOpen) {
         openEditModal(factureToOpen);
-        // Réinitialiser l'ID pour éviter de rouvrir la facture à chaque rafraîchissement
         setSearchParams({});
       }
     }
-  }, [searchParams.id, factures, openEditModal]);
+  }, [searchParams.id, factures, openEditModal, isLoading]);
 
   // Charger les clients depuis Firestore
   useEffect(() => {
@@ -586,6 +619,39 @@ export default function FacturesPage() {
     const totalTTC = updatedArticles
       .filter((article) => !article.isComment)
       .reduce((sum, article) => sum + article.totalTTC, 0);
+
+    setNewFacture({
+      ...newFacture,
+      articles: updatedArticles,
+      totalHT,
+      totalTTC,
+    });
+  };
+
+  // Saisie d'un prix unitaire TTC : on en déduit le prix HT en fonction de la TVA
+  const handleArticlePrixTTCChange = (index: number, prixTTCUnitaire: number) => {
+    const updatedArticles = [...(newFacture.articles || [])];
+    const article = updatedArticles[index];
+    if (!article || article.isComment) return;
+
+    const tva = Number(article.tva) || 0;
+    // Calcul du HT à partir du TTC (4 décimales pour limiter les erreurs d'arrondi)
+    const prixHT = tva > 0
+      ? Math.round((prixTTCUnitaire / (1 + tva / 100)) * 10000) / 10000
+      : prixTTCUnitaire;
+
+    updatedArticles[index] = { ...article, prixUnitaireHT: prixHT };
+
+    const ligneHT = prixHT * (Number(article.quantite) || 0);
+    const tvaAmount = (ligneHT * tva) / 100;
+    updatedArticles[index].totalTTC = ligneHT + tvaAmount;
+
+    const totalHT = updatedArticles
+      .filter((a) => !a.isComment)
+      .reduce((sum, a) => sum + a.prixUnitaireHT * a.quantite, 0);
+    const totalTTC = updatedArticles
+      .filter((a) => !a.isComment)
+      .reduce((sum, a) => sum + a.totalTTC, 0);
 
     setNewFacture({
       ...newFacture,
@@ -1272,6 +1338,24 @@ export default function FacturesPage() {
             🔄 Récurrentes
           </button>
           <button
+            onClick={() => {
+              const exportData = factures.map((f) => ({
+                id: f.id,
+                numero: f.numero,
+                dateCreation: formatDate(f.dateCreation),
+                clientNom: f.client?.nom || "",
+                clientEmail: f.client?.emails?.[0]?.email || f.client?.email || "",
+                statut: f.statut,
+                totalHT: f.totalHT || 0,
+                totalTTC: f.totalTTC || 0,
+              }));
+              exportFacturesCsv(exportData);
+            }}
+            className="bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md flex items-center"
+          >
+            <FiDownload size={18} className="mr-2" /> Exporter CSV
+          </button>
+          <button
             onClick={openModal}
             disabled={limitReached}
             className={`${limitReached
@@ -1301,6 +1385,24 @@ export default function FacturesPage() {
               className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 flex items-center justify-center"
             >
               🔄 Récurrentes
+            </button>
+            <button
+              onClick={() => {
+                const exportData = factures.map((f) => ({
+                  id: f.id,
+                  numero: f.numero,
+                  dateCreation: formatDate(f.dateCreation),
+                  clientNom: f.client?.nom || "",
+                  clientEmail: f.client?.emails?.[0]?.email || f.client?.email || "",
+                  statut: f.statut,
+                  totalHT: f.totalHT || 0,
+                  totalTTC: f.totalTTC || 0,
+                }));
+                exportFacturesCsv(exportData);
+              }}
+              className="w-full bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-md flex items-center justify-center"
+            >
+              <FiDownload size={18} className="mr-2" /> Exporter CSV
             </button>
             <button
               onClick={openModal}
@@ -1582,6 +1684,47 @@ export default function FacturesPage() {
                     className="w-full p-2 border rounded bg-white text-gray-800"
                     required
                   />
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNewFacture(prev => ({
+                          ...prev,
+                          dateCreation: new Date(),
+                        }))
+                      }
+                      className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 rounded"
+                      title="Mettre la date d'aujourd'hui"
+                    >
+                      Aujourd'hui
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNewFacture(prev => ({
+                          ...prev,
+                          dateCreation: lastDayOfPreviousMonth(),
+                        }))
+                      }
+                      className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 rounded"
+                      title="Dernier jour du mois précédent"
+                    >
+                      Fin mois précédent
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setNewFacture(prev => ({
+                          ...prev,
+                          dateCreation: firstDayOfCurrentMonth(),
+                        }))
+                      }
+                      className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 rounded"
+                      title="Premier jour du mois courant"
+                    >
+                      Début du mois
+                    </button>
+                  </div>
                 </div>
                 <div className="flex flex-col">
                   <label className="block font-semibold text-gray-800 dark:text-white mb-2">
@@ -1682,11 +1825,13 @@ export default function FacturesPage() {
                       />
                       <input
                         type="number"
+                        step="0.01"
                         placeholder="Prix HT"
+                        title="Prix unitaire HT"
                         value={
                           article.prixUnitaireHT === 0
                             ? ""
-                            : article.prixUnitaireHT
+                            : Number(article.prixUnitaireHT.toFixed(4))
                         }
                         onChange={(e) =>
                           handleArticleChange(
@@ -1696,6 +1841,29 @@ export default function FacturesPage() {
                           )
                         }
                         className="w-24 p-2 border bg-white text-gray-800"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Prix TTC"
+                        title="Prix unitaire TTC (recalcule le HT selon la TVA)"
+                        value={
+                          article.prixUnitaireHT === 0
+                            ? ""
+                            : Number(
+                                (
+                                  article.prixUnitaireHT *
+                                  (1 + (Number(article.tva) || 0) / 100)
+                                ).toFixed(2)
+                              )
+                        }
+                        onChange={(e) =>
+                          handleArticlePrixTTCChange(
+                            index,
+                            e.target.value === "" ? 0 : Number(e.target.value)
+                          )
+                        }
+                        className="w-24 p-2 border bg-blue-50 text-gray-800"
                       />
                       <input
                         type="number"

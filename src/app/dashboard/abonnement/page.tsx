@@ -134,7 +134,6 @@ function AbonnementContent() {
         "Support prioritaire",
         "Clients & factures illimités",
         "Utilisateurs multiples",
-        "API d'intégration",
         "Personnalisation avancée",
       ],
       couleur: "purple",
