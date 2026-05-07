@@ -128,6 +128,13 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
           ? new Date(dateRange.endDate)
           : new Date();
 
+        // Même plage décalée d'un an en arrière pour pouvoir afficher
+        // les données de l'année précédente côte à côte
+        const previousStartDate = new Date(filteredStartDate);
+        previousStartDate.setFullYear(previousStartDate.getFullYear() - 1);
+        const previousEndDate = new Date(filteredEndDate);
+        previousEndDate.setFullYear(previousEndDate.getFullYear() - 1);
+
         // Calculer le chiffre d'affaires par mois
         querySnapshot.forEach((doc) => {
           const facture = doc.data();
@@ -183,12 +190,16 @@ const RevenueChart: React.FC<RevenueChartProps> = ({ dateRange }) => {
               return; // Passer à la facture suivante
             }
 
-            // Vérifier si la facture est dans la plage de dates filtrée
-            if (
-              dateRange &&
-              (date < filteredStartDate || date > filteredEndDate)
-            ) {
-              return; // Ignorer cette facture si elle est en dehors de la plage
+            // Vérifier si la facture est dans la plage filtrée (année courante)
+            // OU dans la même plage décalée à l'année précédente
+            if (dateRange) {
+              const inCurrentRange =
+                date >= filteredStartDate && date <= filteredEndDate;
+              const inPreviousYearRange =
+                date >= previousStartDate && date <= previousEndDate;
+              if (!inCurrentRange && !inPreviousYearRange) {
+                return; // Ignorer cette facture si elle est en dehors des plages
+              }
             }
 
             const factureYear = date.getFullYear();
